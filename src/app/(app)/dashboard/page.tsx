@@ -13,7 +13,7 @@ export default async function DashboardPage() {
         Привет, {user.firstName}! 👋
       </h1>
       <p className="mt-2 text-neutral-400">
-        Рабочее пространство Tandem. Ваши доски и задачи — в одном месте.
+        Рабочее пространство Projectra. Ваши доски и задачи — в одном месте.
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

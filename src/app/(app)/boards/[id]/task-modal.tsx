@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/cn";
 import { PRIORITIES, PRIORITY_META, normalizePriority } from "@/lib/priority";
 import { updateTask, deleteTask, toggleAssignee } from "../actions";
+import { useConfirm } from "@/components/ui/dialog-provider";
 import { CommentsSection } from "./comments-section";
 import type { BoardTask, BoardMemberView } from "./board-view";
 
@@ -41,6 +42,7 @@ export function TaskModal({
   );
   const [assignPending, startAssign] = useTransition();
   const [delPending, startDel] = useTransition();
+  const confirm = useConfirm();
 
   useEffect(() => {
     if (state.ok) onClose();
@@ -154,8 +156,14 @@ export function TaskModal({
                   variant="danger"
                   size="sm"
                   loading={delPending}
-                  onClick={() => {
-                    if (confirm("Удалить задачу?")) {
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: "Удалить задачу?",
+                      message: `«${task.title}» будет удалена.`,
+                      confirmLabel: "Удалить",
+                      danger: true,
+                    });
+                    if (ok) {
                       startDel(async () => {
                         await deleteTask(task.id);
                         onClose();

@@ -42,7 +42,7 @@ export function Landing() {
         {/* Nav */}
         <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
           <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-xl font-bold text-transparent">
-            Tandem
+            Projectra
           </span>
           <Link
             href="/login"
@@ -83,7 +83,7 @@ export function Landing() {
               transition={{ duration: 0.6, delay: 0.15 }}
               className="mt-6 max-w-xl text-lg leading-8 text-neutral-400"
             >
-              Tandem объединяет доски, мессенджер, календарь и связи задач.
+              Projectra объединяет доски, мессенджер, календарь и связи задач.
               Планируйте, обсуждайте и доводите проекты до конца — вместе.
             </motion.p>
 
@@ -181,7 +181,7 @@ export function Landing() {
 
         {/* Footer */}
         <footer className="border-t border-white/5 py-8 text-center text-sm text-neutral-600">
-          Tandem © {new Date().getFullYear()} · Корпоративная система управления
+          Projectra © {new Date().getFullYear()} · Корпоративная система управления
           проектами
         </footer>
       </div>

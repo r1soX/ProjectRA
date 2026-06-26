@@ -114,7 +114,7 @@ export function AppShell({
       <aside className="hidden w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900/40 md:flex">
         <div className="flex h-14 items-center px-5">
           <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-xl font-bold text-transparent">
-            Tandem
+            Projectra
           </span>
         </div>
         <div className="flex-1 px-3 py-2">
@@ -143,7 +143,7 @@ export function AppShell({
             >
               <div className="flex h-14 items-center justify-between px-5">
                 <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-xl font-bold text-transparent">
-                  Tandem
+                  Projectra
                 </span>
                 <button
                   onClick={() => setMobileOpen(false)}
@@ -175,7 +175,7 @@ export function AppShell({
             <Menu className="h-5 w-5" />
           </button>
           <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-lg font-bold text-transparent">
-            Tandem
+            Projectra
           </span>
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>

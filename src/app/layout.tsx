@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tandem",
+  title: "Projectra",
   description: "Командный таск-менеджер с мессенджером, досками и календарём",
 };
 

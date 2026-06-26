@@ -34,7 +34,7 @@ export function BrandPanel() {
         className="flex items-center gap-2"
       >
         <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-2xl font-bold text-transparent">
-          Tandem
+          Projectra
         </span>
       </motion.div>
 
@@ -85,7 +85,7 @@ export function BrandPanel() {
         transition={{ delay: 0.8 }}
         className="text-xs text-neutral-600"
       >
-        © {new Date().getFullYear()} Tandem — корпоративная система управления проектами
+        © {new Date().getFullYear()} Projectra — корпоративная система управления проектами
       </motion.p>
     </div>
   );

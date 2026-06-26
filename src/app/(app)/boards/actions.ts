@@ -44,6 +44,29 @@ async function boardIdOfTask(taskId: string) {
   return t?.boardId ?? null;
 }
 
+/**
+ * A task may be modified/deleted only by its creator or an administrator.
+ * Returns the task (boardId + createdById) or null if it no longer exists;
+ * throws if the current user is not allowed.
+ */
+async function requireTaskMutator(taskId: string) {
+  const user = await requireUser();
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { boardId: true, createdById: true },
+  });
+  if (!task) return null;
+
+  if (user.role === "ADMIN") return { user, task };
+
+  const role = await getBoardRole(task.boardId, user.id);
+  if (!role) throw new Error("Нет доступа к доске");
+  if (task.createdById !== user.id) {
+    throw new Error("Изменять задачу может только её создатель или администратор");
+  }
+  return { user, task };
+}
+
 function parseDate(v: FormDataEntryValue | null): Date | null {
   const s = typeof v === "string" ? v.trim() : "";
   return s ? new Date(s) : null;
@@ -201,9 +224,9 @@ export async function createTask(columnId: string, title: string) {
 }
 
 export async function updateTask(taskId: string, formData: FormData) {
-  const boardId = await boardIdOfTask(taskId);
-  if (!boardId) return { error: "Задача не найдена" } as ActionState;
-  await requireBoardEditor(boardId);
+  const ctx = await requireTaskMutator(taskId);
+  if (!ctx) return { error: "Задача не найдена" } as ActionState;
+  const boardId = ctx.task.boardId;
 
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return { error: "Введите название задачи" } as ActionState;
@@ -224,26 +247,10 @@ export async function updateTask(taskId: string, formData: FormData) {
 }
 
 export async function deleteTask(taskId: string) {
-  const user = await requireUser();
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { boardId: true, createdById: true },
-  });
-  if (!task) return;
-
-  const isAdmin = user.role === "ADMIN";
-  // Admins may delete any task. Everyone else: only tasks they created,
-  // and only on a board they can access.
-  if (!isAdmin) {
-    const role = await getBoardRole(task.boardId, user.id);
-    if (!role) throw new Error("Нет доступа к доске");
-    if (task.createdById !== user.id) {
-      throw new Error("Удалить задачу может только её создатель или администратор");
-    }
-  }
-
+  const ctx = await requireTaskMutator(taskId);
+  if (!ctx) return;
   await prisma.task.delete({ where: { id: taskId } });
-  bump(task.boardId);
+  bump(ctx.task.boardId);
 }
 
 /** Move a task to a column and persist the destination column's order. */
@@ -252,9 +259,9 @@ export async function moveTask(
   toColumnId: string,
   orderedIds: string[],
 ) {
-  const boardId = await boardIdOfTask(taskId);
-  if (!boardId) return;
-  await requireBoardEditor(boardId);
+  const ctx = await requireTaskMutator(taskId);
+  if (!ctx) return;
+  const boardId = ctx.task.boardId;
 
   const col = await prisma.column.findUnique({
     where: { id: toColumnId },
@@ -322,9 +329,9 @@ export async function deleteComment(commentId: string) {
 }
 
 export async function toggleAssignee(taskId: string, userId: string) {
-  const boardId = await boardIdOfTask(taskId);
-  if (!boardId) return;
-  await requireBoardEditor(boardId);
+  const ctx = await requireTaskMutator(taskId);
+  if (!ctx) return;
+  const boardId = ctx.task.boardId;
 
   const existing = await prisma.taskAssignee.findUnique({
     where: { taskId_userId: { taskId, userId } },

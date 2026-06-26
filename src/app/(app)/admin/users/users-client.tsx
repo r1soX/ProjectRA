@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
+import { useConfirm } from "@/components/ui/dialog-provider";
 import { fullName, initials } from "@/lib/names";
 import {
   createUser,
@@ -186,6 +187,7 @@ function UserRow({
   onReset: (u: AdminUser) => void;
 }) {
   const [pending, startTransition] = useTransition();
+  const confirm = useConfirm();
 
   return (
     <motion.div
@@ -274,10 +276,14 @@ function UserRow({
           size="sm"
           variant="danger"
           disabled={isSelf || pending}
-          onClick={() => {
-            if (confirm(`Удалить пользователя @${user.username}?`)) {
-              startTransition(() => deleteUser(user.id));
-            }
+          onClick={async () => {
+            const ok = await confirm({
+              title: "Удалить пользователя?",
+              message: `@${user.username} будет удалён вместе со своими данными.`,
+              confirmLabel: "Удалить",
+              danger: true,
+            });
+            if (ok) startTransition(() => deleteUser(user.id));
           }}
           title="Удалить"
         >

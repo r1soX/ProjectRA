@@ -3,8 +3,8 @@ import { EventEmitter } from "node:events";
 
 // A single process-wide event bus. Stored on globalThis so it survives
 // dev hot-reloads and is shared between server actions and route handlers.
-const g = globalThis as unknown as { __tandemBus?: EventEmitter };
-const bus = g.__tandemBus ?? (g.__tandemBus = new EventEmitter());
+const g = globalThis as unknown as { __projectraBus?: EventEmitter };
+const bus = g.__projectraBus ?? (g.__projectraBus = new EventEmitter());
 bus.setMaxListeners(0);
 
 function channel(boardId: string) {

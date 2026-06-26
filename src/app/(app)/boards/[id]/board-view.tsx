@@ -45,6 +45,7 @@ import {
   moveTask,
   reorderColumns,
 } from "../actions";
+import { useConfirm, usePrompt } from "@/components/ui/dialog-provider";
 import { TaskModal } from "./task-modal";
 import { MembersModal } from "./members-modal";
 import { BoardSettingsModal } from "./board-settings-modal";
@@ -126,6 +127,7 @@ export function BoardView({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [, start] = useTransition();
   const router = useRouter();
+  const confirm = useConfirm();
   const draggingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
 
@@ -346,9 +348,14 @@ export function BoardView({
                 size="sm"
                 variant="ghost"
                 title="Удалить доску"
-                onClick={() => {
-                  if (confirm("Удалить доску со всеми задачами?"))
-                    start(() => deleteBoard(boardId));
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: "Удалить доску?",
+                    message: "Доска и все её задачи будут удалены безвозвратно.",
+                    confirmLabel: "Удалить",
+                    danger: true,
+                  });
+                  if (ok) start(() => deleteBoard(boardId));
                 }}
               >
                 <Trash2 className="h-4 w-4 text-red-400" />
@@ -382,6 +389,8 @@ export function BoardView({
                 key={col.id}
                 column={col}
                 canEdit={canEdit}
+                currentUserId={currentUserId}
+                isAdmin={isAdmin}
                 onOpenTask={setSelectedTaskId}
               />
             ))}
@@ -405,7 +414,11 @@ export function BoardView({
       <TaskModal
         task={selectedTask}
         members={assignable}
-        canEdit={canEdit}
+        canEdit={
+          selectedTask
+            ? isAdmin || selectedTask.createdById === currentUserId
+            : false
+        }
         currentUserId={currentUserId}
         canModerate={isOwner}
         canDelete={
@@ -455,10 +468,14 @@ function DanglingCard({ task }: { task: BoardTask }) {
 function SortableColumn({
   column,
   canEdit,
+  currentUserId,
+  isAdmin,
   onOpenTask,
 }: {
   column: BoardColumn;
   canEdit: boolean;
+  currentUserId: string;
+  isAdmin: boolean;
   onOpenTask: (id: string) => void;
 }) {
   const sortable = useSortable({
@@ -472,6 +489,8 @@ function SortableColumn({
   });
   const [menuOpen, setMenuOpen] = useState(false);
   const [, start] = useTransition();
+  const confirm = useConfirm();
+  const promptText = usePrompt();
 
   const style = {
     transform: CSS.Transform.toString(sortable.transform),
@@ -525,20 +544,30 @@ function SortableColumn({
                     className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-lg border border-neutral-700 bg-neutral-800 py-1 shadow-xl"
                   >
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setMenuOpen(false);
-                        const next = prompt("Название колонки", column.title);
-                        if (next && next.trim()) start(() => renameColumn(column.id, next));
+                        const next = await promptText({
+                          title: "Переименовать колонку",
+                          label: "Название колонки",
+                          defaultValue: column.title,
+                          confirmLabel: "Сохранить",
+                        });
+                        if (next) start(() => renameColumn(column.id, next));
                       }}
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-700"
                     >
                       <Pencil className="h-3.5 w-3.5" /> Переименовать
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setMenuOpen(false);
-                        if (confirm("Удалить колонку и её задачи?"))
-                          start(() => deleteColumn(column.id));
+                        const ok = await confirm({
+                          title: "Удалить колонку?",
+                          message: "Колонка и все её задачи будут удалены.",
+                          confirmLabel: "Удалить",
+                          danger: true,
+                        });
+                        if (ok) start(() => deleteColumn(column.id));
                       }}
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-red-300 hover:bg-neutral-700"
                     >
@@ -564,7 +593,7 @@ function SortableColumn({
             <SortableTask
               key={task.id}
               task={task}
-              canEdit={canEdit}
+              canDrag={isAdmin || task.createdById === currentUserId}
               onOpen={onOpenTask}
             />
           ))}
@@ -583,11 +612,11 @@ function SortableColumn({
 
 function SortableTask({
   task,
-  canEdit,
+  canDrag,
   onOpen,
 }: {
   task: BoardTask;
-  canEdit: boolean;
+  canDrag: boolean;
   onOpen: (id: string) => void;
 }) {
   const {
@@ -597,7 +626,7 @@ function SortableTask({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id, data: { type: "task" }, disabled: !canEdit });
+  } = useSortable({ id: task.id, data: { type: "task" }, disabled: !canDrag });
 
   const style = {
     transform: CSS.Transform.toString(transform),

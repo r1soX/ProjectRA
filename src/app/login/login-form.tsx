@@ -23,7 +23,7 @@ export function LoginForm() {
     >
       <div className="mb-8 text-center">
         <h1 className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-4xl font-bold tracking-tight text-transparent">
-          Tandem
+          Projectra
         </h1>
         <p className="mt-2 text-sm text-neutral-500">Вход в рабочее пространство</p>
       </div>

@@ -3,7 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 // Edge-safe session primitives (no Node-only deps, no Prisma).
 // Used by both middleware (edge) and server helpers.
 
-export const SESSION_COOKIE = "tandem_session";
+export const SESSION_COOKIE = "projectra_session";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
 function getSecret() {
