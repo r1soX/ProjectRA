@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
@@ -10,9 +17,11 @@ import {
   MouseSensor,
   TouchSensor,
   closestCorners,
+  closestCenter,
   useSensor,
   useSensors,
   useDroppable,
+  type CollisionDetection,
   type DragStartEvent,
   type DragOverEvent,
   type DragEndEvent,
@@ -211,6 +220,21 @@ export function BoardView({
     return findTaskColumn(overId);
   }
 
+  // When dragging a column, only collide with other columns so they shift to
+  // reveal the drop position; for tasks, use corner-based detection.
+  const collision = useCallback<CollisionDetection>(
+    (args) => {
+      if (args.active.data.current?.type === "column") {
+        const columnsOnly = args.droppableContainers.filter((d) =>
+          cols.some((c) => c.id === d.id),
+        );
+        return closestCenter({ ...args, droppableContainers: columnsOnly });
+      }
+      return closestCorners(args);
+    },
+    [cols],
+  );
+
   function onDragStart(e: DragStartEvent) {
     draggingRef.current = true;
     const type = e.active.data.current?.type;
@@ -395,7 +419,7 @@ export function BoardView({
       <DndContext
         id="board-dnd"
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={collision}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
@@ -416,8 +440,6 @@ export function BoardView({
                 key={col.id}
                 column={col}
                 canEdit={canEdit}
-                currentUserId={currentUserId}
-                isAdmin={isAdmin}
                 onOpenTask={setSelectedTaskId}
               />
             ))}
@@ -507,14 +529,10 @@ function DanglingCard({ task }: { task: BoardTask }) {
 function SortableColumn({
   column,
   canEdit,
-  currentUserId,
-  isAdmin,
   onOpenTask,
 }: {
   column: BoardColumn;
   canEdit: boolean;
-  currentUserId: string;
-  isAdmin: boolean;
   onOpenTask: (id: string) => void;
 }) {
   const sortable = useSortable({
@@ -632,7 +650,7 @@ function SortableColumn({
             <SortableTask
               key={task.id}
               task={task}
-              canDrag={isAdmin || task.createdById === currentUserId}
+              canDrag={canEdit}
               onOpen={onOpenTask}
             />
           ))}

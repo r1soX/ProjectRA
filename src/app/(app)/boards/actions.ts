@@ -319,15 +319,19 @@ export async function setTaskPosition(taskId: string, x: number, y: number) {
   });
 }
 
-/** Move a task to a column and persist the destination column's order. */
+/**
+ * Move a task to a column and persist the destination column's order.
+ * Moving cards is a workflow action — any board editor may do it (unlike
+ * editing task content, which is restricted to the creator/admin).
+ */
 export async function moveTask(
   taskId: string,
   toColumnId: string,
   orderedIds: string[],
 ) {
-  const ctx = await requireTaskMutator(taskId);
-  if (!ctx) return;
-  const boardId = ctx.task.boardId;
+  const boardId = await boardIdOfTask(taskId);
+  if (!boardId) return;
+  await requireBoardEditor(boardId);
 
   const col = await prisma.column.findUnique({
     where: { id: toColumnId },
