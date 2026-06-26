@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ReactFlow,
@@ -17,9 +17,10 @@ import {
   type Edge,
   type Connection,
   type NodeProps,
+  type OnSelectionChangeParams,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
 import {
@@ -53,14 +54,16 @@ function buildEdge(
     id,
     source,
     target,
-    type: "smoothstep",
+    type: "default", // smooth bezier curve
     animated: lt === "BLOCKS",
     label: meta.label,
-    labelBgStyle: { fill: "#171717" },
+    labelBgStyle: { fill: "#171717", fillOpacity: 0.85 },
     labelBgPadding: [4, 2],
-    labelStyle: { fill: meta.color, fontSize: 10 },
+    labelBgBorderRadius: 4,
+    labelStyle: { fill: meta.color, fontSize: 10, fontWeight: 600 },
     style: { stroke: meta.color, strokeWidth: 2 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: meta.color },
+    markerEnd: { type: MarkerType.ArrowClosed, color: meta.color, width: 18, height: 18 },
+    interactionWidth: 24,
     data: { linkType: lt },
   };
 }
@@ -139,6 +142,62 @@ export function LinksCanvas({
   const [nodes, , onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [linkType, setLinkType] = useState<LinkType>("RELATES");
+  const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
+  const [hoverNode, setHoverNode] = useState<string | null>(null);
+  const [hoverEdge, setHoverEdge] = useState<string | null>(null);
+
+  const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
+    setSelectedEdges(params.edges.map((e) => e.id));
+  }, []);
+
+  // Make crossings readable: focused/connected edges stay bright & thick,
+  // the rest fade out. Driven by hover (node or edge) and selection.
+  useEffect(() => {
+    setEdges((eds) =>
+      eds.map((e) => {
+        const lt = normLink((e.data?.linkType as string) ?? "RELATES");
+        const meta = EDGE_META[lt];
+        const selected = selectedEdges.includes(e.id);
+        const focusActive = hoverEdge !== null || hoverNode !== null;
+        const isFocused =
+          e.id === hoverEdge ||
+          (hoverNode !== null &&
+            (e.source === hoverNode || e.target === hoverNode));
+        const dim = focusActive && !isFocused;
+        return {
+          ...e,
+          style: {
+            stroke: selected ? "#ffffff" : meta.color,
+            strokeWidth: selected || isFocused ? 3.5 : 2,
+            opacity: dim ? 0.1 : 1,
+            filter:
+              selected || isFocused
+                ? `drop-shadow(0 0 5px ${meta.color})`
+                : undefined,
+          },
+        };
+      }),
+    );
+  }, [hoverNode, hoverEdge, selectedEdges, setEdges]);
+
+  const onNodeMouseEnter = useCallback(
+    (_: unknown, node: Node) => setHoverNode(node.id),
+    [],
+  );
+  const onNodeMouseLeave = useCallback(() => setHoverNode(null), []);
+  const onEdgeMouseEnter = useCallback(
+    (_: unknown, edge: Edge) => setHoverEdge(edge.id),
+    [],
+  );
+  const onEdgeMouseLeave = useCallback(() => setHoverEdge(null), []);
+
+  const deleteSelectedEdges = useCallback(() => {
+    if (selectedEdges.length === 0) return;
+    const ids = selectedEdges;
+    setEdges((eds) => eds.filter((e) => !ids.includes(e.id)));
+    for (const id of ids) if (!id.startsWith("tmp-")) deleteTaskLink(id);
+    setSelectedEdges([]);
+  }, [selectedEdges, setEdges]);
 
   const onConnect = useCallback(
     (c: Connection) => {
@@ -191,6 +250,15 @@ export function LinksCanvas({
 
         {canEdit && (
           <div className="ml-auto flex items-center gap-1.5">
+            {selectedEdges.length > 0 && (
+              <button
+                onClick={deleteSelectedEdges}
+                className="flex items-center gap-1.5 rounded-lg bg-red-500/90 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-red-500"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Удалить связь
+              </button>
+            )}
             <span className="hidden text-xs text-neutral-500 sm:inline">
               Тип новой связи:
             </span>
@@ -224,7 +292,8 @@ export function LinksCanvas({
       {canEdit && (
         <p className="border-b border-neutral-800/60 bg-neutral-900/30 px-4 py-1.5 text-xs text-neutral-500 sm:px-6">
           Потяните от правого края одной задачи к левому краю другой, чтобы
-          создать связь. Выделите линию и нажмите Delete, чтобы удалить.
+          создать связь. Наведите на задачу или линию — связанные подсветятся.
+          Кликните по линии и нажмите «Удалить связь» (или Delete).
         </p>
       )}
 
@@ -238,10 +307,17 @@ export function LinksCanvas({
           onConnect={onConnect}
           onEdgesDelete={onEdgesDelete}
           onNodeDragStop={onNodeDragStop}
+          onSelectionChange={onSelectionChange}
+          onNodeMouseEnter={onNodeMouseEnter}
+          onNodeMouseLeave={onNodeMouseLeave}
+          onEdgeMouseEnter={onEdgeMouseEnter}
+          onEdgeMouseLeave={onEdgeMouseLeave}
           nodeTypes={nodeTypes}
           nodesDraggable={canEdit}
           nodesConnectable={canEdit}
+          elementsSelectable
           edgesReconnectable={false}
+          deleteKeyCode={["Delete", "Backspace"]}
           fitView
         >
           <Background />

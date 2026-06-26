@@ -2,7 +2,16 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { motion } from "motion/react";
-import { Trash2, Check, UserCircle2, CalendarRange, Flag } from "lucide-react";
+import {
+  Trash2,
+  Check,
+  UserCircle2,
+  CalendarRange,
+  Flag,
+  Share2,
+  ArrowRight,
+  ArrowLeft,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -15,6 +24,12 @@ import { CommentsSection } from "./comments-section";
 import type { BoardTask, BoardMemberView } from "./board-view";
 
 const TASK_COLORS = ["#0ea5e9", "#6366f1", "#8b5cf6", "#ec4899", "#10b981", "#f59e0b", "#ef4444"];
+
+const LINK_LABEL: Record<string, string> = {
+  RELATES: "связь",
+  BLOCKS: "блокирует",
+  DEPENDS: "зависит",
+};
 
 export function TaskModal({
   task,
@@ -143,6 +158,35 @@ export function TaskModal({
               </div>
             )}
           </div>
+
+          {task.links.length > 0 && (
+            <div>
+              <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-neutral-300">
+                <Share2 className="h-4 w-4 text-neutral-500" />
+                Связи
+              </p>
+              <div className="space-y-1.5">
+                {task.links.map((l, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/40 px-2.5 py-1.5 text-sm"
+                  >
+                    {l.direction === "out" ? (
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+                    ) : (
+                      <ArrowLeft className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-neutral-200">
+                      {l.otherTitle}
+                    </span>
+                    <span className="shrink-0 text-xs text-neutral-500">
+                      {LINK_LABEL[l.type] ?? "связь"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {state.error && (
             <p className="text-sm text-red-300">{state.error}</p>

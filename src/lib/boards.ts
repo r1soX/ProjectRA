@@ -44,6 +44,13 @@ export async function getBoardWithData(boardId: string, userId: string) {
       owner: userPick,
       members: { include: { user: userPick } },
       labels: true,
+      links: {
+        select: {
+          sourceTaskId: true,
+          targetTaskId: true,
+          type: true,
+        },
+      },
       columns: {
         orderBy: { order: "asc" },
         include: {

@@ -77,6 +77,30 @@ export default async function BoardPage({
     headerMembers = []; // shared board → shown as "доступна всем"
   }
 
+  // Build per-task link lists (so connections are visible on the board).
+  const titleById = new Map<string, string>();
+  for (const c of board.columns)
+    for (const t of c.tasks) titleById.set(t.id, t.title);
+  const linksByTask = new Map<
+    string,
+    { otherTitle: string; type: string; direction: "out" | "in" }[]
+  >();
+  const pushLink = (
+    taskId: string,
+    item: { otherTitle: string; type: string; direction: "out" | "in" },
+  ) => {
+    const arr = linksByTask.get(taskId) ?? [];
+    arr.push(item);
+    linksByTask.set(taskId, arr);
+  };
+  for (const l of board.links) {
+    const sTitle = titleById.get(l.sourceTaskId);
+    const tTitle = titleById.get(l.targetTaskId);
+    if (!sTitle || !tTitle) continue;
+    pushLink(l.sourceTaskId, { otherTitle: tTitle, type: l.type, direction: "out" });
+    pushLink(l.targetTaskId, { otherTitle: sTitle, type: l.type, direction: "in" });
+  }
+
   const columns: BoardColumn[] = board.columns.map((c) => ({
     id: c.id,
     title: c.title,
@@ -109,6 +133,7 @@ export default async function BoardPage({
         userId: c.userId,
         createdAt: c.createdAt.toISOString(),
       })),
+      links: linksByTask.get(t.id) ?? [],
     })),
   }));
 

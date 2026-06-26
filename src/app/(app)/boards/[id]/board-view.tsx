@@ -88,6 +88,7 @@ export type BoardTask = {
     userId: string;
     createdAt: string;
   }[];
+  links: { otherTitle: string; type: string; direction: "out" | "in" }[];
 };
 export type BoardColumn = { id: string; title: string; tasks: BoardTask[] };
 

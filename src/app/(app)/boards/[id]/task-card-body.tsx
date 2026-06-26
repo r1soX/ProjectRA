@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, UserCircle2, MessageSquare } from "lucide-react";
+import { CalendarClock, UserCircle2, MessageSquare, Share2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
 import type { BoardTask } from "./board-view";
@@ -55,7 +55,8 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
         {(task.startDate ||
           task.dueDate ||
           task.assignees.length > 0 ||
-          task.comments.length > 0) && (
+          task.comments.length > 0 ||
+          task.links.length > 0) && (
           <div className="mt-2.5 flex items-center justify-between gap-2">
             {task.startDate || task.dueDate ? (
               <span
@@ -77,6 +78,12 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
               <span />
             )}
             <div className="flex shrink-0 items-center gap-2.5">
+              {task.links.length > 0 && (
+                <span className="flex items-center gap-1 text-xs text-neutral-400">
+                  <Share2 className="h-3.5 w-3.5" />
+                  {task.links.length}
+                </span>
+              )}
               {task.comments.length > 0 && (
                 <span className="flex items-center gap-1 text-xs text-neutral-400">
                   <MessageSquare className="h-3.5 w-3.5" />
