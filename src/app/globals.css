@@ -147,6 +147,15 @@ body {
   background-size: 28px 28px;
 }
 
+/* Prevent auto-zoom on input focus in iOS/Android (triggers when font-size < 16px) */
+@media screen and (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 /* Respect users who prefer less motion */
 @media (prefers-reduced-motion: reduce) {
   *,
