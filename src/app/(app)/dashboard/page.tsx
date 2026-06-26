@@ -42,22 +42,15 @@ export default async function DashboardPage() {
           </p>
         </Link>
 
-        {[
-          { title: "Календарь", desc: "Задачи по срокам" },
-        ].map((c) => (
-          <div
-            key={c.title}
-            className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-neutral-100">{c.title}</h2>
-              <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
-                скоро
-              </span>
-            </div>
-            <p className="mt-1.5 text-sm text-neutral-500">{c.desc}</p>
-          </div>
-        ))}
+        <Link
+          href="/calendar"
+          className="group rounded-xl border border-neutral-800 bg-neutral-900/40 p-5 transition hover:-translate-y-0.5 hover:border-sky-500/40 hover:bg-neutral-900/70"
+        >
+          <h2 className="font-semibold text-neutral-100">Календарь</h2>
+          <p className="mt-1.5 text-sm text-neutral-500">
+            Задачи по срокам, перенос дедлайнов
+          </p>
+        </Link>
       </div>
     </PageContainer>
   );

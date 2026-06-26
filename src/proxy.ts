@@ -1,7 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
-const PROTECTED = ["/dashboard", "/admin", "/profile", "/boards", "/messages"];
+const PROTECTED = [
+  "/dashboard",
+  "/admin",
+  "/profile",
+  "/boards",
+  "/messages",
+  "/calendar",
+];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -26,5 +33,6 @@ export const config = {
     "/profile/:path*",
     "/boards/:path*",
     "/messages/:path*",
+    "/calendar/:path*",
   ],
 };

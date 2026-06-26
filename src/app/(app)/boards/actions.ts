@@ -253,6 +253,18 @@ export async function deleteTask(taskId: string) {
   bump(ctx.task.boardId);
 }
 
+/** Reschedule a task's due date (used by the calendar). */
+export async function setTaskDue(taskId: string, date: string | null) {
+  const ctx = await requireTaskMutator(taskId);
+  if (!ctx) return;
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { dueDate: date ? new Date(date) : null },
+  });
+  bump(ctx.task.boardId);
+  revalidatePath("/calendar");
+}
+
 /** Move a task to a column and persist the destination column's order. */
 export async function moveTask(
   taskId: string,

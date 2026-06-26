@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   MessageCircle,
+  CalendarDays,
   Users,
   User as UserIcon,
   LogOut,
@@ -25,6 +26,7 @@ const baseNav: NavItem[] = [
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
   { href: "/boards", label: "Доски", icon: LayoutGrid },
   { href: "/messages", label: "Сообщения", icon: MessageCircle },
+  { href: "/calendar", label: "Календарь", icon: CalendarDays },
   { href: "/profile", label: "Профиль", icon: UserIcon },
 ];
 
