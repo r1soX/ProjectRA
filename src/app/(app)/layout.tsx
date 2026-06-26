@@ -3,7 +3,7 @@ import { getUnreadTotal } from "@/lib/chat";
 import { AppShell } from "@/components/app-shell";
 import { DialogProvider } from "@/components/ui/dialog-provider";
 import { NotificationCenter } from "@/components/notification-center";
-import { PresenceHeartbeat } from "@/components/presence-heartbeat";
+import { PresenceProvider } from "@/components/presence-provider";
 
 export default async function AppLayout({
   children,
@@ -14,11 +14,12 @@ export default async function AppLayout({
   const unreadTotal = await getUnreadTotal(user.id);
   return (
     <DialogProvider>
-      <AppShell user={user} unreadTotal={unreadTotal}>
-        {children}
-      </AppShell>
-      <NotificationCenter />
-      <PresenceHeartbeat />
+      <PresenceProvider>
+        <AppShell user={user} unreadTotal={unreadTotal}>
+          {children}
+        </AppShell>
+        <NotificationCenter />
+      </PresenceProvider>
     </DialogProvider>
   );
 }

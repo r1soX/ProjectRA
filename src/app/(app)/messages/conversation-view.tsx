@@ -18,7 +18,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
-import { isOnline, formatLastSeen } from "@/lib/presence";
+import { formatLastSeen } from "@/lib/presence";
+import { useOnline } from "@/components/presence-provider";
 import { useConfirm } from "@/components/ui/dialog-provider";
 import {
   sendMessage,
@@ -77,6 +78,7 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const isBoard = active.type === "BOARD";
+  const otherOnline = useOnline(active.otherUserId ?? "", active.otherLastSeen);
 
   useEffect(() => {
     const es = new EventSource(`/api/channels/${active.channelId}/stream`);
@@ -159,15 +161,22 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
             emoji={active.otherEmoji}
             initials={active.title.slice(0, 2).toUpperCase()}
             size={38}
-            online={isOnline(active.otherLastSeen)}
+            online={otherOnline}
           />
         )}
         <div className="min-w-0">
           <p className="truncate font-semibold text-neutral-100">{active.title}</p>
-          <p className="truncate text-xs text-neutral-500">
+          <p
+            className={cn(
+              "truncate text-xs",
+              !isBoard && otherOnline ? "text-emerald-400" : "text-neutral-500",
+            )}
+          >
             {isBoard
               ? active.subtitle
-              : formatLastSeen(active.otherLastSeen)}
+              : otherOnline
+                ? "в сети"
+                : formatLastSeen(active.otherLastSeen)}
           </p>
         </div>
       </div>

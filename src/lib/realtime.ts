@@ -3,9 +3,48 @@ import { EventEmitter } from "node:events";
 
 // A single process-wide event bus. Stored on globalThis so it survives
 // dev hot-reloads and is shared between server actions and route handlers.
-const g = globalThis as unknown as { __projectraBus?: EventEmitter };
+const g = globalThis as unknown as {
+  __projectraBus?: EventEmitter;
+  __projectraPresence?: Map<string, number>;
+};
 const bus = g.__projectraBus ?? (g.__projectraBus = new EventEmitter());
 bus.setMaxListeners(0);
+
+// userId → number of open presence connections (online if > 0)
+const presence = g.__projectraPresence ?? (g.__projectraPresence = new Map());
+
+export type PresenceEvent = { userId: string; online: boolean };
+
+/** Register a presence connection. Returns true if the user just came online. */
+export function presenceConnect(userId: string): boolean {
+  const n = (presence.get(userId) ?? 0) + 1;
+  presence.set(userId, n);
+  return n === 1;
+}
+
+/** Drop a presence connection. Returns true if the user just went offline. */
+export function presenceDisconnect(userId: string): boolean {
+  const n = (presence.get(userId) ?? 1) - 1;
+  if (n <= 0) {
+    presence.delete(userId);
+    return true;
+  }
+  presence.set(userId, n);
+  return false;
+}
+
+export function onlineUserIds(): string[] {
+  return [...presence.keys()];
+}
+
+export function publishPresence(userId: string, online: boolean) {
+  bus.emit("presence", { userId, online } satisfies PresenceEvent);
+}
+
+export function subscribePresence(cb: (e: PresenceEvent) => void) {
+  bus.on("presence", cb);
+  return () => bus.off("presence", cb);
+}
 
 function channel(boardId: string) {
   return `board:${boardId}`;

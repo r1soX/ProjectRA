@@ -3,7 +3,7 @@
 import { MessageCircle, LayoutGrid, MessagesSquare } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Avatar } from "@/components/ui/avatar";
-import { isOnline } from "@/lib/presence";
+import { usePresence, onlineFromState } from "@/components/presence-provider";
 import { openDm, openBoardChannel } from "./actions";
 import { ConversationView } from "./conversation-view";
 
@@ -63,6 +63,7 @@ export function MessagesClient({
   boards: ChatBoard[];
   active: ActiveChannel | null;
 }) {
+  const presence = usePresence();
   return (
     <div className="flex h-full min-h-0">
       {/* Conversation list */}
@@ -96,14 +97,16 @@ export function MessagesClient({
                   emoji={u.emoji}
                   initials={u.initials}
                   size={36}
-                  online={isOnline(u.lastSeenAt)}
+                  online={onlineFromState(presence, u.id, u.lastSeenAt)}
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-neutral-100">
                     {u.shortName}
                   </span>
                   <span className="block truncate text-xs text-neutral-500">
-                    {isOnline(u.lastSeenAt) ? "в сети" : `@${u.username}`}
+                    {onlineFromState(presence, u.id, u.lastSeenAt)
+                      ? "в сети"
+                      : `@${u.username}`}
                   </span>
                 </span>
                 <UnreadBadge n={u.unread} />
