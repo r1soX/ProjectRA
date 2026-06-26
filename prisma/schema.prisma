@@ -93,6 +93,8 @@ model Task {
   order       Int       @default(0)
   color       String?
   priority    String    @default("MEDIUM") // LOW | MEDIUM | URGENT
+  canvasX     Float? // position on the links canvas
+  canvasY     Float?
   isPersonal  Boolean   @default(false)
   startDate   DateTime?
   dueDate     DateTime?

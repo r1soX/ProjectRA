@@ -265,6 +265,57 @@ export async function setTaskDue(taskId: string, date: string | null) {
   revalidatePath("/calendar");
 }
 
+// ── task links (visual dependencies) ─────────────────────────────
+
+export async function createTaskLink(
+  boardId: string,
+  sourceTaskId: string,
+  targetTaskId: string,
+  type: string,
+): Promise<{ id: string } | null> {
+  await requireBoardEditor(boardId);
+  if (sourceTaskId === targetTaskId) return null;
+
+  const inBoard = await prisma.task.count({
+    where: { id: { in: [sourceTaskId, targetTaskId] }, boardId },
+  });
+  if (inBoard !== 2) return null;
+
+  const t = ["RELATES", "BLOCKS", "DEPENDS"].includes(type) ? type : "RELATES";
+  const link = await prisma.taskLink.upsert({
+    where: { sourceTaskId_targetTaskId: { sourceTaskId, targetTaskId } },
+    create: { boardId, sourceTaskId, targetTaskId, type: t },
+    update: { type: t },
+    select: { id: true },
+  });
+  revalidatePath(`/boards/${boardId}/links`);
+  return { id: link.id };
+}
+
+export async function deleteTaskLink(linkId: string) {
+  const link = await prisma.taskLink.findUnique({
+    where: { id: linkId },
+    select: { boardId: true },
+  });
+  if (!link) return;
+  await requireBoardEditor(link.boardId);
+  await prisma.taskLink.delete({ where: { id: linkId } });
+  revalidatePath(`/boards/${link.boardId}/links`);
+}
+
+export async function setTaskPosition(taskId: string, x: number, y: number) {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { boardId: true },
+  });
+  if (!task) return;
+  await requireBoardEditor(task.boardId);
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { canvasX: x, canvasY: y },
+  });
+}
+
 /** Move a task to a column and persist the destination column's order. */
 export async function moveTask(
   taskId: string,
