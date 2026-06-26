@@ -9,6 +9,9 @@ import { getBoardRole, canEdit } from "@/lib/boards";
 import { normalizePriority } from "@/lib/priority";
 import { ruleFromTask, nextOccurrence } from "@/lib/recurrence";
 import { publishBoard } from "@/lib/realtime";
+import { notifyMentions, notifyAssigned } from "@/lib/notify";
+import { logHistory } from "@/lib/task-history";
+import { shortName } from "@/lib/names";
 
 function normalizeRecurFreq(v: FormDataEntryValue | null): string | null {
   const s = typeof v === "string" ? v : "";
@@ -232,7 +235,7 @@ export async function createTask(columnId: string, title: string) {
   if (!boardId) return;
   const user = await requireBoardEditor(boardId);
   const count = await prisma.task.count({ where: { columnId } });
-  await prisma.task.create({
+  const task = await prisma.task.create({
     data: {
       boardId,
       columnId,
@@ -241,6 +244,7 @@ export async function createTask(columnId: string, title: string) {
       createdById: user.id,
     },
   });
+  await logHistory(task.id, user.id, "created", { after: task.title });
   bump(boardId);
 }
 
@@ -474,6 +478,16 @@ export async function addComment(
   if (!role) return { error: "Нет доступа к доске" };
 
   await prisma.comment.create({ data: { taskId, userId: user.id, body } });
+
+  // @-mentions
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { title: true, boardId: true },
+  });
+  if (task) {
+    await notifyMentions(body, user.id, shortName(user), taskId, task.title, task.boardId);
+  }
+
   bump(boardId);
   return { ok: true };
 }
@@ -530,17 +544,27 @@ export async function toggleAssigneeConfirm(taskId: string) {
 export async function toggleAssignee(taskId: string, userId: string) {
   const ctx = await requireTaskMutator(taskId);
   if (!ctx) return;
-  const boardId = ctx.task.boardId;
+  const { user, task: ctxTask } = ctx;
+  const boardId = ctxTask.boardId;
 
   const existing = await prisma.taskAssignee.findUnique({
     where: { taskId_userId: { taskId, userId } },
   });
   if (existing) {
-    await prisma.taskAssignee.delete({
-      where: { taskId_userId: { taskId, userId } },
-    });
+    await prisma.taskAssignee.delete({ where: { taskId_userId: { taskId, userId } } });
+    await logHistory(taskId, user.id, "assignee_remove", { name: userId });
   } else {
     await prisma.taskAssignee.create({ data: { taskId, userId } });
+    await logHistory(taskId, user.id, "assignee_add", { name: userId });
+    if (userId !== user.id) {
+      const task = await prisma.task.findUnique({
+        where: { id: taskId },
+        select: { title: true, boardId: true },
+      });
+      if (task) {
+        await notifyAssigned(userId, shortName(user), taskId, task.title, task.boardId);
+      }
+    }
   }
   bump(boardId);
 }

@@ -13,6 +13,7 @@ import {
   recipientsOfChannel,
 } from "@/lib/chat";
 import { publishChannel, publishUser } from "@/lib/realtime";
+import { notifyMentionsInMessage } from "@/lib/notify";
 
 export type ChatState = { error?: string; ok?: boolean };
 
@@ -94,6 +95,12 @@ export async function sendMessage(
   };
   const recipients = await recipientsOfChannel(channelId, me.id);
   for (const uid of recipients) publishUser(uid, payload);
+
+  // @-mentions
+  if (body) {
+    const channelTitle = isBoard ? (channel?.board?.title ?? "Доска") : senderShort;
+    await notifyMentionsInMessage(body, me.id, senderShort, channelId, channelTitle);
+  }
 
   revalidatePath("/messages");
   return { ok: true };

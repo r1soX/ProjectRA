@@ -80,14 +80,22 @@ export function subscribeChannel(channelId: string, cb: () => void) {
   return () => bus.off(ch, cb);
 }
 
-export type UserEvent = {
-  type: "message";
-  channelId: string;
-  fromName: string;
-  preview: string;
-  title: string; // conversation title (sender for DM, board name for board chat)
-  isBoard: boolean;
-};
+export type UserEvent =
+  | {
+      type: "message";
+      channelId: string;
+      fromName: string;
+      preview: string;
+      title: string;
+      isBoard: boolean;
+    }
+  | {
+      type: "notification";
+      notificationId: string;
+      notifType: string;
+      payload: Record<string, unknown>;
+      link?: string;
+    };
 
 /** Notify a specific user (cross-channel, for toasts + unread badge). */
 export function publishUser(userId: string, payload: UserEvent) {

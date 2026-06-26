@@ -31,15 +31,19 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  ownedBoards   Board[]        @relation("BoardOwner")
-  memberships   BoardMember[]
-  createdTasks  Task[]         @relation("TaskCreator")
-  assignments   TaskAssignee[]
-  comments      Comment[]
-  messages      Message[]
-  channels      ChannelMember[]
-  channelReads  ChannelRead[]
-  notifications Notification[]
+  ownedBoards        Board[]          @relation("BoardOwner")
+  memberships        BoardMember[]
+  createdTasks       Task[]           @relation("TaskCreator")
+  assignments        TaskAssignee[]
+  comments           Comment[]
+  messages           Message[]
+  channels           ChannelMember[]
+  channelReads       ChannelRead[]
+  notifications      Notification[]
+  taskHistory        TaskHistory[]
+  timeEntries        TimeEntry[]
+  permissionOverrides UserPermission[]
+  boardTemplates     BoardTemplate[]
 }
 
 // ── Boards ────────────────────────────────────────────────────────
@@ -97,28 +101,36 @@ model Task {
   order       Int       @default(0)
   color       String?
   priority    String    @default("MEDIUM") // LOW | MEDIUM | URGENT
-  canvasX     Float? // position on the links canvas
+  canvasX     Float?
   canvasY     Float?
   isPersonal  Boolean   @default(false)
-  // recurrence: null = одноразовая
-  recurFreq     String? // DAILY | WEEKLY | MONTHLY
-  recurInterval Int      @default(1) // каждые N (для DAILY)
-  recurDays     String? // JSON int[] — WEEKLY: 1-7 (Пн-Вс), MONTHLY: 1-31
+  parentId    String?   // subtasks: null = root task
+  // recurrence
+  recurFreq     String?
+  recurInterval Int      @default(1)
+  recurDays     String?
   recurUntil    DateTime?
   startDate   DateTime?
   dueDate     DateTime?
+  // deadline notification: last sent date (to avoid spam)
+  deadlineNotifiedAt DateTime?
   createdById String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  board     Board          @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  column    Column         @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  createdBy User           @relation("TaskCreator", fields: [createdById], references: [id])
-  assignees TaskAssignee[]
-  labels    TaskLabel[]
-  comments  Comment[]
-  linksFrom TaskLink[]     @relation("LinkSource")
-  linksTo   TaskLink[]     @relation("LinkTarget")
+  board       Board          @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  column      Column         @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  createdBy   User           @relation("TaskCreator", fields: [createdById], references: [id])
+  parent      Task?          @relation("Subtasks", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subtasks    Task[]         @relation("Subtasks")
+  assignees   TaskAssignee[]
+  labels      TaskLabel[]
+  comments    Comment[]
+  history     TaskHistory[]
+  timeEntries TimeEntry[]
+  attachments TaskAttachment[]
+  linksFrom   TaskLink[]     @relation("LinkSource")
+  linksTo     TaskLink[]     @relation("LinkTarget")
 }
 
 model TaskAssignee {
@@ -173,11 +185,12 @@ model TaskLabel {
 // ── Comments (task discussion) ────────────────────────────────────
 
 model Comment {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   taskId    String
   userId    String
   body      String
-  createdAt DateTime @default(now())
+  editedAt  DateTime?
+  createdAt DateTime  @default(now())
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -242,10 +255,106 @@ model Message {
 model Notification {
   id        String   @id @default(cuid())
   userId    String
-  type      String
-  payload   String // JSON string
+  type      String   // mention_comment | mention_message | deadline | task_assigned | task_completed | task_moved
+  payload   String   // JSON string
   isRead    Boolean  @default(false)
+  link      String?  // navigation URL
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ── Task history / audit log ──────────────────────────────────────
+
+model TaskHistory {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  action    String   // created|title|description|column|priority|assignee_add|assignee_remove|due|start|label_add|label_remove|completed|subtask_add|time_logged|attachment_add
+  meta      String?  // JSON {before, after, extra}
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ── Time tracking ─────────────────────────────────────────────────
+
+model TimeEntry {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  minutes   Int      // продолжительность в минутах
+  note      String?
+  loggedAt  DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ── Task file attachments ─────────────────────────────────────────
+
+model TaskAttachment {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  url       String
+  name      String
+  size      Int
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+// ── Board templates ───────────────────────────────────────────────
+
+model BoardTemplate {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  isSystem    Boolean          @default(false) // встроенный шаблон
+  createdById String
+  createdAt   DateTime         @default(now())
+
+  createdBy User             @relation(fields: [createdById], references: [id])
+  columns   TemplateColumn[]
+}
+
+model TemplateColumn {
+  id         String @id @default(cuid())
+  templateId String
+  title      String
+  order      Int
+  isSystem   Boolean @default(false)
+  systemKey  String?
+
+  template BoardTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+}
+
+// ── Granular permissions ──────────────────────────────────────────
+// Система прав: роль (USER/ADMIN) → набор разрешений по умолчанию.
+// Администратор может переопределить любое право для конкретного пользователя.
+//
+// Формат perm: "<resource>.<action>[.<scope>]"
+// Примеры: "task.delete.any", "board.create", "admin.users.view"
+
+model RolePermission {
+  id      String  @id @default(cuid())
+  role    String  // USER | ADMIN
+  perm    String  // permission key
+  granted Boolean @default(true)
+
+  @@unique([role, perm])
+}
+
+model UserPermission {
+  id      String  @id @default(cuid())
+  userId  String
+  perm    String
+  granted Boolean // true = явно разрешено, false = явно запрещено
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, perm])
 }
