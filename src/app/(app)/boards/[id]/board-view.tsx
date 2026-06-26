@@ -16,8 +16,9 @@ import {
   DragOverlay,
   MouseSensor,
   TouchSensor,
-  closestCorners,
   closestCenter,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
   useDroppable,
@@ -220,9 +221,12 @@ export function BoardView({
       return closestCenter({ ...args, droppableContainers: columnsOnly });
     }
     // Task drag: collide only with tasks and column dropzones — never the raw
-    // column container — so dropping into an EMPTY column still resolves.
+    // column container. Pointer-based detection reliably hits EMPTY columns
+    // (closestCorners would snap to a neighbour's tasks instead).
     const taskTargets = args.droppableContainers.filter((d) => !isColumn(d.id));
-    return closestCorners({ ...args, droppableContainers: taskTargets });
+    const pointer = pointerWithin({ ...args, droppableContainers: taskTargets });
+    if (pointer.length > 0) return pointer;
+    return rectIntersection({ ...args, droppableContainers: taskTargets });
   }, []);
 
   function onDragStart(e: DragStartEvent) {
