@@ -68,6 +68,7 @@ export type BoardTask = {
   title: string;
   description: string | null;
   color: string | null;
+  priority: string;
   startDate: string | null;
   dueDate: string | null;
   createdByName: string;

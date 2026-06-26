@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { getBoardRole, canEdit } from "@/lib/boards";
+import { normalizePriority } from "@/lib/priority";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
 
@@ -211,6 +212,7 @@ export async function updateTask(taskId: string, formData: FormData) {
       title,
       description: String(formData.get("description") ?? "").trim() || null,
       color: String(formData.get("color") ?? "").trim() || null,
+      priority: normalizePriority(formData.get("priority")),
       startDate: parseDate(formData.get("startDate")),
       dueDate: parseDate(formData.get("dueDate")),
     },

@@ -2,6 +2,7 @@
 
 import { CalendarClock, UserCircle2 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { PRIORITY_META, normalizePriority } from "@/lib/priority";
 import type { BoardTask } from "./board-view";
 
 function isOverdue(s: string) {
@@ -20,25 +21,34 @@ export function formatDue(s: string) {
 
 /** Inner content of a task card (without the outer border/bg wrapper). */
 export function TaskCardBody({ task }: { task: BoardTask }) {
+  const priority = PRIORITY_META[normalizePriority(task.priority)];
   return (
     <>
-      {task.color && (
-        <div className="h-1" style={{ backgroundColor: task.color }} />
-      )}
+      <div
+        className="h-1"
+        style={{ backgroundColor: task.color ?? priority.bar }}
+      />
       <div className="p-2.5">
-        {task.labels.length > 0 && (
-          <div className="mb-1.5 flex flex-wrap gap-1">
-            {task.labels.map((l) => (
-              <span
-                key={l.id}
-                className="rounded px-1.5 py-0.5 text-[10px]"
-                style={{ backgroundColor: l.color + "33", color: l.color }}
-              >
-                {l.name}
-              </span>
-            ))}
-          </div>
-        )}
+        <div className="mb-1.5 flex flex-wrap items-center gap-1">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
+              priority.badge,
+            )}
+          >
+            <span className={cn("h-1.5 w-1.5 rounded-full", priority.dot)} />
+            {priority.label}
+          </span>
+          {task.labels.map((l) => (
+            <span
+              key={l.id}
+              className="rounded px-1.5 py-0.5 text-[10px]"
+              style={{ backgroundColor: l.color + "33", color: l.color }}
+            >
+              {l.name}
+            </span>
+          ))}
+        </div>
         <p className="text-sm text-neutral-100">{task.title}</p>
         {(task.startDate || task.dueDate || task.assignees.length > 0) && (
           <div className="mt-2 flex items-center justify-between gap-2">

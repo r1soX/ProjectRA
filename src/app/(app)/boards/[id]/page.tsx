@@ -58,6 +58,7 @@ export default async function BoardPage({
       title: t.title,
       description: t.description,
       color: t.color,
+      priority: t.priority,
       startDate: toDateInput(t.startDate),
       dueDate: toDateInput(t.dueDate),
       createdByName: shortName(t.createdBy),

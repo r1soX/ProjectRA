@@ -90,6 +90,7 @@ model Task {
   description String?
   order       Int       @default(0)
   color       String?
+  priority    String    @default("MEDIUM") // LOW | MEDIUM | URGENT
   isPersonal  Boolean   @default(false)
   startDate   DateTime?
   dueDate     DateTime?

@@ -1,13 +1,14 @@
 "use client";
 
-import { useActionState, useEffect, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { motion } from "motion/react";
-import { Trash2, Check, UserCircle2, CalendarRange } from "lucide-react";
+import { Trash2, Check, UserCircle2, CalendarRange, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/cn";
+import { PRIORITIES, PRIORITY_META, normalizePriority } from "@/lib/priority";
 import { updateTask, deleteTask, toggleAssignee } from "../actions";
 import type { BoardTask, BoardMemberView } from "./board-view";
 
@@ -77,6 +78,18 @@ export function TaskModal({
                 <Input id="t-due" name="dueDate" type="date" defaultValue={task.dueDate ?? ""} disabled={!canEdit} className="[color-scheme:dark]" />
               </Field>
             </div>
+          </div>
+
+          <div>
+            <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-neutral-300">
+              <Flag className="h-4 w-4 text-neutral-500" />
+              Срочность
+            </p>
+            <PrioritySelector
+              key={task.id}
+              initial={task.priority}
+              disabled={!canEdit}
+            />
           </div>
 
           <Field label="Цвет">
@@ -157,6 +170,44 @@ export function TaskModal({
         </form>
       )}
     </Modal>
+  );
+}
+
+function PrioritySelector({
+  initial,
+  disabled,
+}: {
+  initial: string;
+  disabled: boolean;
+}) {
+  const [value, setValue] = useState(normalizePriority(initial));
+  return (
+    <>
+      <input type="hidden" name="priority" value={value} />
+      <div className="grid grid-cols-3 gap-2">
+        {PRIORITIES.map((p) => {
+          const meta = PRIORITY_META[p];
+          const active = value === p;
+          return (
+            <button
+              key={p}
+              type="button"
+              disabled={disabled}
+              onClick={() => setValue(p)}
+              className={cn(
+                "flex items-center justify-center gap-1.5 rounded-lg border p-2 text-sm transition disabled:opacity-50",
+                active
+                  ? "border-transparent " + meta.badge
+                  : "border-neutral-700 bg-neutral-900/40 text-neutral-400 hover:bg-neutral-800/60",
+              )}
+            >
+              <span className={cn("h-2 w-2 rounded-full", meta.dot)} />
+              {meta.label}
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
