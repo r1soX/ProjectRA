@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
   DndContext,
@@ -75,6 +76,14 @@ export type BoardTask = {
   assigneeIds: string[];
   assignees: { initials: string; shortName: string }[];
   labels: { id: string; name: string; color: string }[];
+  comments: {
+    id: string;
+    body: string;
+    authorName: string;
+    authorInitials: string;
+    userId: string;
+    createdAt: string;
+  }[];
 };
 export type BoardColumn = { id: string; title: string; tasks: BoardTask[] };
 
@@ -86,8 +95,10 @@ export function BoardView({
   color,
   isPersonal,
   role,
+  currentUserId,
   columns,
   members,
+  assignable,
   directory,
 }: {
   boardId: string;
@@ -95,8 +106,10 @@ export function BoardView({
   color: string;
   isPersonal: boolean;
   role: string;
+  currentUserId: string;
   columns: BoardColumn[];
   members: BoardMemberView[];
+  assignable: BoardMemberView[];
   directory: DirectoryUser[];
 }) {
   const canEdit = role === "OWNER" || role === "EDITOR";
@@ -109,6 +122,29 @@ export function BoardView({
   const [membersOpen, setMembersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [, start] = useTransition();
+  const router = useRouter();
+  const draggingRef = useRef(false);
+  const pendingRefreshRef = useRef(false);
+
+  function requestRefresh() {
+    if (draggingRef.current) pendingRefreshRef.current = true;
+    else router.refresh();
+  }
+  function flushRefresh() {
+    draggingRef.current = false;
+    if (pendingRefreshRef.current) {
+      pendingRefreshRef.current = false;
+      router.refresh();
+    }
+  }
+
+  // Live updates: refresh server data when anyone changes this board.
+  useEffect(() => {
+    const es = new EventSource(`/api/boards/${boardId}/stream`);
+    es.addEventListener("change", () => requestRefresh());
+    return () => es.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardId]);
 
   // Re-sync local state when the server sends fresh data.
   const signature = useMemo(
@@ -121,9 +157,12 @@ export function BoardView({
             t.id,
             t.title,
             t.color,
+            t.priority,
+            t.startDate,
             t.dueDate,
             t.assigneeIds.join(","),
             t.labels.map((l) => l.id).join(","),
+            t.comments.length,
           ]),
         ]),
       ),
@@ -152,6 +191,7 @@ export function BoardView({
   }
 
   function onDragStart(e: DragStartEvent) {
+    draggingRef.current = true;
     const type = e.active.data.current?.type;
     if (type === "task") {
       setActiveTask(
@@ -201,11 +241,10 @@ export function BoardView({
     const activeType = active.data.current?.type;
     setActiveTask(null);
     setActiveColumn(null);
-    if (!over) return;
 
     // Compute next state, then update + persist OUTSIDE the state updater
     // (calling actions inside a setState updater is an illegal side effect).
-    if (activeType === "column") {
+    if (over && activeType === "column") {
       if (active.id !== over.id) {
         const oldI = cols.findIndex((c) => c.id === active.id);
         const newI = cols.findIndex((c) => c.id === over.id);
@@ -215,29 +254,29 @@ export function BoardView({
           start(() => reorderColumns(boardId, next.map((c) => c.id)));
         }
       }
-      return;
+    } else if (over && activeType === "task") {
+      const activeId = String(active.id);
+      const overId = String(over.id);
+      const toCol = resolveColumn(overId);
+      const col = toCol ? cols.find((c) => c.id === toCol) : null;
+      if (toCol && col) {
+        const oldIndex = col.tasks.findIndex((t) => t.id === activeId);
+        if (oldIndex >= 0) {
+          const newIndex = overId.startsWith(DROP_PREFIX)
+            ? col.tasks.length - 1
+            : col.tasks.findIndex((t) => t.id === overId);
+          const tasks =
+            newIndex >= 0 && newIndex !== oldIndex
+              ? arrayMove(col.tasks, oldIndex, newIndex)
+              : col.tasks;
+          const next = cols.map((c) => (c.id === toCol ? { ...c, tasks } : c));
+          setCols(next);
+          start(() => moveTask(activeId, toCol, tasks.map((t) => t.id)));
+        }
+      }
     }
 
-    // task
-    const activeId = String(active.id);
-    const overId = String(over.id);
-    const toCol = resolveColumn(overId);
-    if (!toCol) return;
-
-    const col = cols.find((c) => c.id === toCol);
-    if (!col) return;
-    const oldIndex = col.tasks.findIndex((t) => t.id === activeId);
-    if (oldIndex < 0) return;
-    const newIndex = overId.startsWith(DROP_PREFIX)
-      ? col.tasks.length - 1
-      : col.tasks.findIndex((t) => t.id === overId);
-    const tasks =
-      newIndex >= 0 && newIndex !== oldIndex
-        ? arrayMove(col.tasks, oldIndex, newIndex)
-        : col.tasks;
-    const next = cols.map((c) => (c.id === toCol ? { ...c, tasks } : c));
-    setCols(next);
-    start(() => moveTask(activeId, toCol, tasks.map((t) => t.id)));
+    flushRefresh();
   }
 
   return (
@@ -278,7 +317,13 @@ export function BoardView({
               ))}
             </div>
           )}
-          {isOwner && !isPersonal && (
+          {!isPersonal && (
+            <span className="hidden items-center gap-1 rounded-full bg-sky-500/15 px-2.5 py-1 text-xs text-sky-300 sm:flex">
+              <UsersIcon className="h-3 w-3" />
+              доступна всем
+            </span>
+          )}
+          {isOwner && isPersonal && (
             <Button size="sm" variant="secondary" onClick={() => setMembersOpen(true)}>
               <UsersIcon className="h-4 w-4" />
               <span className="hidden sm:inline">Участники</span>
@@ -321,6 +366,7 @@ export function BoardView({
           setActiveTask(null);
           setActiveColumn(null);
           setCols(columns);
+          flushRefresh();
         }}
       >
         <div className="flex flex-1 gap-4 overflow-x-auto p-4 sm:p-6">
@@ -355,8 +401,10 @@ export function BoardView({
 
       <TaskModal
         task={selectedTask}
-        members={members}
+        members={assignable}
         canEdit={canEdit}
+        currentUserId={currentUserId}
+        canModerate={isOwner}
         onClose={() => setSelectedTaskId(null)}
       />
       <MembersModal

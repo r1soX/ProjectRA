@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/cn";
 import { PRIORITIES, PRIORITY_META, normalizePriority } from "@/lib/priority";
 import { updateTask, deleteTask, toggleAssignee } from "../actions";
+import { CommentsSection } from "./comments-section";
 import type { BoardTask, BoardMemberView } from "./board-view";
 
 const TASK_COLORS = ["#0ea5e9", "#6366f1", "#8b5cf6", "#ec4899", "#10b981", "#f59e0b", "#ef4444"];
@@ -18,11 +19,15 @@ export function TaskModal({
   task,
   members,
   canEdit,
+  currentUserId,
+  canModerate,
   onClose,
 }: {
   task: BoardTask | null;
   members: BoardMemberView[];
   canEdit: boolean;
+  currentUserId: string;
+  canModerate: boolean;
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -42,6 +47,7 @@ export function TaskModal({
   return (
     <Modal open={!!task} onClose={onClose} title="Задача">
       {task && (
+        <>
         <form action={formAction} className="space-y-4">
           <Field label="Название" htmlFor="t-title">
             <Input id="t-title" name="title" defaultValue={task.title} disabled={!canEdit} autoFocus />
@@ -168,6 +174,13 @@ export function TaskModal({
             </div>
           )}
         </form>
+        <CommentsSection
+          taskId={task.id}
+          comments={task.comments}
+          currentUserId={currentUserId}
+          canModerate={canModerate}
+        />
+        </>
       )}
     </Modal>
   );

@@ -99,9 +99,14 @@ export function BoardSettingsModal({
               <span className="text-left">Личная</span>
             </button>
           </div>
-          {isPersonal && !currentIsPersonal && (
+          {!isPersonal && currentIsPersonal && (
             <p className="mt-2 text-xs text-amber-400">
-              Доска станет личной — все участники будут удалены.
+              Доска станет видна всем сотрудникам.
+            </p>
+          )}
+          {isPersonal && !currentIsPersonal && (
+            <p className="mt-2 text-xs text-neutral-500">
+              Доступ будет только у вас и приглашённых участников.
             </p>
           )}
         </Field>

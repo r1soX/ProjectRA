@@ -3,11 +3,20 @@ import { prisma } from "./prisma";
 
 export type BoardRole = "OWNER" | "EDITOR" | "VIEWER";
 
-/** Boards the user owns or participates in. */
+/**
+ * Boards visible to the user:
+ *  - every shared (non-personal) board,
+ *  - personal boards they own,
+ *  - personal boards they were invited to.
+ */
 export async function getUserBoards(userId: string) {
   return prisma.board.findMany({
     where: {
-      OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+      OR: [
+        { isPersonal: false },
+        { ownerId: userId },
+        { members: { some: { userId } } },
+      ],
     },
     orderBy: { createdAt: "asc" },
     include: {
@@ -44,6 +53,10 @@ export async function getBoardWithData(boardId: string, userId: string) {
               createdBy: userPick,
               assignees: { include: { user: userPick } },
               labels: { include: { label: true } },
+              comments: {
+                orderBy: { createdAt: "asc" },
+                include: { user: userPick },
+              },
             },
           },
         },
@@ -54,9 +67,14 @@ export async function getBoardWithData(boardId: string, userId: string) {
 
   const isOwner = board.ownerId === userId;
   const member = board.members.find((m) => m.userId === userId);
-  if (!isOwner && !member) return null;
+  // Shared boards are accessible (and editable) by everyone.
+  if (!isOwner && board.isPersonal && !member) return null;
 
-  const role: BoardRole = isOwner ? "OWNER" : (member!.role as BoardRole);
+  const role: BoardRole = isOwner
+    ? "OWNER"
+    : board.isPersonal
+      ? (member!.role as BoardRole)
+      : "EDITOR";
   return { board, role };
 }
 
@@ -69,11 +87,13 @@ export async function getBoardRole(
     where: { id: boardId },
     select: {
       ownerId: true,
+      isPersonal: true,
       members: { where: { userId }, select: { role: true } },
     },
   });
   if (!board) return null;
   if (board.ownerId === userId) return "OWNER";
+  if (!board.isPersonal) return "EDITOR"; // shared → everyone can edit
   const m = board.members[0];
   return m ? (m.role as BoardRole) : null;
 }

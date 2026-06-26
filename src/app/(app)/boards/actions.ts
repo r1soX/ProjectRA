@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { getBoardRole, canEdit } from "@/lib/boards";
 import { normalizePriority } from "@/lib/priority";
+import { publishBoard } from "@/lib/realtime";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
 
@@ -19,6 +20,12 @@ async function requireBoardEditor(boardId: string) {
   const role = await getBoardRole(boardId, user.id);
   if (!canEdit(role)) throw new Error("Нет прав на редактирование доски");
   return user;
+}
+
+// Revalidate the board's server components AND push a realtime event.
+function bump(boardId: string) {
+  revalidatePath(`/boards/${boardId}`);
+  publishBoard(boardId);
 }
 
 async function boardIdOfColumn(columnId: string) {
@@ -83,18 +90,12 @@ export async function updateBoard(
   color: string,
   isPersonal: boolean,
 ) {
-  const board = await requireBoardOwner(boardId);
-  await prisma.$transaction(async (tx) => {
-    await tx.board.update({
-      where: { id: boardId },
-      data: { title: title.trim(), color, isPersonal },
-    });
-    // Switching to a personal board drops all members (owner only).
-    if (isPersonal && !board.isPersonal) {
-      await tx.boardMember.deleteMany({ where: { boardId } });
-    }
+  await requireBoardOwner(boardId);
+  await prisma.board.update({
+    where: { id: boardId },
+    data: { title: title.trim(), color, isPersonal },
   });
-  revalidatePath(`/boards/${boardId}`);
+  bump(boardId);
   revalidatePath("/boards");
 }
 
@@ -132,13 +133,14 @@ export async function addMember(
   role: "EDITOR" | "VIEWER",
 ) {
   const board = await requireBoardOwner(boardId);
-  if (board.isPersonal) throw new Error("Личная доска не может иметь участников");
+  if (!board.isPersonal)
+    throw new Error("Общая доска доступна всем — участники не нужны");
   await prisma.boardMember.upsert({
     where: { boardId_userId: { boardId, userId } },
     create: { boardId, userId, role },
     update: { role },
   });
-  revalidatePath(`/boards/${boardId}`);
+  bump(boardId);
 }
 
 export async function removeMember(boardId: string, userId: string) {
@@ -146,7 +148,7 @@ export async function removeMember(boardId: string, userId: string) {
   await prisma.boardMember
     .delete({ where: { boardId_userId: { boardId, userId } } })
     .catch(() => {});
-  revalidatePath(`/boards/${boardId}`);
+  bump(boardId);
 }
 
 // ── columns ──────────────────────────────────────────────────────
@@ -157,7 +159,7 @@ export async function createColumn(boardId: string, title: string) {
   await prisma.column.create({
     data: { boardId, title: title.trim() || "Новая колонка", order: count },
   });
-  revalidatePath(`/boards/${boardId}`);
+  bump(boardId);
 }
 
 export async function renameColumn(columnId: string, title: string) {
@@ -168,7 +170,7 @@ export async function renameColumn(columnId: string, title: string) {
     where: { id: columnId },
     data: { title: title.trim() || "Без названия" },
   });
-  revalidatePath(`/boards/${boardId}`);
+  bump(boardId);
 }
 
 export async function deleteColumn(columnId: string) {
@@ -176,7 +178,7 @@ export async function deleteColumn(columnId: string) {
   if (!boardId) return;
   await requireBoardEditor(boardId);
   await prisma.column.delete({ where: { id: columnId } });
-  revalidatePath(`/boards/${boardId}`);
+  bump(boardId);
 }
 
 // ── tasks ────────────────────────────────────────────────────────
@@ -195,7 +197,7 @@ export async function createTask(columnId: string, title: string) {
       createdById: user.id,
     },
   });
-  revalidatePath(`/boards/${boardId}`);
+  bump(boardId);
 }
 
 export async function updateTask(taskId: string, formData: FormData) {
@@ -217,7 +219,7 @@ export async function updateTask(taskId: string, formData: FormData) {
       dueDate: parseDate(formData.get("dueDate")),
     },
   });
-  revalidatePath(`/boards/${boardId}`);
+  bump(boardId);
   return { ok: true } as ActionState;
 }
 
@@ -226,7 +228,7 @@ export async function deleteTask(taskId: string) {
   if (!boardId) return;
   await requireBoardEditor(boardId);
   await prisma.task.delete({ where: { id: taskId } });
-  revalidatePath(`/boards/${boardId}`);
+  bump(boardId);
 }
 
 /** Move a task to a column and persist the destination column's order. */
@@ -251,7 +253,7 @@ export async function moveTask(
       prisma.task.update({ where: { id }, data: { order: i } }),
     ),
   ]);
-  revalidatePath(`/boards/${boardId}`);
+  bump(boardId);
 }
 
 /** Persist a new column order for the board. */
@@ -262,7 +264,46 @@ export async function reorderColumns(boardId: string, orderedIds: string[]) {
       prisma.column.update({ where: { id }, data: { order: i } }),
     ),
   );
-  revalidatePath(`/boards/${boardId}`);
+  bump(boardId);
+}
+
+// ── comments ─────────────────────────────────────────────────────
+
+export async function addComment(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const taskId = String(formData.get("taskId") ?? "");
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return { error: "Введите комментарий" };
+
+  const boardId = await boardIdOfTask(taskId);
+  if (!boardId) return { error: "Задача не найдена" };
+
+  const user = await requireUser();
+  const role = await getBoardRole(boardId, user.id);
+  if (!role) return { error: "Нет доступа к доске" };
+
+  await prisma.comment.create({ data: { taskId, userId: user.id, body } });
+  bump(boardId);
+  return { ok: true };
+}
+
+export async function deleteComment(commentId: string) {
+  const user = await requireUser();
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    select: { userId: true, task: { select: { boardId: true } } },
+  });
+  if (!comment) return;
+
+  const boardId = comment.task.boardId;
+  const role = await getBoardRole(boardId, user.id);
+  if (comment.userId !== user.id && role !== "OWNER") {
+    throw new Error("Можно удалить только свой комментарий");
+  }
+  await prisma.comment.delete({ where: { id: commentId } });
+  bump(boardId);
 }
 
 export async function toggleAssignee(taskId: string, userId: string) {
@@ -280,5 +321,5 @@ export async function toggleAssignee(taskId: string, userId: string) {
   } else {
     await prisma.taskAssignee.create({ data: { taskId, userId } });
   }
-  revalidatePath(`/boards/${boardId}`);
+  bump(boardId);
 }

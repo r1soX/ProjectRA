@@ -10,6 +10,32 @@ import {
   type DirectoryUser,
 } from "./board-view";
 
+const userSelect = {
+  id: true,
+  username: true,
+  lastName: true,
+  firstName: true,
+  middleName: true,
+} as const;
+
+type PersonRow = {
+  id: string;
+  username: string;
+  lastName: string;
+  firstName: string;
+  middleName: string | null;
+};
+
+function toMemberView(u: PersonRow, role: string): BoardMemberView {
+  return {
+    userId: u.id,
+    role,
+    shortName: shortName(u),
+    initials: initials(u),
+    username: u.username,
+  };
+}
+
 function toDateInput(d: Date | null): string | null {
   return d ? d.toISOString().slice(0, 10) : null;
 }
@@ -27,27 +53,29 @@ export default async function BoardPage({
   const { board, role } = result;
   const isOwner = role === "OWNER";
 
-  // People who can be assigned: owner + members (deduped).
-  const memberMap = new Map<string, BoardMemberView>();
-  memberMap.set(board.owner.id, {
-    userId: board.owner.id,
-    role: "OWNER",
-    shortName: shortName(board.owner),
-    initials: initials(board.owner),
-    username: board.owner.username,
-  });
-  for (const m of board.members) {
-    if (!memberMap.has(m.userId)) {
-      memberMap.set(m.userId, {
-        userId: m.userId,
-        role: m.role,
-        shortName: shortName(m.user),
-        initials: initials(m.user),
-        username: m.user.username,
-      });
+  // Assignable people + header members depend on board visibility.
+  let assignable: BoardMemberView[];
+  let headerMembers: BoardMemberView[];
+
+  if (board.isPersonal) {
+    const map = new Map<string, BoardMemberView>();
+    map.set(board.owner.id, toMemberView(board.owner, "OWNER"));
+    for (const m of board.members) {
+      if (!map.has(m.userId)) map.set(m.userId, toMemberView(m.user, m.role));
     }
+    assignable = [...map.values()];
+    headerMembers = assignable;
+  } else {
+    const all = await prisma.user.findMany({
+      where: { isActive: true },
+      orderBy: { lastName: "asc" },
+      select: userSelect,
+    });
+    assignable = all.map((u) =>
+      toMemberView(u, u.id === board.ownerId ? "OWNER" : "EDITOR"),
+    );
+    headerMembers = []; // shared board → shown as "доступна всем"
   }
-  const members = [...memberMap.values()];
 
   const columns: BoardColumn[] = board.columns.map((c) => ({
     id: c.id,
@@ -72,22 +100,24 @@ export default async function BoardPage({
         name: tl.label.name,
         color: tl.label.color,
       })),
+      comments: t.comments.map((c) => ({
+        id: c.id,
+        body: c.body,
+        authorName: shortName(c.user),
+        authorInitials: initials(c.user),
+        userId: c.userId,
+        createdAt: c.createdAt.toISOString(),
+      })),
     })),
   }));
 
-  // Directory for member management (owners only).
+  // Directory for inviting people to a personal board (owner only).
   let directory: DirectoryUser[] = [];
-  if (isOwner && !board.isPersonal) {
+  if (isOwner && board.isPersonal) {
     const users = await prisma.user.findMany({
       where: { isActive: true, id: { not: board.ownerId } },
       orderBy: { lastName: "asc" },
-      select: {
-        id: true,
-        username: true,
-        lastName: true,
-        firstName: true,
-        middleName: true,
-      },
+      select: userSelect,
     });
     directory = users.map((u) => ({
       id: u.id,
@@ -104,8 +134,10 @@ export default async function BoardPage({
       color={board.color ?? "#0ea5e9"}
       isPersonal={board.isPersonal}
       role={role}
+      currentUserId={user.id}
       columns={columns}
-      members={members}
+      members={headerMembers}
+      assignable={assignable}
       directory={directory}
     />
   );
