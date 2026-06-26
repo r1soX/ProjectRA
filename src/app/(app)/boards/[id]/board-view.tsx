@@ -1,8 +1,28 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCorners,
+  useSensor,
+  useSensors,
+  useDroppable,
+  type DragStartEvent,
+  type DragOverEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   ArrowLeft,
   Plus,
@@ -11,7 +31,7 @@ import {
   Trash2,
   Users as UsersIcon,
   Lock,
-  CalendarClock,
+  GripVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -22,9 +42,12 @@ import {
   createTask,
   updateBoard,
   deleteBoard,
+  moveTask,
+  reorderColumns,
 } from "../actions";
 import { TaskModal } from "./task-modal";
 import { MembersModal } from "./members-modal";
+import { TaskCardBody } from "./task-card-body";
 
 export type BoardMemberView = {
   userId: string;
@@ -47,24 +70,14 @@ export type BoardTask = {
   color: string | null;
   startDate: string | null;
   dueDate: string | null;
+  createdByName: string;
   assigneeIds: string[];
   assignees: { initials: string; shortName: string }[];
   labels: { id: string; name: string; color: string }[];
 };
 export type BoardColumn = { id: string; title: string; tasks: BoardTask[] };
 
-function formatDue(s: string) {
-  return new Date(s).toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "short",
-  });
-}
-function isOverdue(s: string) {
-  const d = new Date(s);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return d < today;
-}
+const DROP_PREFIX = "dropzone-";
 
 export function BoardView({
   boardId,
@@ -88,16 +101,144 @@ export function BoardView({
   const canEdit = role === "OWNER" || role === "EDITOR";
   const isOwner = role === "OWNER";
 
+  const [cols, setCols] = useState<BoardColumn[]>(columns);
+  const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
+  const [activeColumn, setActiveColumn] = useState<BoardColumn | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
   const [, start] = useTransition();
 
-  const selectedTask = useMemo(
+  // Re-sync local state when the server sends fresh data.
+  const signature = useMemo(
     () =>
-      columns.flatMap((c) => c.tasks).find((t) => t.id === selectedTaskId) ??
-      null,
-    [columns, selectedTaskId],
+      JSON.stringify(
+        columns.map((c) => [
+          c.id,
+          c.title,
+          c.tasks.map((t) => [
+            t.id,
+            t.title,
+            t.color,
+            t.dueDate,
+            t.assigneeIds.join(","),
+            t.labels.map((l) => l.id).join(","),
+          ]),
+        ]),
+      ),
+    [columns],
   );
+  useEffect(() => {
+    setCols(columns);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  const selectedTask = useMemo(
+    () => cols.flatMap((c) => c.tasks).find((t) => t.id === selectedTaskId) ?? null,
+    [cols, selectedTaskId],
+  );
+
+  function findTaskColumn(taskId: string): string | null {
+    return cols.find((c) => c.tasks.some((t) => t.id === taskId))?.id ?? null;
+  }
+  function resolveColumn(overId: string): string | null {
+    if (overId.startsWith(DROP_PREFIX)) return overId.slice(DROP_PREFIX.length);
+    return findTaskColumn(overId);
+  }
+
+  function onDragStart(e: DragStartEvent) {
+    const type = e.active.data.current?.type;
+    if (type === "task") {
+      setActiveTask(
+        cols.flatMap((c) => c.tasks).find((t) => t.id === e.active.id) ?? null,
+      );
+    } else if (type === "column") {
+      setActiveColumn(cols.find((c) => c.id === e.active.id) ?? null);
+    }
+  }
+
+  function onDragOver(e: DragOverEvent) {
+    const { active, over } = e;
+    if (!over || active.data.current?.type !== "task") return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const fromCol = findTaskColumn(activeId);
+    const toCol = resolveColumn(overId);
+    if (!fromCol || !toCol || fromCol === toCol) return;
+
+    setCols((prev) => {
+      const from = prev.find((c) => c.id === fromCol);
+      const to = prev.find((c) => c.id === toCol);
+      if (!from || !to) return prev;
+      const moving = from.tasks.find((t) => t.id === activeId);
+      if (!moving) return prev;
+
+      const overIndex = overId.startsWith(DROP_PREFIX)
+        ? to.tasks.length
+        : to.tasks.findIndex((t) => t.id === overId);
+      const insertAt = overIndex < 0 ? to.tasks.length : overIndex;
+
+      return prev.map((c) => {
+        if (c.id === fromCol)
+          return { ...c, tasks: c.tasks.filter((t) => t.id !== activeId) };
+        if (c.id === toCol) {
+          const next = [...c.tasks];
+          next.splice(insertAt, 0, { ...moving, columnId: toCol });
+          return { ...c, tasks: next };
+        }
+        return c;
+      });
+    });
+  }
+
+  function onDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    const activeType = active.data.current?.type;
+    setActiveTask(null);
+    setActiveColumn(null);
+    if (!over) return;
+
+    if (activeType === "column") {
+      if (active.id !== over.id) {
+        setCols((prev) => {
+          const oldI = prev.findIndex((c) => c.id === active.id);
+          const newI = prev.findIndex((c) => c.id === over.id);
+          if (oldI < 0 || newI < 0) return prev;
+          const next = arrayMove(prev, oldI, newI);
+          start(() => reorderColumns(boardId, next.map((c) => c.id)));
+          return next;
+        });
+      }
+      return;
+    }
+
+    // task
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const toCol = resolveColumn(overId);
+    if (!toCol) return;
+
+    setCols((prev) => {
+      const col = prev.find((c) => c.id === toCol);
+      if (!col) return prev;
+      const oldIndex = col.tasks.findIndex((t) => t.id === activeId);
+      if (oldIndex < 0) return prev;
+      const newIndex = overId.startsWith(DROP_PREFIX)
+        ? col.tasks.length - 1
+        : col.tasks.findIndex((t) => t.id === overId);
+      const tasks =
+        newIndex >= 0 && newIndex !== oldIndex
+          ? arrayMove(col.tasks, oldIndex, newIndex)
+          : col.tasks;
+      const next = prev.map((c) => (c.id === toCol ? { ...c, tasks } : c));
+      const orderedIds = next.find((c) => c.id === toCol)!.tasks.map((t) => t.id);
+      start(() => moveTask(activeId, toCol, orderedIds));
+      return next;
+    });
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -161,9 +302,8 @@ export function BoardView({
                 variant="ghost"
                 title="Удалить доску"
                 onClick={() => {
-                  if (confirm("Удалить доску со всеми задачами?")) {
+                  if (confirm("Удалить доску со всеми задачами?"))
                     start(() => deleteBoard(boardId));
-                  }
                 }}
               >
                 <Trash2 className="h-4 w-4 text-red-400" />
@@ -174,18 +314,47 @@ export function BoardView({
       </div>
 
       {/* Columns */}
-      <div className="flex flex-1 gap-4 overflow-x-auto p-4 sm:p-6">
-        {columns.map((col) => (
-          <ColumnView
-            key={col.id}
-            column={col}
-            canEdit={canEdit}
-            onOpenTask={setSelectedTaskId}
-            formatDue={formatDue}
-          />
-        ))}
-        {canEdit && <AddColumn boardId={boardId} />}
-      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => {
+          setActiveTask(null);
+          setActiveColumn(null);
+          setCols(columns);
+        }}
+      >
+        <div className="flex flex-1 gap-4 overflow-x-auto p-4 sm:p-6">
+          <SortableContext
+            items={cols.map((c) => c.id)}
+            strategy={horizontalListSortingStrategy}
+          >
+            {cols.map((col) => (
+              <SortableColumn
+                key={col.id}
+                column={col}
+                canEdit={canEdit}
+                onOpenTask={setSelectedTaskId}
+              />
+            ))}
+          </SortableContext>
+          {canEdit && <AddColumn boardId={boardId} />}
+        </div>
+
+        <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
+          {activeTask ? (
+            <DanglingCard task={activeTask} />
+          ) : activeColumn ? (
+            <div className="w-72 rotate-2 rounded-xl border border-sky-500/40 bg-neutral-900/90 px-3 py-2.5 shadow-2xl">
+              <span className="text-sm font-semibold text-neutral-200">
+                {activeColumn.title}
+              </span>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       <TaskModal
         task={selectedTask}
@@ -204,24 +373,71 @@ export function BoardView({
   );
 }
 
-function ColumnView({
+/** The grabbed card hangs from the cursor and gently sways. */
+function DanglingCard({ task }: { task: BoardTask }) {
+  return (
+    <div className="pointer-events-none w-[17rem]">
+      <div className="mx-auto h-2 w-2 rounded-full bg-sky-400 shadow-[0_0_8px_2px_rgba(56,189,248,0.6)]" />
+      <div className="mx-auto h-3 w-px bg-sky-400/70" />
+      <motion.div
+        animate={{ rotate: [-7, 7, -7] }}
+        transition={{ repeat: Infinity, duration: 1.1, ease: "easeInOut" }}
+        style={{ transformOrigin: "top center" }}
+        className="overflow-hidden rounded-lg border border-sky-500/50 bg-neutral-800 shadow-2xl shadow-black/60 ring-2 ring-sky-500/30"
+      >
+        <TaskCardBody task={task} />
+      </motion.div>
+    </div>
+  );
+}
+
+function SortableColumn({
   column,
   canEdit,
   onOpenTask,
-  formatDue,
 }: {
   column: BoardColumn;
   canEdit: boolean;
   onOpenTask: (id: string) => void;
-  formatDue: (s: string) => string;
 }) {
+  const sortable = useSortable({
+    id: column.id,
+    data: { type: "column" },
+    disabled: !canEdit,
+  });
+  const droppable = useDroppable({
+    id: DROP_PREFIX + column.id,
+    data: { type: "column", columnId: column.id },
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   const [, start] = useTransition();
 
+  const style = {
+    transform: CSS.Transform.toString(sortable.transform),
+    transition: sortable.transition,
+  };
+
   return (
-    <div className="flex w-72 shrink-0 flex-col rounded-xl border border-neutral-800 bg-neutral-900/30">
+    <div
+      ref={sortable.setNodeRef}
+      style={style}
+      {...sortable.attributes}
+      className={cn(
+        "flex w-72 shrink-0 flex-col rounded-xl border border-neutral-800 bg-neutral-900/30",
+        sortable.isDragging && "opacity-40",
+      )}
+    >
       <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {canEdit && (
+            <button
+              {...sortable.listeners}
+              className="cursor-grab touch-none rounded p-0.5 text-neutral-600 hover:text-neutral-400 active:cursor-grabbing"
+              title="Перетащить колонку"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
           <h3 className="truncate text-sm font-semibold text-neutral-200">
             {column.title}
           </h3>
@@ -251,8 +467,7 @@ function ColumnView({
                       onClick={() => {
                         setMenuOpen(false);
                         const next = prompt("Название колонки", column.title);
-                        if (next && next.trim())
-                          start(() => renameColumn(column.id, next));
+                        if (next && next.trim()) start(() => renameColumn(column.id, next));
                       }}
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-700"
                     >
@@ -276,72 +491,71 @@ function ColumnView({
         )}
       </div>
 
-      <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-2">
-        <AnimatePresence initial={false}>
+      <div
+        ref={droppable.setNodeRef}
+        className="flex-1 space-y-2 overflow-y-auto px-2 pb-2"
+      >
+        <SortableContext
+          items={column.tasks.map((t) => t.id)}
+          strategy={verticalListSortingStrategy}
+        >
           {column.tasks.map((task) => (
-            <motion.button
+            <SortableTask
               key={task.id}
-              layout
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97 }}
-              onClick={() => onOpenTask(task.id)}
-              className="block w-full overflow-hidden rounded-lg border border-neutral-800 bg-neutral-800/60 text-left transition hover:border-neutral-600 hover:bg-neutral-800"
-            >
-              {task.color && (
-                <div className="h-1" style={{ backgroundColor: task.color }} />
-              )}
-              <div className="p-2.5">
-                {task.labels.length > 0 && (
-                  <div className="mb-1.5 flex flex-wrap gap-1">
-                    {task.labels.map((l) => (
-                      <span
-                        key={l.id}
-                        className="rounded px-1.5 py-0.5 text-[10px]"
-                        style={{ backgroundColor: l.color + "33", color: l.color }}
-                      >
-                        {l.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <p className="text-sm text-neutral-100">{task.title}</p>
-                {(task.dueDate || task.assignees.length > 0) && (
-                  <div className="mt-2 flex items-center justify-between">
-                    {task.dueDate ? (
-                      <span
-                        className={cn(
-                          "flex items-center gap-1 text-[11px]",
-                          isOverdue(task.dueDate)
-                            ? "text-red-400"
-                            : "text-neutral-500",
-                        )}
-                      >
-                        <CalendarClock className="h-3 w-3" />
-                        {formatDue(task.dueDate)}
-                      </span>
-                    ) : (
-                      <span />
-                    )}
-                    <div className="flex -space-x-1.5">
-                      {task.assignees.slice(0, 3).map((a, i) => (
-                        <span
-                          key={i}
-                          className="flex h-5 w-5 items-center justify-center rounded-full border border-neutral-800 bg-gradient-to-br from-sky-500 to-indigo-500 text-[9px] font-semibold text-white"
-                        >
-                          {a.initials}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </motion.button>
+              task={task}
+              canEdit={canEdit}
+              onOpen={onOpenTask}
+            />
           ))}
-        </AnimatePresence>
+        </SortableContext>
+        {column.tasks.length === 0 && (
+          <div className="rounded-lg border border-dashed border-neutral-800 py-6 text-center text-xs text-neutral-600">
+            Перетащите задачу сюда
+          </div>
+        )}
       </div>
 
       {canEdit && <AddTask columnId={column.id} />}
+    </div>
+  );
+}
+
+function SortableTask({
+  task,
+  canEdit,
+  onOpen,
+}: {
+  task: BoardTask;
+  canEdit: boolean;
+  onOpen: (id: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id, data: { type: "task" }, disabled: !canEdit });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={() => onOpen(task.id)}
+      className={cn(
+        "block w-full cursor-pointer touch-none overflow-hidden rounded-lg border border-neutral-800 bg-neutral-800/60 text-left transition-colors hover:border-neutral-600 hover:bg-neutral-800",
+        isDragging && "opacity-40",
+      )}
+    >
+      <TaskCardBody task={task} />
     </div>
   );
 }

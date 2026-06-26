@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useTransition } from "react";
 import { motion } from "motion/react";
-import { Trash2, Check } from "lucide-react";
+import { Trash2, Check, UserCircle2, CalendarRange } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -46,6 +46,12 @@ export function TaskModal({
             <Input id="t-title" name="title" defaultValue={task.title} disabled={!canEdit} autoFocus />
           </Field>
 
+          <div className="flex items-center gap-2 text-xs text-neutral-500">
+            <UserCircle2 className="h-4 w-4 text-neutral-600" />
+            Создатель:{" "}
+            <span className="text-neutral-300">{task.createdByName}</span>
+          </div>
+
           <Field label="Описание" htmlFor="t-desc">
             <textarea
               id="t-desc"
@@ -58,13 +64,19 @@ export function TaskModal({
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Начало" htmlFor="t-start">
-              <Input id="t-start" name="startDate" type="date" defaultValue={task.startDate ?? ""} disabled={!canEdit} className="[color-scheme:dark]" />
-            </Field>
-            <Field label="Срок" htmlFor="t-due">
-              <Input id="t-due" name="dueDate" type="date" defaultValue={task.dueDate ?? ""} disabled={!canEdit} className="[color-scheme:dark]" />
-            </Field>
+          <div>
+            <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-neutral-300">
+              <CalendarRange className="h-4 w-4 text-neutral-500" />
+              Сроки
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Дата начала" htmlFor="t-start">
+                <Input id="t-start" name="startDate" type="date" defaultValue={task.startDate ?? ""} disabled={!canEdit} className="[color-scheme:dark]" />
+              </Field>
+              <Field label="Срок завершения" htmlFor="t-due">
+                <Input id="t-due" name="dueDate" type="date" defaultValue={task.dueDate ?? ""} disabled={!canEdit} className="[color-scheme:dark]" />
+              </Field>
+            </div>
           </div>
 
           <Field label="Цвет">

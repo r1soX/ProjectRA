@@ -41,6 +41,7 @@ export async function getBoardWithData(boardId: string, userId: string) {
           tasks: {
             orderBy: { order: "asc" },
             include: {
+              createdBy: userPick,
               assignees: { include: { user: userPick } },
               labels: { include: { label: true } },
             },

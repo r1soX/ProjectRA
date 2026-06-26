@@ -60,6 +60,7 @@ export default async function BoardPage({
       color: t.color,
       startDate: toDateInput(t.startDate),
       dueDate: toDateInput(t.dueDate),
+      createdByName: shortName(t.createdBy),
       assigneeIds: t.assignees.map((a) => a.userId),
       assignees: t.assignees.map((a) => ({
         initials: initials(a.user),

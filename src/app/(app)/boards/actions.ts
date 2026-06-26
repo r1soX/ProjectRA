@@ -216,6 +216,42 @@ export async function deleteTask(taskId: string) {
   revalidatePath(`/boards/${boardId}`);
 }
 
+/** Move a task to a column and persist the destination column's order. */
+export async function moveTask(
+  taskId: string,
+  toColumnId: string,
+  orderedIds: string[],
+) {
+  const boardId = await boardIdOfTask(taskId);
+  if (!boardId) return;
+  await requireBoardEditor(boardId);
+
+  const col = await prisma.column.findUnique({
+    where: { id: toColumnId },
+    select: { boardId: true },
+  });
+  if (!col || col.boardId !== boardId) return;
+
+  await prisma.$transaction([
+    prisma.task.update({ where: { id: taskId }, data: { columnId: toColumnId } }),
+    ...orderedIds.map((id, i) =>
+      prisma.task.update({ where: { id }, data: { order: i } }),
+    ),
+  ]);
+  revalidatePath(`/boards/${boardId}`);
+}
+
+/** Persist a new column order for the board. */
+export async function reorderColumns(boardId: string, orderedIds: string[]) {
+  await requireBoardEditor(boardId);
+  await prisma.$transaction(
+    orderedIds.map((id, i) =>
+      prisma.column.update({ where: { id }, data: { order: i } }),
+    ),
+  );
+  revalidatePath(`/boards/${boardId}`);
+}
+
 export async function toggleAssignee(taskId: string, userId: string) {
   const boardId = await boardIdOfTask(taskId);
   if (!boardId) return;
