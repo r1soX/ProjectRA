@@ -9,6 +9,7 @@ import {
   LayoutGrid,
   MessageCircle,
   CalendarDays,
+  Search,
   Users,
   User as UserIcon,
   LogOut,
@@ -25,6 +26,7 @@ type NavItem = { href: string; label: string; icon: React.ElementType };
 const baseNav: NavItem[] = [
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
   { href: "/boards", label: "Доски", icon: LayoutGrid },
+  { href: "/search", label: "Поиск", icon: Search },
   { href: "/messages", label: "Сообщения", icon: MessageCircle },
   { href: "/calendar", label: "Календарь", icon: CalendarDays },
   { href: "/profile", label: "Профиль", icon: UserIcon },

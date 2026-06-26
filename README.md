@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Projectra
 
-## Getting Started
+Командный таск-менеджер (по типу YouGile): доски с перетягиванием задач,
+встроенный мессенджер, календарь сроков, визуальные связи задач, общая и
+личная работа. Регистрация пользователей — только администратором.
 
-First, run the development server:
+## Возможности
+
+- **Доски** — общие (видны всем) и личные (владелец + приглашённые), колонки,
+  задачи с приоритетом, сроками, исполнителями, метками, цветом.
+- **Drag & Drop** — перетягивание задач между колонками и сортировка,
+  перемещение колонок. На мобильных — долгое нажатие.
+- **Личные задачи** — видны только создателю (и администратору).
+- **Мессенджер** — личные диалоги и чаты досок, счётчики непрочитанных,
+  всплывающие уведомления.
+- **Календарь** — задачи по срокам, перенос дедлайна перетягиванием.
+- **Связи задач** — канвас на React Flow (связь / блокирует / зависит).
+- **Real-time** — изменения досок и сообщения приходят мгновенно (SSE).
+- **Админка** — создание/блокировка пользователей, роли, сброс пароля.
+- **Права** — изменять/удалять задачу может только создатель или админ;
+  комментировать — любой с доступом к доске.
+
+## Стек
+
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · Prisma 6 +
+SQLite · сессии на JWT (jose) + bcrypt · dnd-kit · @xyflow/react · motion.
+
+## Запуск (разработка)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env        # заполните AUTH_SECRET
+npx prisma migrate dev      # создаст БД и применит миграции
+npm run db:seed             # создаст администратора
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Сервер слушает `0.0.0.0`, поэтому открывается и по локальному IP
+(`http://<ip-машины>:3000`) — LAN-адреса машины уже разрешены в
+`next.config.ts` (`allowedDevOrigins`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Администратор по умолчанию** (из сид-скрипта): логин `v.smolin`,
+пароль `Qq123456`. Пароль меняется в профиле; новых пользователей заводит
+администратор.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Продакшен
 
-## Learn More
+```bash
+npm run build
+npm run start               # next start -H 0.0.0.0, порт 3000
+```
 
-To learn more about Next.js, take a look at the following resources:
+Переменные окружения (`.env`):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `DATABASE_URL` — строка подключения SQLite (или другой БД, если смените
+  провайдер в `prisma/schema.prisma`).
+- `AUTH_SECRET` — длинная случайная строка для подписи сессий.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+> **Важно:** real-time (доски, чат, уведомления) построен на in-memory
+> шине событий + SSE, поэтому приложение должно работать **одним
+> экземпляром** Node-процесса (не в serverless и не за несколькими
+> репликами без общего брокера). Для self-hosting это `npm run start`
+> за обратным прокси (nginx/Caddy) с поддержкой потоковых ответов
+> (`proxy_buffering off;` для `text/event-stream`).
 
-## Deploy on Vercel
+## Полезные команды
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run db:seed` — создать администратора (идемпотентно).
+- `npm run db:reset` — пересоздать БД и применить миграции заново.
+- `npm run lint` — проверка ESLint.

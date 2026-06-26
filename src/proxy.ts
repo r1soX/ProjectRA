@@ -8,6 +8,7 @@ const PROTECTED = [
   "/boards",
   "/messages",
   "/calendar",
+  "/search",
 ];
 
 export async function proxy(req: NextRequest) {
@@ -34,5 +35,6 @@ export const config = {
     "/boards/:path*",
     "/messages/:path*",
     "/calendar/:path*",
+    "/search/:path*",
   ],
 };
