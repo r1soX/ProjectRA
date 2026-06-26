@@ -53,6 +53,7 @@ function channel(boardId: string) {
 /** Notify all subscribers that a board changed. */
 export function publishBoard(boardId: string) {
   bus.emit(channel(boardId));
+  bus.emit("tasks"); // calendar / any cross-board subscriber
 }
 
 /** Subscribe to a board's changes. Returns an unsubscribe function. */
@@ -60,6 +61,12 @@ export function subscribeBoard(boardId: string, cb: () => void) {
   const ch = channel(boardId);
   bus.on(ch, cb);
   return () => bus.off(ch, cb);
+}
+
+/** Subscribe to any task change across all boards (used by calendar). */
+export function subscribeTasks(cb: () => void) {
+  bus.on("tasks", cb);
+  return () => bus.off("tasks", cb);
 }
 
 /** Notify subscribers that a chat channel got a new message. */

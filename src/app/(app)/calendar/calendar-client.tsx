@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -49,12 +50,19 @@ export function CalendarClient({
   currentUserId: string;
   isAdmin: boolean;
 }) {
+  const router = useRouter();
   const [tasks, setTasks] = useState(initial);
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [active, setActive] = useState<CalendarTask | null>(null);
   const [selected, setSelected] = useState<CalendarTask | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null);
   const [, start] = useTransition();
+
+  useEffect(() => {
+    const es = new EventSource("/api/calendar/stream");
+    es.addEventListener("change", () => router.refresh());
+    return () => es.close();
+  }, [router]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
