@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, UserCircle2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { BoardTask } from "./board-view";
 
@@ -73,6 +73,10 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
             </div>
           </div>
         )}
+        <div className="mt-2 flex items-center gap-1 border-t border-neutral-700/50 pt-1.5 text-[10px] text-neutral-500">
+          <UserCircle2 className="h-3 w-3 shrink-0" />
+          Создал: <span className="text-neutral-400">{task.createdByName}</span>
+        </div>
       </div>
     </>
   );

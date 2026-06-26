@@ -40,13 +40,13 @@ import {
   renameColumn,
   deleteColumn,
   createTask,
-  updateBoard,
   deleteBoard,
   moveTask,
   reorderColumns,
 } from "../actions";
 import { TaskModal } from "./task-modal";
 import { MembersModal } from "./members-modal";
+import { BoardSettingsModal } from "./board-settings-modal";
 import { TaskCardBody } from "./task-card-body";
 
 export type BoardMemberView = {
@@ -106,6 +106,7 @@ export function BoardView({
   const [activeColumn, setActiveColumn] = useState<BoardColumn | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [, start] = useTransition();
 
   // Re-sync local state when the server sends fresh data.
@@ -201,16 +202,17 @@ export function BoardView({
     setActiveColumn(null);
     if (!over) return;
 
+    // Compute next state, then update + persist OUTSIDE the state updater
+    // (calling actions inside a setState updater is an illegal side effect).
     if (activeType === "column") {
       if (active.id !== over.id) {
-        setCols((prev) => {
-          const oldI = prev.findIndex((c) => c.id === active.id);
-          const newI = prev.findIndex((c) => c.id === over.id);
-          if (oldI < 0 || newI < 0) return prev;
-          const next = arrayMove(prev, oldI, newI);
+        const oldI = cols.findIndex((c) => c.id === active.id);
+        const newI = cols.findIndex((c) => c.id === over.id);
+        if (oldI >= 0 && newI >= 0) {
+          const next = arrayMove(cols, oldI, newI);
+          setCols(next);
           start(() => reorderColumns(boardId, next.map((c) => c.id)));
-          return next;
-        });
+        }
       }
       return;
     }
@@ -221,23 +223,20 @@ export function BoardView({
     const toCol = resolveColumn(overId);
     if (!toCol) return;
 
-    setCols((prev) => {
-      const col = prev.find((c) => c.id === toCol);
-      if (!col) return prev;
-      const oldIndex = col.tasks.findIndex((t) => t.id === activeId);
-      if (oldIndex < 0) return prev;
-      const newIndex = overId.startsWith(DROP_PREFIX)
-        ? col.tasks.length - 1
-        : col.tasks.findIndex((t) => t.id === overId);
-      const tasks =
-        newIndex >= 0 && newIndex !== oldIndex
-          ? arrayMove(col.tasks, oldIndex, newIndex)
-          : col.tasks;
-      const next = prev.map((c) => (c.id === toCol ? { ...c, tasks } : c));
-      const orderedIds = next.find((c) => c.id === toCol)!.tasks.map((t) => t.id);
-      start(() => moveTask(activeId, toCol, orderedIds));
-      return next;
-    });
+    const col = cols.find((c) => c.id === toCol);
+    if (!col) return;
+    const oldIndex = col.tasks.findIndex((t) => t.id === activeId);
+    if (oldIndex < 0) return;
+    const newIndex = overId.startsWith(DROP_PREFIX)
+      ? col.tasks.length - 1
+      : col.tasks.findIndex((t) => t.id === overId);
+    const tasks =
+      newIndex >= 0 && newIndex !== oldIndex
+        ? arrayMove(col.tasks, oldIndex, newIndex)
+        : col.tasks;
+    const next = cols.map((c) => (c.id === toCol ? { ...c, tasks } : c));
+    setCols(next);
+    start(() => moveTask(activeId, toCol, tasks.map((t) => t.id)));
   }
 
   return (
@@ -289,11 +288,8 @@ export function BoardView({
               <Button
                 size="sm"
                 variant="ghost"
-                title="Переименовать доску"
-                onClick={() => {
-                  const next = prompt("Название доски", title);
-                  if (next && next.trim()) start(() => updateBoard(boardId, next, color));
-                }}
+                title="Настройки доски"
+                onClick={() => setSettingsOpen(true)}
               >
                 <Pencil className="h-4 w-4" />
               </Button>
@@ -368,6 +364,13 @@ export function BoardView({
         members={members}
         directory={directory}
         onClose={() => setMembersOpen(false)}
+      />
+      <BoardSettingsModal
+        open={settingsOpen}
+        boardId={boardId}
+        currentTitle={title}
+        currentColor={color}
+        onClose={() => setSettingsOpen(false)}
       />
     </div>
   );
