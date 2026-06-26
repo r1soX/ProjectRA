@@ -18,9 +18,20 @@ export type LinkEdge = {
   type: string;
 };
 
-export async function getBoardLinks(boardId: string, userId: string) {
+export async function getBoardLinks(
+  boardId: string,
+  userId: string,
+  isAdmin = false,
+) {
   const role = await getBoardRole(boardId, userId);
   if (!role) return null;
+
+  const taskWhere = isAdmin
+    ? { boardId }
+    : {
+        boardId,
+        OR: [{ isPersonal: false }, { createdById: userId }],
+      };
 
   const [board, tasks, links] = await Promise.all([
     prisma.board.findUnique({
@@ -28,7 +39,7 @@ export async function getBoardLinks(boardId: string, userId: string) {
       select: { id: true, title: true, color: true },
     }),
     prisma.task.findMany({
-      where: { boardId },
+      where: taskWhere,
       orderBy: { order: "asc" },
       select: {
         id: true,
@@ -56,12 +67,16 @@ export async function getBoardLinks(boardId: string, userId: string) {
     x: t.canvasX,
     y: t.canvasY,
   }));
-  const edges: LinkEdge[] = links.map((l) => ({
-    id: l.id,
-    source: l.sourceTaskId,
-    target: l.targetTaskId,
-    type: l.type,
-  }));
+  // Drop links that reference a task hidden from this user.
+  const visible = new Set(nodes.map((n) => n.id));
+  const edges: LinkEdge[] = links
+    .filter((l) => visible.has(l.sourceTaskId) && visible.has(l.targetTaskId))
+    .map((l) => ({
+      id: l.id,
+      source: l.sourceTaskId,
+      target: l.targetTaskId,
+      type: l.type,
+    }));
 
   return { role, board, nodes, edges };
 }

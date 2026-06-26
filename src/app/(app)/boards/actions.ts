@@ -238,6 +238,7 @@ export async function updateTask(taskId: string, formData: FormData) {
       description: String(formData.get("description") ?? "").trim() || null,
       color: String(formData.get("color") ?? "").trim() || null,
       priority: normalizePriority(formData.get("priority")),
+      isPersonal: formData.get("isPersonal") === "on",
       startDate: parseDate(formData.get("startDate")),
       dueDate: parseDate(formData.get("dueDate")),
     },

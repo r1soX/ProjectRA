@@ -22,7 +22,10 @@ function toDateInput(d: Date | null): string | null {
 }
 
 /** All dated tasks across the boards the user can access. */
-export async function getCalendarTasks(meId: string): Promise<CalendarTask[]> {
+export async function getCalendarTasks(
+  meId: string,
+  isAdmin = false,
+): Promise<CalendarTask[]> {
   const boards = await getUserBoards(meId);
   const boardMap = new Map(
     boards.map((b) => [b.id, { title: b.title, color: b.color ?? "#0ea5e9" }]),
@@ -30,7 +33,13 @@ export async function getCalendarTasks(meId: string): Promise<CalendarTask[]> {
   if (boardMap.size === 0) return [];
 
   const tasks = await prisma.task.findMany({
-    where: { boardId: { in: [...boardMap.keys()] }, dueDate: { not: null } },
+    where: {
+      boardId: { in: [...boardMap.keys()] },
+      dueDate: { not: null },
+      ...(isAdmin
+        ? {}
+        : { OR: [{ isPersonal: false }, { createdById: meId }] }),
+    },
     orderBy: { dueDate: "asc" },
     include: {
       assignees: {

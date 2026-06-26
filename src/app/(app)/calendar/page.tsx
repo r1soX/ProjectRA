@@ -4,7 +4,7 @@ import { CalendarClient } from "./calendar-client";
 
 export default async function CalendarPage() {
   const me = await requireUser();
-  const tasks = await getCalendarTasks(me.id);
+  const tasks = await getCalendarTasks(me.id, me.role === "ADMIN");
 
   return (
     <CalendarClient

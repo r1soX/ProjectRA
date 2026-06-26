@@ -47,7 +47,7 @@ export default async function BoardPage({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  const result = await getBoardWithData(id, user.id);
+  const result = await getBoardWithData(id, user.id, user.role === "ADMIN");
   if (!result) notFound();
 
   const { board, role } = result;
@@ -111,6 +111,7 @@ export default async function BoardPage({
       description: t.description,
       color: t.color,
       priority: t.priority,
+      isPersonal: t.isPersonal,
       startDate: toDateInput(t.startDate),
       dueDate: toDateInput(t.dueDate),
       createdById: t.createdById,

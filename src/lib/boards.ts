@@ -37,7 +37,16 @@ const userPick = {
 } as const;
 
 /** Full board data + the requesting user's role, or null if no access. */
-export async function getBoardWithData(boardId: string, userId: string) {
+export async function getBoardWithData(
+  boardId: string,
+  userId: string,
+  isAdmin = false,
+) {
+  // Personal tasks are visible only to their creator (and admins).
+  const taskWhere = isAdmin
+    ? {}
+    : { OR: [{ isPersonal: false }, { createdById: userId }] };
+
   const board = await prisma.board.findUnique({
     where: { id: boardId },
     include: {
@@ -55,6 +64,7 @@ export async function getBoardWithData(boardId: string, userId: string) {
         orderBy: { order: "asc" },
         include: {
           tasks: {
+            where: taskWhere,
             orderBy: { order: "asc" },
             include: {
               createdBy: userPick,

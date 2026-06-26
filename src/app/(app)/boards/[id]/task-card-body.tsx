@@ -1,6 +1,12 @@
 "use client";
 
-import { CalendarClock, UserCircle2, MessageSquare, Share2 } from "lucide-react";
+import {
+  CalendarClock,
+  UserCircle2,
+  MessageSquare,
+  Share2,
+  Lock,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
 import type { BoardTask } from "./board-view";
@@ -39,6 +45,12 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
             <span className={cn("h-1.5 w-1.5 rounded-full", priority.dot)} />
             {priority.label}
           </span>
+          {task.isPersonal && (
+            <span className="inline-flex items-center gap-1 rounded bg-neutral-700/60 px-1.5 py-0.5 text-[11px] text-neutral-300">
+              <Lock className="h-3 w-3" />
+              личная
+            </span>
+          )}
           {task.labels.map((l) => (
             <span
               key={l.id}

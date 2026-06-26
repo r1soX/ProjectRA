@@ -10,7 +10,7 @@ export default async function BoardLinksPage({
 }) {
   const { id } = await params;
   const me = await requireUser();
-  const data = await getBoardLinks(id, me.id);
+  const data = await getBoardLinks(id, me.id, me.role === "ADMIN");
   if (!data) notFound();
 
   const canEdit = data.role === "OWNER" || data.role === "EDITOR";

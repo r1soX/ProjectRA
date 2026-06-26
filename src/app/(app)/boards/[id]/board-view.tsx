@@ -73,6 +73,7 @@ export type BoardTask = {
   description: string | null;
   color: string | null;
   priority: string;
+  isPersonal: boolean;
   startDate: string | null;
   dueDate: string | null;
   createdById: string;

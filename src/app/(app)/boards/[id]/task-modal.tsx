@@ -11,6 +11,7 @@ import {
   Share2,
   ArrowRight,
   ArrowLeft,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,6 +124,20 @@ export function TaskModal({
               <ColorSwatches initial={task.color} disabled={!canEdit} />
             </div>
           </Field>
+
+          <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-3">
+            <input
+              type="checkbox"
+              name="isPersonal"
+              defaultChecked={task.isPersonal}
+              disabled={!canEdit}
+              className="h-4 w-4 accent-sky-500"
+            />
+            <span className="flex items-center gap-2 text-sm text-neutral-300">
+              <Lock className="h-4 w-4 text-neutral-500" />
+              Личная задача — видна только вам
+            </span>
+          </label>
 
           <div>
             <p className="mb-2 text-sm font-medium text-neutral-300">Исполнители</p>
