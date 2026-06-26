@@ -184,7 +184,7 @@ export function BoardView({
 
   const sensors = useSensors(
     // Desktop: start dragging after a small movement.
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
     // Touch: press-and-hold to drag, so a normal swipe still scrolls.
     useSensor(TouchSensor, {
       activationConstraint: { delay: 220, tolerance: 8 },
@@ -429,11 +429,23 @@ export function BoardView({
           {activeTask ? (
             <DanglingCard task={activeTask} />
           ) : activeColumn ? (
-            <div className="w-[82vw] max-w-[19rem] rotate-2 rounded-xl border border-sky-500/40 bg-neutral-900/90 px-3 py-2.5 shadow-2xl sm:w-72">
-              <span className="text-sm font-semibold text-neutral-200">
-                {activeColumn.title}
-              </span>
-            </div>
+            <motion.div
+              initial={{ scale: 1 }}
+              animate={{ rotate: [-2.5, 2.5, -2.5] }}
+              transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
+              style={{ transformOrigin: "top center" }}
+              className="glass-strong w-[82vw] max-w-[19rem] cursor-grabbing rounded-2xl border-sky-500/40 shadow-2xl shadow-sky-500/20 ring-2 ring-sky-500/30 sm:w-72"
+            >
+              <div className="flex items-center gap-2 px-3 py-2.5">
+                <GripVertical className="h-4 w-4 text-sky-400" />
+                <span className="truncate text-sm font-semibold text-white">
+                  {activeColumn.title}
+                </span>
+                <span className="ml-auto rounded-full bg-white/10 px-1.5 text-xs text-neutral-300">
+                  {activeColumn.tasks.length}
+                </span>
+              </div>
+            </motion.div>
           ) : null}
         </DragOverlay>
       </DndContext>
@@ -668,7 +680,7 @@ function SortableTask({
       {...listeners}
       onClick={() => onOpen(task.id)}
       className={cn(
-        "block w-full cursor-pointer select-none overflow-hidden rounded-xl border text-left shadow-sm transition hover:-translate-y-px hover:shadow-md",
+        "block w-full cursor-grab select-none overflow-hidden rounded-xl border text-left shadow-sm transition-colors active:cursor-grabbing",
         isTaskOverdue(task)
           ? "border-red-500/50 bg-red-500/[0.07] shadow-red-500/20 ring-1 ring-red-500/40 hover:border-red-500/70"
           : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.07]",

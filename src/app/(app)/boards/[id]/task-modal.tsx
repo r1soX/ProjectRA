@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Trash2,
@@ -74,6 +74,17 @@ export function TaskModal({
   const [assignPending, startAssign] = useTransition();
   const [delPending, startDel] = useTransition();
   const confirm = useConfirm();
+  const openedAt = useRef(0);
+
+  useEffect(() => {
+    if (task) openedAt.current = Date.now();
+  }, [task]);
+
+  // Ignore a backdrop "click" that arrives right after opening (ghost click
+  // / the same press that opened the card) — это и закрывало модалку сразу.
+  const guardedClose = () => {
+    if (Date.now() - openedAt.current > 350) onClose();
+  };
 
   useEffect(() => {
     if (state.ok) onClose();
@@ -103,7 +114,7 @@ export function TaskModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={guardedClose}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
           <motion.div
