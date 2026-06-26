@@ -1,0 +1,203 @@
+// Tandem — task manager schema
+// Docs: https://pris.ly/d/prisma-schema
+// NOTE: SQLite has no native enums, so role/type fields are stored as String.
+// Allowed values are documented next to each field.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ── Users & access ────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique // login, e.g. "v.smolin"
+  name         String
+  email        String?  @unique
+  passwordHash String
+  role         String   @default("USER") // ADMIN | USER
+  avatar       String? // url or data
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedBoards   Board[]        @relation("BoardOwner")
+  memberships   BoardMember[]
+  createdTasks  Task[]         @relation("TaskCreator")
+  assignments   TaskAssignee[]
+  comments      Comment[]
+  messages      Message[]
+  notifications Notification[]
+}
+
+// ── Boards ────────────────────────────────────────────────────────
+
+model Board {
+  id         String   @id @default(cuid())
+  title      String
+  color      String?
+  isPersonal Boolean  @default(false) // personal board = private to owner
+  ownerId    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  owner    User          @relation("BoardOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members  BoardMember[]
+  columns  Column[]
+  tasks    Task[]
+  labels   Label[]
+  links    TaskLink[]
+  channels Channel[]
+}
+
+model BoardMember {
+  id      String @id @default(cuid())
+  boardId String
+  userId  String
+  role    String @default("EDITOR") // OWNER | EDITOR | VIEWER
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+}
+
+// ── Columns & tasks ───────────────────────────────────────────────
+
+model Column {
+  id      String @id @default(cuid())
+  boardId String
+  title   String
+  order   Int    @default(0)
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  tasks Task[]
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  boardId     String
+  columnId    String
+  title       String
+  description String?
+  order       Int       @default(0)
+  color       String?
+  isPersonal  Boolean   @default(false)
+  startDate   DateTime?
+  dueDate     DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  board     Board          @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  column    Column         @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  createdBy User           @relation("TaskCreator", fields: [createdById], references: [id])
+  assignees TaskAssignee[]
+  labels    TaskLabel[]
+  comments  Comment[]
+  linksFrom TaskLink[]     @relation("LinkSource")
+  linksTo   TaskLink[]     @relation("LinkTarget")
+}
+
+model TaskAssignee {
+  taskId String
+  userId String
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+}
+
+// ── Visual links between tasks ────────────────────────────────────
+
+model TaskLink {
+  id           String @id @default(cuid())
+  boardId      String
+  sourceTaskId String
+  targetTaskId String
+  type         String @default("RELATES") // RELATES | BLOCKS | DEPENDS
+
+  board  Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  source Task  @relation("LinkSource", fields: [sourceTaskId], references: [id], onDelete: Cascade)
+  target Task  @relation("LinkTarget", fields: [targetTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceTaskId, targetTaskId])
+}
+
+// ── Labels ────────────────────────────────────────────────────────
+
+model Label {
+  id      String @id @default(cuid())
+  boardId String
+  name    String
+  color   String @default("#888888")
+
+  board Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  tasks TaskLabel[]
+}
+
+model TaskLabel {
+  taskId  String
+  labelId String
+
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+}
+
+// ── Comments (task discussion) ────────────────────────────────────
+
+model Comment {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ── Messenger ─────────────────────────────────────────────────────
+
+model Channel {
+  id        String   @id @default(cuid())
+  boardId   String? // null for direct/group channels not tied to a board
+  name      String
+  type      String   @default("BOARD") // BOARD | DM | GROUP
+  createdAt DateTime @default(now())
+
+  board    Board?    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  messages Message[]
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  channelId String
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ── Notifications ─────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  payload   String // JSON string
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
