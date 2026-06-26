@@ -2,6 +2,8 @@
 
 import { MessageCircle, LayoutGrid, MessagesSquare } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Avatar } from "@/components/ui/avatar";
+import { isOnline } from "@/lib/presence";
 import { openDm, openBoardChannel } from "./actions";
 import { ConversationView } from "./conversation-view";
 
@@ -11,6 +13,9 @@ export type ChatUser = {
   shortName: string;
   initials: string;
   username: string;
+  avatar: string | null;
+  emoji: string | null;
+  lastSeenAt: string | null;
   unread: number;
 };
 export type ChatBoard = {
@@ -23,9 +28,17 @@ export type ChatMessage = {
   id: string;
   body: string;
   mine: boolean;
+  userId: string;
   authorName: string;
   authorInitials: string;
+  authorAvatar: string | null;
+  authorEmoji: string | null;
   createdAt: string;
+  editedAt: string | null;
+  attachmentUrl: string | null;
+  attachmentType: string | null;
+  attachmentName: string | null;
+  attachmentSize: number | null;
 };
 export type ActiveChannel = {
   channelId: string;
@@ -34,6 +47,9 @@ export type ActiveChannel = {
   subtitle: string;
   color: string | null;
   otherUserId: string | null;
+  otherAvatar: string | null;
+  otherEmoji: string | null;
+  otherLastSeen: string | null;
   boardId: string | null;
   messages: ChatMessage[];
 };
@@ -75,15 +91,19 @@ export function MessagesClient({
                   active?.otherUserId === u.id && "bg-white/10",
                 )}
               >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-xs font-semibold text-white">
-                  {u.initials}
-                </span>
+                <Avatar
+                  image={u.avatar}
+                  emoji={u.emoji}
+                  initials={u.initials}
+                  size={36}
+                  online={isOnline(u.lastSeenAt)}
+                />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-neutral-100">
                     {u.shortName}
                   </span>
                   <span className="block truncate text-xs text-neutral-500">
-                    @{u.username}
+                    {isOnline(u.lastSeenAt) ? "в сети" : `@${u.username}`}
                   </span>
                 </span>
                 <UnreadBadge n={u.unread} />

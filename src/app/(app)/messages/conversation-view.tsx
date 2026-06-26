@@ -1,13 +1,36 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Send } from "lucide-react";
+import {
+  ArrowLeft,
+  Send,
+  Paperclip,
+  Smile,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  FileText,
+  Download,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
-import { sendMessage, markRead, type ChatState } from "./actions";
-import type { ActiveChannel } from "./messages-client";
+import { isOnline, formatLastSeen } from "@/lib/presence";
+import { useConfirm } from "@/components/ui/dialog-provider";
+import {
+  sendMessage,
+  markRead,
+  editMessage,
+  deleteMessage,
+  type ChatState,
+} from "./actions";
+import type { ActiveChannel, ChatMessage } from "./messages-client";
+
+const EMOJIS = "😀 😁 😂 🤣 😊 😍 😘 😎 🤔 😴 😢 😭 😡 👍 👎 👏 🙏 🔥 🎉 ✅ ❌ ❤️ 💯 🚀 👀 💪 🤝 😅 😉 🙌 ✨ ⭐ 💡 📌 ⚡ 🥳".split(" ");
+const MB = 1024 * 1024;
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("ru-RU", {
@@ -21,75 +44,136 @@ function formatDay(iso: string) {
     month: "long",
   });
 }
+function formatSize(bytes: number | null) {
+  if (!bytes) return "";
+  if (bytes < MB) return `${Math.max(1, Math.round(bytes / 1024))} КБ`;
+  return `${(bytes / MB).toFixed(1)} МБ`;
+}
+
+type PendingAttachment = {
+  url: string;
+  type: string;
+  name: string;
+  size: number;
+};
 
 export function ConversationView({ active }: { active: ActiveChannel }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [body, setBody] = useState("");
+  const [attachment, setAttachment] = useState<PendingAttachment | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [, startEdit] = useTransition();
+  const [, startDel] = useTransition();
   const [state, action, pending] = useActionState<ChatState, FormData>(
     sendMessage,
     {},
   );
+  const fileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Live updates for this channel.
+  const isBoard = active.type === "BOARD";
+
   useEffect(() => {
     const es = new EventSource(`/api/channels/${active.channelId}/stream`);
     es.addEventListener("change", () => router.refresh());
     return () => es.close();
   }, [active.channelId, router]);
 
-  // Mark the conversation read on open and whenever new messages arrive.
   useEffect(() => {
     markRead(active.channelId);
   }, [active.channelId, active.messages.length]);
 
-  // Clear input after a successful send.
   useEffect(() => {
-    if (state.ok) setBody("");
+    if (state.ok) {
+      setBody("");
+      setAttachment(null);
+    }
   }, [state]);
 
-  // Scroll to newest message.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [active.messages.length, active.channelId]);
 
-  const isBoard = active.type === "BOARD";
+  async function handleFile(file: File) {
+    setUploadError(null);
+    const img = file.type.startsWith("image/");
+    const vid = file.type.startsWith("video/");
+    const limit = img ? 25 * MB : vid ? Infinity : 50 * MB;
+    if (file.size > limit) {
+      setUploadError(img ? "Фото не больше 25 МБ" : "Файл не больше 50 МБ");
+      return;
+    }
+    setUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setUploadError(j.error ?? "Не удалось загрузить");
+        return;
+      }
+      const data = await res.json();
+      setAttachment({ url: data.url, type: data.kind, name: data.name, size: data.size });
+    } catch {
+      setUploadError("Ошибка загрузки");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function saveEdit(id: string) {
+    const text = editValue.trim();
+    if (text) startEdit(() => editMessage(id, text));
+    setEditingId(null);
+  }
+
+  const canSend = (body.trim().length > 0 || attachment !== null) && !uploading;
   let lastDay = "";
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
+      <div className="glass flex items-center gap-3 border-b border-white/10 px-4 py-2.5">
         <Link
           href="/messages"
-          className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200 md:hidden"
+          className="rounded-lg p-1.5 text-neutral-400 hover:bg-white/5 hover:text-neutral-200 md:hidden"
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-          style={{
-            background: isBoard
-              ? (active.color ?? "#0ea5e9")
-              : "linear-gradient(135deg,#0ea5e9,#6366f1)",
-          }}
-        >
-          {isBoard ? "#" : active.title.slice(0, 1).toUpperCase()}
-        </span>
+        {isBoard ? (
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+            style={{ background: active.color ?? "#0ea5e9" }}
+          >
+            #
+          </span>
+        ) : (
+          <Avatar
+            image={active.otherAvatar}
+            emoji={active.otherEmoji}
+            initials={active.title.slice(0, 2).toUpperCase()}
+            size={38}
+            online={isOnline(active.otherLastSeen)}
+          />
+        )}
         <div className="min-w-0">
-          <p className="truncate font-semibold text-neutral-100">
-            {active.title}
+          <p className="truncate font-semibold text-neutral-100">{active.title}</p>
+          <p className="truncate text-xs text-neutral-500">
+            {isBoard
+              ? active.subtitle
+              : formatLastSeen(active.otherLastSeen)}
           </p>
-          {active.subtitle && (
-            <p className="truncate text-xs text-neutral-500">
-              {active.subtitle}
-            </p>
-          )}
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-4 py-4">
+      <div className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-4">
         {active.messages.length === 0 && (
           <p className="mt-10 text-center text-sm text-neutral-500">
             Сообщений пока нет. Начните разговор 👋
@@ -103,25 +187,51 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
             <div key={m.id}>
               {showDay && (
                 <div className="my-3 text-center">
-                  <span className="rounded-full bg-neutral-800 px-3 py-0.5 text-xs text-neutral-400">
+                  <span className="rounded-full bg-white/10 px-3 py-0.5 text-xs text-neutral-400">
                     {day}
                   </span>
                 </div>
               )}
               <div
                 className={cn(
-                  "flex items-end gap-2",
+                  "group flex items-end gap-2",
                   m.mine ? "justify-end" : "justify-start",
                 )}
               >
                 {!m.mine && (
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center self-end rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-[10px] font-semibold text-white">
-                    {m.authorInitials}
-                  </span>
+                  <Avatar
+                    image={m.authorAvatar}
+                    emoji={m.authorEmoji}
+                    initials={m.authorInitials}
+                    size={28}
+                    className="self-end"
+                  />
                 )}
+
+                {m.mine && editingId !== m.id && (
+                  <MessageActions
+                    onEdit={
+                      m.body
+                        ? () => {
+                            setEditingId(m.id);
+                            setEditValue(m.body);
+                          }
+                        : undefined
+                    }
+                    onDelete={async () => {
+                      const ok = await confirm({
+                        title: "Удалить сообщение?",
+                        confirmLabel: "Удалить",
+                        danger: true,
+                      });
+                      if (ok) startDel(() => deleteMessage(m.id));
+                    }}
+                  />
+                )}
+
                 <div
                   className={cn(
-                    "max-w-[78%] rounded-2xl px-3.5 py-2 shadow-sm",
+                    "max-w-[80%] rounded-2xl px-3 py-2 shadow-sm sm:max-w-[70%]",
                     m.mine
                       ? "rounded-br-md bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-sky-500/20"
                       : "rounded-bl-md border border-white/10 bg-white/[0.06] text-neutral-100 backdrop-blur",
@@ -132,17 +242,51 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
                       {m.authorName}
                     </p>
                   )}
-                  <p className="whitespace-pre-wrap break-words text-sm">
-                    {m.body}
-                  </p>
-                  <p
-                    className={cn(
-                      "mt-0.5 text-right text-[10px]",
-                      m.mine ? "text-sky-200/80" : "text-neutral-500",
-                    )}
-                  >
-                    {formatTime(m.createdAt)}
-                  </p>
+
+                  {editingId === m.id ? (
+                    <div className="w-56">
+                      <textarea
+                        value={editValue}
+                        autoFocus
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            saveEdit(m.id);
+                          }
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                        rows={2}
+                        className="w-full resize-none rounded-lg border border-white/20 bg-black/20 px-2 py-1 text-sm text-white outline-none"
+                      />
+                      <div className="mt-1 flex justify-end gap-1">
+                        <button onClick={() => setEditingId(null)} title="Отмена">
+                          <X className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => saveEdit(m.id)} title="Сохранить">
+                          <Check className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <Attachment m={m} />
+                      {m.body && (
+                        <p className="whitespace-pre-wrap break-words text-sm">
+                          {m.body}
+                        </p>
+                      )}
+                      <p
+                        className={cn(
+                          "mt-0.5 text-right text-[10px]",
+                          m.mine ? "text-sky-200/80" : "text-neutral-500",
+                        )}
+                      >
+                        {m.editedAt && "ред. · "}
+                        {formatTime(m.createdAt)}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -152,11 +296,82 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
       </div>
 
       {/* Composer */}
-      <form
-        action={action}
-        className="flex items-end gap-2 border-t border-white/10 p-3"
-      >
+      {attachment && (
+        <div className="flex items-center gap-2 border-t border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-300">
+          <Paperclip className="h-4 w-4 text-sky-400" />
+          <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
+          <span className="text-xs text-neutral-500">{formatSize(attachment.size)}</span>
+          <button onClick={() => setAttachment(null)} className="text-neutral-500 hover:text-red-400">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      {uploadError && (
+        <p className="border-t border-white/10 px-3 py-1.5 text-xs text-red-300">{uploadError}</p>
+      )}
+
+      <form action={action} className="relative flex items-end gap-2 border-t border-white/10 p-3">
         <input type="hidden" name="channelId" value={active.channelId} />
+        {attachment && (
+          <>
+            <input type="hidden" name="attachmentUrl" value={attachment.url} />
+            <input type="hidden" name="attachmentType" value={attachment.type} />
+            <input type="hidden" name="attachmentName" value={attachment.name} />
+            <input type="hidden" name="attachmentSize" value={attachment.size} />
+          </>
+        )}
+
+        <input
+          ref={fileRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          title="Прикрепить файл"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-white/5 hover:text-neutral-200 disabled:opacity-50"
+        >
+          <Paperclip className="h-5 w-5" />
+        </button>
+
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setEmojiOpen((v) => !v)}
+            title="Эмодзи"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-white/5 hover:text-neutral-200"
+          >
+            <Smile className="h-5 w-5" />
+          </button>
+          {emojiOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setEmojiOpen(false)} />
+              <div className="glass-strong absolute bottom-12 left-0 z-20 grid w-64 grid-cols-8 gap-1 rounded-xl p-2 shadow-2xl">
+                {EMOJIS.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => {
+                      setBody((b) => b + e);
+                      setEmojiOpen(false);
+                    }}
+                    className="rounded-lg p-1 text-lg hover:bg-white/10"
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
         <textarea
           name="body"
           value={body}
@@ -164,17 +379,86 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              if (body.trim()) e.currentTarget.form?.requestSubmit();
+              if (canSend) e.currentTarget.form?.requestSubmit();
             }
           }}
           rows={1}
-          placeholder="Сообщение…"
-          className="max-h-32 min-h-[40px] flex-1 resize-none rounded-xl border border-neutral-700 bg-neutral-900/60 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
+          placeholder={uploading ? "Загрузка файла…" : "Сообщение…"}
+          className="max-h-32 min-h-[40px] flex-1 resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-neutral-100 outline-none backdrop-blur focus:border-sky-500/70 focus:ring-2 focus:ring-sky-500/25"
         />
-        <Button type="submit" loading={pending} disabled={!body.trim()}>
+        <Button type="submit" loading={pending} disabled={!canSend}>
           <Send className="h-4 w-4" />
         </Button>
       </form>
     </div>
+  );
+}
+
+function MessageActions({
+  onEdit,
+  onDelete,
+}: {
+  onEdit?: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5 self-center opacity-0 transition group-hover:opacity-100">
+      {onEdit && (
+        <button
+          onClick={onEdit}
+          title="Редактировать"
+          className="rounded-md p-1 text-neutral-500 hover:bg-white/5 hover:text-sky-400"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      )}
+      <button
+        onClick={onDelete}
+        title="Удалить"
+        className="rounded-md p-1 text-neutral-500 hover:bg-white/5 hover:text-red-400"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function Attachment({ m }: { m: ChatMessage }) {
+  if (!m.attachmentUrl) return null;
+  if (m.attachmentType === "image") {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <a href={m.attachmentUrl} target="_blank" rel="noreferrer" className="block">
+        <img
+          src={m.attachmentUrl}
+          alt={m.attachmentName ?? ""}
+          className="mb-1 max-h-64 w-auto max-w-full rounded-lg"
+        />
+      </a>
+    );
+  }
+  if (m.attachmentType === "video") {
+    return (
+      <video
+        src={m.attachmentUrl}
+        controls
+        className="mb-1 max-h-64 w-auto max-w-full rounded-lg"
+      />
+    );
+  }
+  return (
+    <a
+      href={m.attachmentUrl}
+      target="_blank"
+      rel="noreferrer"
+      download
+      className="mb-1 flex items-center gap-2 rounded-lg bg-black/15 px-2.5 py-2"
+    >
+      <FileText className="h-5 w-5 shrink-0" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm">{m.attachmentName}</span>
+      </span>
+      <Download className="h-4 w-4 shrink-0 opacity-70" />
+    </a>
   );
 }

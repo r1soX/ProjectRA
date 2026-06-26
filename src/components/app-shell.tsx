@@ -20,6 +20,7 @@ import { cn } from "@/lib/cn";
 import { logout } from "@/app/actions/session";
 import type { SessionUser } from "@/lib/auth";
 import { shortName, initials } from "@/lib/names";
+import { Avatar } from "@/components/ui/avatar";
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
 
@@ -88,9 +89,13 @@ function NavLinks({
 function UserCard({ user }: { user: SessionUser }) {
   return (
     <div className="flex items-center gap-3 border-t border-white/10 p-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 text-sm font-semibold text-white shadow-lg shadow-sky-500/20 ring-1 ring-white/15">
-        {initials(user)}
-      </div>
+      <Avatar
+        image={user.avatar}
+        emoji={user.avatarEmoji}
+        initials={initials(user)}
+        size={36}
+        ring
+      />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-neutral-100">
           {shortName(user)}

@@ -3,6 +3,7 @@ import { getUnreadTotal } from "@/lib/chat";
 import { AppShell } from "@/components/app-shell";
 import { DialogProvider } from "@/components/ui/dialog-provider";
 import { NotificationCenter } from "@/components/notification-center";
+import { PresenceHeartbeat } from "@/components/presence-heartbeat";
 
 export default async function AppLayout({
   children,
@@ -17,6 +18,7 @@ export default async function AppLayout({
         {children}
       </AppShell>
       <NotificationCenter />
+      <PresenceHeartbeat />
     </DialogProvider>
   );
 }

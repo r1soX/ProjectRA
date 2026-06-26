@@ -8,6 +8,18 @@ import { requireUser } from "@/lib/auth";
 
 export type FormState = { ok?: boolean; error?: string; message?: string };
 
+export async function saveAvatar(
+  avatar: string | null,
+  avatarEmoji: string | null,
+) {
+  const me = await requireUser();
+  await prisma.user.update({
+    where: { id: me.id },
+    data: { avatar, avatarEmoji },
+  });
+  revalidatePath("/profile");
+}
+
 const profileSchema = z.object({
   lastName: z.string().trim().min(1, "Введите фамилию"),
   firstName: z.string().trim().min(1, "Введите имя"),

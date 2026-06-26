@@ -17,6 +17,7 @@ export type SessionUser = {
   middleName: string | null;
   role: string;
   avatar: string | null;
+  avatarEmoji: string | null;
 };
 
 export async function setSessionCookie(userId: string) {
@@ -56,6 +57,7 @@ export async function getSession(): Promise<SessionUser | null> {
       middleName: true,
       role: true,
       avatar: true,
+      avatarEmoji: true,
       isActive: true,
     },
   });
@@ -69,6 +71,7 @@ export async function getSession(): Promise<SessionUser | null> {
     middleName: user.middleName,
     role: user.role,
     avatar: user.avatar,
+    avatarEmoji: user.avatarEmoji,
   };
 }
 

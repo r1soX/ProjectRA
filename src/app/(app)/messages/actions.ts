@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { shortName } from "@/lib/names";
@@ -31,28 +30,36 @@ export async function openBoardChannel(boardId: string) {
   redirect(`/messages?c=${channelId}`);
 }
 
-const messageSchema = z.object({
-  channelId: z.string().min(1),
-  body: z.string().trim().min(1, "Введите сообщение").max(4000),
-});
-
 export async function sendMessage(
   _prev: ChatState,
   formData: FormData,
 ): Promise<ChatState> {
   const me = await requireUser();
-  const parsed = messageSchema.safeParse({
-    channelId: formData.get("channelId"),
-    body: formData.get("body"),
-  });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+  const channelId = String(formData.get("channelId") ?? "");
+  const body = String(formData.get("body") ?? "").trim().slice(0, 4000);
+  const attachmentUrl = String(formData.get("attachmentUrl") ?? "") || null;
+  const attachmentType = String(formData.get("attachmentType") ?? "") || null;
+  const attachmentName = String(formData.get("attachmentName") ?? "") || null;
+  const attachmentSizeRaw = String(formData.get("attachmentSize") ?? "");
+  const attachmentSize = attachmentSizeRaw ? parseInt(attachmentSizeRaw, 10) : null;
 
-  const { channelId, body } = parsed.data;
+  if (!channelId) return { error: "Нет диалога" };
+  if (!body && !attachmentUrl) return { error: "Введите сообщение" };
   if (!(await canAccessChannel(channelId, me.id))) {
     return { error: "Нет доступа к диалогу" };
   }
 
-  await prisma.message.create({ data: { channelId, userId: me.id, body } });
+  await prisma.message.create({
+    data: {
+      channelId,
+      userId: me.id,
+      body,
+      attachmentUrl,
+      attachmentType,
+      attachmentName,
+      attachmentSize,
+    },
+  });
 
   // Notify open viewers of this channel.
   publishChannel(channelId);
@@ -68,11 +75,20 @@ export async function sendMessage(
     select: { lastName: true, firstName: true, middleName: true },
   });
   const senderShort = shortName(me2);
+  const previewText = body
+    ? body.length > 90
+      ? body.slice(0, 90) + "…"
+      : body
+    : attachmentType === "image"
+      ? "📷 Фото"
+      : attachmentType === "video"
+        ? "🎬 Видео"
+        : "📎 Файл";
   const payload = {
     type: "message" as const,
     channelId,
     fromName: senderShort,
-    preview: body.length > 90 ? body.slice(0, 90) + "…" : body,
+    preview: previewText,
     title: isBoard ? (channel?.board?.title ?? "Доска") : senderShort,
     isBoard,
   };
@@ -87,5 +103,35 @@ export async function markRead(channelId: string) {
   const me = await requireUser();
   if (!(await canAccessChannel(channelId, me.id))) return;
   await markChannelRead(channelId, me.id);
+  revalidatePath("/messages");
+}
+
+export async function editMessage(messageId: string, body: string) {
+  const me = await requireUser();
+  const text = body.trim().slice(0, 4000);
+  if (!text) return;
+  const msg = await prisma.message.findUnique({
+    where: { id: messageId },
+    select: { userId: true, channelId: true },
+  });
+  if (!msg || msg.userId !== me.id) return; // только автор
+  await prisma.message.update({
+    where: { id: messageId },
+    data: { body: text, editedAt: new Date() },
+  });
+  publishChannel(msg.channelId);
+  revalidatePath("/messages");
+}
+
+export async function deleteMessage(messageId: string) {
+  const me = await requireUser();
+  const msg = await prisma.message.findUnique({
+    where: { id: messageId },
+    select: { userId: true, channelId: true },
+  });
+  if (!msg) return;
+  if (msg.userId !== me.id && me.role !== "ADMIN") return;
+  await prisma.message.delete({ where: { id: messageId } });
+  publishChannel(msg.channelId);
   revalidatePath("/messages");
 }

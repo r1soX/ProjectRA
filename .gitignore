@@ -49,3 +49,6 @@ prisma/dev.db-journal
 
 # claude local settings
 .claude/
+
+# uploaded files (avatars, attachments)
+/uploads/

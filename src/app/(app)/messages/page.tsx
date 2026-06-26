@@ -45,14 +45,25 @@ export default async function MessagesPage({
           : "Чат доски",
         color: channel.board?.color ?? null,
         otherUserId: other?.id ?? null,
+        otherAvatar: other?.avatar ?? null,
+        otherEmoji: other?.avatarEmoji ?? null,
+        otherLastSeen: other?.lastSeenAt ? other.lastSeenAt.toISOString() : null,
         boardId: channel.boardId ?? null,
         messages: channel.messages.map((msg) => ({
           id: msg.id,
           body: msg.body,
           mine: msg.userId === me.id,
+          userId: msg.userId,
           authorName: shortName(msg.user),
           authorInitials: initials(msg.user),
+          authorAvatar: msg.user.avatar ?? null,
+          authorEmoji: msg.user.avatarEmoji ?? null,
           createdAt: msg.createdAt.toISOString(),
+          editedAt: msg.editedAt ? msg.editedAt.toISOString() : null,
+          attachmentUrl: msg.attachmentUrl ?? null,
+          attachmentType: msg.attachmentType ?? null,
+          attachmentName: msg.attachmentName ?? null,
+          attachmentSize: msg.attachmentSize ?? null,
         })),
       };
     }
@@ -70,6 +81,9 @@ export default async function MessagesPage({
     shortName: shortName(u),
     initials: initials(u),
     username: u.username,
+    avatar: u.avatar ?? null,
+    emoji: u.avatarEmoji ?? null,
+    lastSeenAt: u.lastSeenAt ? u.lastSeenAt.toISOString() : null,
     unread: byUser[u.id] ?? 0,
   }));
   const chatBoards: ChatBoard[] = boards.map((b) => ({
