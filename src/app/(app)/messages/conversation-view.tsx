@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
+import { MediaLightbox } from "@/components/ui/media-lightbox";
 import { cn } from "@/lib/cn";
 import { formatLastSeen } from "@/lib/presence";
 import { useOnline } from "@/components/presence-provider";
@@ -58,6 +59,11 @@ type PendingAttachment = {
   size: number;
 };
 
+type LightboxState =
+  | { kind: "image"; src: string; name?: string }
+  | { kind: "video"; src: string; name?: string }
+  | null;
+
 export function ConversationView({ active }: { active: ActiveChannel }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -74,6 +80,7 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
     sendMessage,
     {},
   );
+  const [lightbox, setLightbox] = useState<LightboxState>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -139,6 +146,8 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
   let lastDay = "";
 
   return (
+    <>
+    <MediaLightbox item={lightbox} onClose={() => setLightbox(null)} />
     <div className="flex h-full min-h-0 flex-col">
       {/* Header */}
       <div className="glass flex items-center gap-3 border-b border-white/10 px-4 py-2.5">
@@ -279,7 +288,7 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
                     </div>
                   ) : (
                     <>
-                      <Attachment m={m} />
+                      <Attachment m={m} onOpen={setLightbox} />
                       {m.body && (
                         <p className="whitespace-pre-wrap break-words text-sm">
                           {m.body}
@@ -400,6 +409,7 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
         </Button>
       </form>
     </div>
+    </>
   );
 }
 
@@ -432,27 +442,56 @@ function MessageActions({
   );
 }
 
-function Attachment({ m }: { m: ChatMessage }) {
+function Attachment({
+  m,
+  onOpen,
+}: {
+  m: ChatMessage;
+  onOpen: (item: { kind: "image" | "video"; src: string; name?: string }) => void;
+}) {
   if (!m.attachmentUrl) return null;
   if (m.attachmentType === "image") {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <a href={m.attachmentUrl} target="_blank" rel="noreferrer" className="block">
+      <button
+        type="button"
+        onClick={() =>
+          onOpen({ kind: "image", src: m.attachmentUrl!, name: m.attachmentName ?? undefined })
+        }
+        className="mb-1 block w-full overflow-hidden rounded-lg"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={m.attachmentUrl}
           alt={m.attachmentName ?? ""}
-          className="mb-1 max-h-64 w-auto max-w-full rounded-lg"
+          className="max-h-64 w-auto max-w-full rounded-lg transition hover:brightness-90"
+          draggable={false}
         />
-      </a>
+      </button>
     );
   }
   if (m.attachmentType === "video") {
     return (
-      <video
-        src={m.attachmentUrl}
-        controls
-        className="mb-1 max-h-64 w-auto max-w-full rounded-lg"
-      />
+      <button
+        type="button"
+        onClick={() =>
+          onOpen({ kind: "video", src: m.attachmentUrl!, name: m.attachmentName ?? undefined })
+        }
+        className="group relative mb-1 block overflow-hidden rounded-lg"
+      >
+        <video
+          src={m.attachmentUrl}
+          className="max-h-64 w-auto max-w-full rounded-lg"
+          muted
+          preload="metadata"
+        />
+        <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/30 opacity-0 transition group-hover:opacity-100">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15 backdrop-blur">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 translate-x-0.5 text-white">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </span>
+        </span>
+      </button>
     );
   }
   return (

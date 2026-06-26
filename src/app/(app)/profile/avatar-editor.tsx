@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { Upload, Smile, Trash2 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import { AvatarCropModal } from "@/components/ui/avatar-crop";
 import { Button } from "@/components/ui/button";
 import { saveAvatar } from "./actions";
 
@@ -22,110 +23,122 @@ export function AvatarEditor({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, start] = useTransition();
+  // crop state
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
 
-  async function uploadImage(file: File) {
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (!f.type.startsWith("image/")) { setError("Нужна картинка"); return; }
+    if (f.size > 25 * 1024 * 1024) { setError("Фото не больше 25 МБ"); return; }
     setError(null);
-    if (!file.type.startsWith("image/")) {
-      setError("Нужна картинка");
-      return;
-    }
-    if (file.size > 25 * 1024 * 1024) {
-      setError("Фото не больше 25 МБ");
-      return;
-    }
+    // create object URL and open crop modal
+    const url = URL.createObjectURL(f);
+    setCropSrc(url);
+  }
+
+  async function uploadBlob(blob: Blob) {
+    setCropSrc(null);
     setUploading(true);
+    setError(null);
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", new File([blob], "avatar.jpg", { type: "image/jpeg" }));
     try {
       const res = await fetch("/api/upload", { method: "POST", body: fd });
-      if (!res.ok) {
-        setError("Не удалось загрузить");
-        return;
-      }
+      if (!res.ok) { setError("Не удалось загрузить"); return; }
       const data = await res.json();
       start(() => saveAvatar(data.url, null));
+    } catch {
+      setError("Ошибка загрузки");
     } finally {
       setUploading(false);
     }
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-5">
-      <Avatar image={avatar} emoji={emoji} initials={initials} size={84} ring />
+    <>
+      {cropSrc && (
+        <AvatarCropModal
+          src={cropSrc}
+          onClose={() => { URL.revokeObjectURL(cropSrc); setCropSrc(null); }}
+          onConfirm={(blob) => { URL.revokeObjectURL(cropSrc); uploadBlob(blob); }}
+        />
+      )}
 
-      <div className="space-y-2">
-        <div className="flex flex-wrap gap-2">
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) uploadImage(f);
-              e.target.value = "";
-            }}
-          />
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            loading={uploading}
-            onClick={() => fileRef.current?.click()}
-          >
-            <Upload className="h-4 w-4" />
-            Загрузить фото
-          </Button>
+      <div className="flex flex-wrap items-center gap-5">
+        <Avatar image={avatar} emoji={emoji} initials={initials} size={84} ring />
 
-          <div className="relative">
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onFileChange}
+            />
             <Button
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => setEmojiOpen((v) => !v)}
+              loading={uploading}
+              onClick={() => fileRef.current?.click()}
             >
-              <Smile className="h-4 w-4" />
-              Эмодзи
+              <Upload className="h-4 w-4" />
+              Загрузить фото
             </Button>
-            {emojiOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setEmojiOpen(false)} />
-                <div className="glass-strong absolute left-0 top-11 z-20 grid w-64 grid-cols-6 gap-1 rounded-xl p-2 shadow-2xl">
-                  {EMOJIS.map((e) => (
-                    <button
-                      key={e}
-                      type="button"
-                      onClick={() => {
-                        setEmojiOpen(false);
-                        start(() => saveAvatar(null, e));
-                      }}
-                      className="rounded-lg p-1 text-xl hover:bg-white/10"
-                    >
-                      {e}
-                    </button>
-                  ))}
-                </div>
-              </>
+
+            <div className="relative">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setEmojiOpen((v) => !v)}
+              >
+                <Smile className="h-4 w-4" />
+                Эмодзи
+              </Button>
+              {emojiOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setEmojiOpen(false)} />
+                  <div className="glass-strong absolute left-0 top-11 z-20 grid w-64 grid-cols-6 gap-1 rounded-xl p-2 shadow-2xl">
+                    {EMOJIS.map((e) => (
+                      <button
+                        key={e}
+                        type="button"
+                        onClick={() => {
+                          setEmojiOpen(false);
+                          start(() => saveAvatar(null, e));
+                        }}
+                        className="rounded-lg p-1 text-xl hover:bg-white/10"
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {(avatar || emoji) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => start(() => saveAvatar(null, null))}
+              >
+                <Trash2 className="h-4 w-4" />
+                Убрать
+              </Button>
             )}
           </div>
-
-          {(avatar || emoji) && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => start(() => saveAvatar(null, null))}
-            >
-              <Trash2 className="h-4 w-4" />
-              Убрать
-            </Button>
-          )}
+          {error && <p className="text-xs text-red-300">{error}</p>}
+          <p className="text-xs text-neutral-500">
+            Фото (до 25 МБ) или эмодзи вместо аватара.
+          </p>
         </div>
-        {error && <p className="text-xs text-red-300">{error}</p>}
-        <p className="text-xs text-neutral-500">
-          Фото (до 25 МБ) или эмодзи вместо аватара.
-        </p>
       </div>
-    </div>
+    </>
   );
 }
