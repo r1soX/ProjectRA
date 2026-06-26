@@ -50,7 +50,7 @@ export function CommentsSection({
         )}
       </p>
 
-      <div className="mb-3 max-h-56 space-y-3 overflow-y-auto pr-1">
+      <div className="mb-3 max-h-[40vh] min-h-[60px] space-y-3 overflow-y-auto pr-1">
         <AnimatePresence initial={false}>
           {comments.map((c) => (
             <motion.div
@@ -109,12 +109,13 @@ export function CommentsSection({
               e.currentTarget.form?.requestSubmit();
             }
           }}
-          rows={2}
-          placeholder="Написать комментарий…"
-          className="flex-1 resize-none rounded-lg border border-neutral-700 bg-neutral-900/60 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
+          rows={3}
+          placeholder="Написать комментарий… (Ctrl/⌘+Enter — отправить)"
+          className="flex-1 resize-none rounded-xl border border-neutral-700 bg-neutral-900/60 px-3.5 py-2.5 text-sm text-neutral-100 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
         />
-        <Button type="submit" loading={pending} disabled={!body.trim()}>
+        <Button type="submit" loading={pending} disabled={!body.trim()} className="self-end">
           <Send className="h-4 w-4" />
+          <span className="hidden sm:inline">Отправить</span>
         </Button>
       </form>
       {state.error && (

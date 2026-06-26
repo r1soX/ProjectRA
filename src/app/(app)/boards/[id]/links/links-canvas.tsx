@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ReactFlow,
   Background,
@@ -139,12 +140,44 @@ export function LinksCanvas({
     [edgeData],
   );
 
-  const [nodes, , onNodesChange] = useNodesState(initialNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [linkType, setLinkType] = useState<LinkType>("RELATES");
   const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
   const [hoverNode, setHoverNode] = useState<string | null>(null);
   const [hoverEdge, setHoverEdge] = useState<string | null>(null);
+
+  const router = useRouter();
+  const draggingRef = useRef(false);
+  const pendingRef = useRef(false);
+
+  // Live updates: refresh when anyone changes this board's links/tasks.
+  useEffect(() => {
+    const es = new EventSource(`/api/boards/${boardId}/stream`);
+    es.addEventListener("change", () => {
+      if (draggingRef.current) pendingRef.current = true;
+      else router.refresh();
+    });
+    return () => es.close();
+  }, [boardId, router]);
+
+  // Re-seed nodes/edges when the server sends fresh data.
+  const nodeSig = useMemo(
+    () => nodeData.map((n) => `${n.id}:${n.x}:${n.y}`).join("|"),
+    [nodeData],
+  );
+  const edgeSig = useMemo(
+    () => edgeData.map((e) => `${e.id}:${e.source}:${e.target}:${e.type}`).join("|"),
+    [edgeData],
+  );
+  useEffect(() => {
+    setNodes(initialNodes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeSig]);
+  useEffect(() => {
+    setEdges(initialEdges);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edgeSig]);
 
   const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
     setSelectedEdges(params.edges.map((e) => e.id));
@@ -222,16 +255,26 @@ export function LinksCanvas({
     }
   }, []);
 
+  const onNodeDragStart = useCallback(() => {
+    draggingRef.current = true;
+  }, []);
+
   const onNodeDragStop = useCallback(
     (_e: unknown, node: Node) => {
-      if (!canEdit) return;
-      setTaskPosition(
-        node.id,
-        Math.round(node.position.x),
-        Math.round(node.position.y),
-      );
+      draggingRef.current = false;
+      if (canEdit) {
+        setTaskPosition(
+          node.id,
+          Math.round(node.position.x),
+          Math.round(node.position.y),
+        );
+      }
+      if (pendingRef.current) {
+        pendingRef.current = false;
+        router.refresh();
+      }
     },
-    [canEdit],
+    [canEdit, router],
   );
 
   return (
@@ -297,15 +340,17 @@ export function LinksCanvas({
         </p>
       )}
 
-      <div className="min-h-0 flex-1">
-        <ReactFlow
-          colorMode="dark"
+      <div className="relative min-h-0 flex-1">
+        <div className="absolute inset-0">
+          <ReactFlow
+            colorMode="dark"
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onEdgesDelete={onEdgesDelete}
+          onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragStop}
           onSelectionChange={onSelectionChange}
           onNodeMouseEnter={onNodeMouseEnter}
@@ -320,10 +365,11 @@ export function LinksCanvas({
           deleteKeyCode={["Delete", "Backspace"]}
           fitView
         >
-          <Background />
-          <Controls showInteractive={false} />
-          <MiniMap pannable zoomable className="!hidden sm:!block" />
-        </ReactFlow>
+            <Background />
+            <Controls showInteractive={false} />
+            <MiniMap pannable zoomable className="!hidden sm:!block" />
+          </ReactFlow>
+        </div>
       </div>
     </div>
   );

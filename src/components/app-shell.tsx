@@ -125,7 +125,7 @@ export function AppShell({
   const items = [...baseNav, ...(user.role === "ADMIN" ? adminNav : [])];
 
   return (
-    <div className="flex min-h-dvh bg-neutral-950">
+    <div className="flex h-dvh overflow-hidden bg-neutral-950">
       {/* Desktop sidebar */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900/40 md:flex">
         <div className="flex h-14 items-center px-5">
@@ -183,7 +183,7 @@ export function AppShell({
       </AnimatePresence>
 
       {/* Main */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex h-14 items-center gap-3 border-b border-neutral-800 px-4 md:hidden">
           <button
             onClick={() => setMobileOpen(true)}
@@ -198,7 +198,7 @@ export function AppShell({
             Projectra
           </span>
         </header>
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
 import {
@@ -21,11 +21,15 @@ export type SessionUser = {
 
 export async function setSessionCookie(userId: string) {
   const token = await signSession(userId);
+  // Only mark the cookie Secure when actually served over HTTPS — otherwise a
+  // self-hosted HTTP deployment (LAN/IP) would silently drop the cookie.
+  const proto = (await headers()).get("x-forwarded-proto") ?? "";
+  const isHttps = proto.split(",")[0].trim() === "https";
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isHttps,
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });

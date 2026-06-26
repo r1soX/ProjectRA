@@ -290,6 +290,7 @@ export async function createTaskLink(
     select: { id: true },
   });
   revalidatePath(`/boards/${boardId}/links`);
+  publishBoard(boardId);
   return { id: link.id };
 }
 
@@ -302,6 +303,7 @@ export async function deleteTaskLink(linkId: string) {
   await requireBoardEditor(link.boardId);
   await prisma.taskLink.delete({ where: { id: linkId } });
   revalidatePath(`/boards/${link.boardId}/links`);
+  publishBoard(link.boardId);
 }
 
 export async function setTaskPosition(taskId: string, x: number, y: number) {
