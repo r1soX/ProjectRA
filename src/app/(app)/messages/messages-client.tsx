@@ -158,7 +158,7 @@ export function MessagesClient({
         )}
       >
         {active ? (
-          <ConversationView active={active} />
+          <ConversationView active={active} users={users} />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-neutral-600">
             <MessagesSquare className="h-10 w-10" />

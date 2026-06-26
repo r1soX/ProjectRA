@@ -1,26 +1,70 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import { MessageCircle, Hash, X } from "lucide-react";
+import {
+  Bell,
+  MessageCircle,
+  Hash,
+  AtSign,
+  CalendarClock,
+  UserPlus,
+  CheckCheck,
+  X,
+  Check,
+} from "lucide-react";
 
-type Toast = {
+// ── Types ─────────────────────────────────────────────────────────────────
+
+type NotifType =
+  | "message"
+  | "mention_comment"
+  | "mention_message"
+  | "deadline"
+  | "task_assigned"
+  | "task_completed"
+  | "task_moved";
+
+interface RawEvent {
+  type: "message" | "notification";
+  // message fields
+  channelId?: string;
+  fromName?: string;
+  preview?: string;
+  title?: string;
+  isBoard?: boolean;
+  // notification fields
+  notificationId?: string;
+  notifType?: string;
+  payload?: Record<string, unknown>;
+  link?: string;
+}
+
+interface StoredNotif {
   id: string;
-  channelId: string;
-  fromName: string;
-  preview: string;
-  title: string;
-  isBoard: boolean;
-};
+  type: NotifType;
+  payload: Record<string, unknown>;
+  link?: string | null;
+  isRead: boolean;
+  createdAt: string;
+}
 
-/** Short pleasant "ding" via Web Audio — no asset needed. */
+interface Toast {
+  id: string;
+  type: NotifType;
+  title: string;
+  body: string;
+  link?: string;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
 function playPing() {
   try {
     const Ctx =
       window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext;
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!Ctx) return;
     const ctx = new Ctx();
     const now = ctx.currentTime;
@@ -38,96 +82,341 @@ function playPing() {
       osc.stop(t + 0.24);
     });
     setTimeout(() => ctx.close(), 700);
-  } catch {
-    /* audio blocked or unavailable */
+  } catch { /* audio blocked */ }
+}
+
+function notifMeta(type: NotifType, payload: Record<string, unknown>): {
+  icon: React.ElementType;
+  color: string;
+  title: string;
+  body: string;
+} {
+  const from = String(payload.fromName ?? "");
+  const task = String(payload.taskTitle ?? "");
+  const board = String(payload.boardTitle ?? "");
+  const days = Number(payload.daysLeft ?? 0);
+
+  switch (type) {
+    case "mention_comment":
+      return {
+        icon: AtSign,
+        color: "text-sky-400",
+        title: "Упоминание в комментарии",
+        body: `${from} упомянул вас в задаче «${task}»`,
+      };
+    case "mention_message":
+      return {
+        icon: AtSign,
+        color: "text-sky-400",
+        title: "Упоминание в сообщении",
+        body: `${from} упомянул вас в чате`,
+      };
+    case "task_assigned":
+      return {
+        icon: UserPlus,
+        color: "text-emerald-400",
+        title: "Вас назначили исполнителем",
+        body: `${from} назначил вас на «${task}»`,
+      };
+    case "task_completed":
+      return {
+        icon: CheckCheck,
+        color: "text-emerald-400",
+        title: "Задача завершена",
+        body: `«${task}» завершена`,
+      };
+    case "deadline":
+      return {
+        icon: CalendarClock,
+        color: "text-amber-400",
+        title: days <= 0 ? "Просрочено!" : `Дедлайн ${days === 1 ? "завтра" : `через ${days} дн.`}`,
+        body: `«${task}»${board ? ` · ${board}` : ""}`,
+      };
+    case "message":
+      return {
+        icon: MessageCircle,
+        color: "text-indigo-400",
+        title: "Новое сообщение",
+        body: String(payload.preview ?? ""),
+      };
+    default:
+      return {
+        icon: Bell,
+        color: "text-neutral-400",
+        title: "Уведомление",
+        body: task,
+      };
   }
 }
+
+function formatRelative(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "только что";
+  if (mins < 60) return `${mins} мин назад`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} ч назад`;
+  return new Date(iso).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
+}
+
+// ── Main component ────────────────────────────────────────────────────────
 
 export function NotificationCenter() {
   const router = useRouter();
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [notifs, setNotifs] = useState<StoredNotif[]>([]);
+  const [loading, setLoading] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
 
+  const unread = notifs.filter((n) => !n.isRead).length;
+
+  // Load notifications list
+  async function loadNotifs() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/notifications/list");
+      if (res.ok) setNotifs(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Mark notification(s) read
+  async function markRead(id?: string) {
+    await fetch("/api/notifications/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(id ? { id } : {}),
+    });
+    setNotifs((ns) =>
+      ns.map((n) => (id ? (n.id === id ? { ...n, isRead: true } : n) : { ...n, isRead: true })),
+    );
+  }
+
+  // SSE — real-time events
   useEffect(() => {
     const es = new EventSource("/api/notifications/stream");
+
     es.addEventListener("message", (e) => {
-      let p: Omit<Toast, "id">;
-      try {
-        p = JSON.parse((e as MessageEvent).data);
-      } catch {
+      let raw: RawEvent;
+      try { raw = JSON.parse((e as MessageEvent).data); } catch { return; }
+
+      router.refresh();
+
+      if (raw.type === "message") {
+        // legacy chat message toast
+        const viewing =
+          window.location.pathname.startsWith("/messages") &&
+          new URLSearchParams(window.location.search).get("c") === raw.channelId;
+        if (viewing) return;
+        playPing();
+        const id = crypto.randomUUID();
+        setToasts((t) => [
+          ...t,
+          {
+            id,
+            type: "message",
+            title: raw.isBoard ? `# ${raw.title}` : raw.fromName ?? "",
+            body: raw.isBoard ? `${raw.fromName}: ${raw.preview}` : raw.preview ?? "",
+            link: `/messages?c=${raw.channelId}`,
+          },
+        ]);
+        setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 5000);
         return;
       }
 
-      // Update unread badges everywhere.
-      router.refresh();
+      if (raw.type === "notification" && raw.notifType) {
+        playPing();
+        const type = raw.notifType as NotifType;
+        const payload = raw.payload ?? {};
+        const meta = notifMeta(type, payload);
+        const id = crypto.randomUUID();
+        setToasts((t) => [
+          ...t,
+          { id, type, title: meta.title, body: meta.body, link: raw.link },
+        ]);
+        setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
 
-      // Don't toast/ring a channel the user is already looking at.
-      const viewing =
-        window.location.pathname.startsWith("/messages") &&
-        new URLSearchParams(window.location.search).get("c") === p.channelId;
-      if (viewing) return;
-
-      playPing();
-
-      const id =
-        typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : String(Date.now() + Math.random());
-      setToasts((t) => [...t, { id, ...p }]);
-      setTimeout(
-        () => setToasts((t) => t.filter((x) => x.id !== id)),
-        5000,
-      );
+        // Add to panel list optimistically
+        setNotifs((ns) => [
+          {
+            id: raw.notificationId!,
+            type,
+            payload,
+            link: raw.link,
+            isRead: false,
+            createdAt: new Date().toISOString(),
+          },
+          ...ns,
+        ]);
+      }
     });
+
     return () => es.close();
   }, [router]);
 
-  function dismiss(id: string) {
+  // Load list when panel opens
+  useEffect(() => {
+    if (panelOpen) loadNotifs();
+  }, [panelOpen]);
+
+  // Close panel on outside click
+  useEffect(() => {
+    if (!panelOpen) return;
+    function onDown(e: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setPanelOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [panelOpen]);
+
+  function dismissToast(id: string) {
     setToasts((t) => t.filter((x) => x.id !== id));
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex flex-col items-center gap-2 px-4 sm:items-end sm:px-6">
-      <AnimatePresence>
-        {toasts.map((t) => (
-          <motion.div
-            key={t.id}
-            layout
-            initial={{ opacity: 0, y: -16, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 40 }}
-            transition={{ type: "spring", stiffness: 360, damping: 30 }}
-            className="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border border-neutral-700 bg-neutral-900/95 p-3 shadow-2xl backdrop-blur"
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-white">
-              {t.isBoard ? (
-                <Hash className="h-4 w-4" />
-              ) : (
-                <MessageCircle className="h-4 w-4" />
-              )}
+    <>
+      {/* ── Bell button ── */}
+      <div ref={panelRef} className="relative">
+        <button
+          onClick={() => setPanelOpen((v) => !v)}
+          className="relative flex h-9 w-9 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-white/5 hover:text-neutral-200"
+          title="Уведомления"
+        >
+          <Bell className="h-5 w-5" />
+          {unread > 0 && (
+            <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-500 px-1 text-[10px] font-bold text-white">
+              {unread > 99 ? "99+" : unread}
             </span>
-            <button
-              onClick={() => {
-                dismiss(t.id);
-                router.push(`/messages?c=${t.channelId}`);
-              }}
-              className="min-w-0 flex-1 text-left"
+          )}
+        </button>
+
+        {/* ── Notification panel ── */}
+        <AnimatePresence>
+          {panelOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: -6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: -6 }}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              className="glass-strong absolute right-0 top-12 z-50 flex w-80 flex-col rounded-2xl shadow-2xl sm:w-96"
+              style={{ maxHeight: "70dvh" }}
             >
-              <p className="truncate text-sm font-semibold text-neutral-100">
-                {t.title}
-              </p>
-              <p className="line-clamp-2 text-xs text-neutral-400">
-                {t.isBoard ? `${t.fromName}: ${t.preview}` : t.preview}
-              </p>
-            </button>
-            <button
-              onClick={() => dismiss(t.id)}
-              className="rounded p-1 text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </div>
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                <span className="font-semibold text-neutral-100">Уведомления</span>
+                <div className="flex items-center gap-2">
+                  {unread > 0 && (
+                    <button
+                      onClick={() => markRead()}
+                      className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-sky-400 transition hover:bg-white/5"
+                      title="Отметить все как прочитанные"
+                    >
+                      <Check className="h-3 w-3" />
+                      Прочитать все
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setPanelOpen(false)}
+                    className="rounded-lg p-1 text-neutral-500 transition hover:bg-white/5 hover:text-neutral-300"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* List */}
+              <div className="flex-1 overflow-y-auto">
+                {loading ? (
+                  <p className="py-10 text-center text-sm text-neutral-500">Загрузка…</p>
+                ) : notifs.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-neutral-500">Нет уведомлений</p>
+                ) : (
+                  notifs.map((n) => {
+                    const meta = notifMeta(n.type, n.payload);
+                    const Icon = meta.icon;
+                    return (
+                      <button
+                        key={n.id}
+                        onClick={() => {
+                          markRead(n.id);
+                          setPanelOpen(false);
+                          if (n.link) router.push(n.link);
+                        }}
+                        className={`flex w-full items-start gap-3 border-b border-white/[0.05] px-4 py-3 text-left transition hover:bg-white/[0.04] ${
+                          !n.isRead ? "bg-sky-500/[0.06]" : ""
+                        }`}
+                      >
+                        <span className={`mt-0.5 shrink-0 ${meta.color}`}>
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-neutral-100">
+                            {meta.title}
+                          </p>
+                          <p className="line-clamp-2 text-xs text-neutral-400">{meta.body}</p>
+                          <p className="mt-0.5 text-[10px] text-neutral-600">
+                            {formatRelative(n.createdAt)}
+                          </p>
+                        </div>
+                        {!n.isRead && (
+                          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-sky-400" />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ── Toasts ── */}
+      <div className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex flex-col items-center gap-2 px-4 sm:items-end sm:px-6">
+        <AnimatePresence>
+          {toasts.map((t) => {
+            const meta = notifMeta(t.type, {});
+            const Icon = t.type === "message"
+              ? (t.title.startsWith("#") ? Hash : MessageCircle)
+              : meta.icon;
+            return (
+              <motion.div
+                key={t.id}
+                layout
+                initial={{ opacity: 0, y: -16, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 40 }}
+                transition={{ type: "spring", stiffness: 360, damping: 30 }}
+                className="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border border-neutral-700 bg-neutral-900/95 p-3 shadow-2xl backdrop-blur"
+              >
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 ${meta.color}`}>
+                  <Icon className="h-4 w-4" />
+                </span>
+                <button
+                  onClick={() => {
+                    dismissToast(t.id);
+                    if (t.link) router.push(t.link);
+                  }}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <p className="truncate text-sm font-semibold text-neutral-100">{t.title}</p>
+                  <p className="line-clamp-2 text-xs text-neutral-400">{t.body}</p>
+                </button>
+                <button
+                  onClick={() => dismissToast(t.id)}
+                  className="rounded p-1 text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
+    </>
   );
 }

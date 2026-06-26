@@ -21,6 +21,7 @@ import { logout } from "@/app/actions/session";
 import type { SessionUser } from "@/lib/auth";
 import { shortName, initials } from "@/lib/names";
 import { Avatar } from "@/components/ui/avatar";
+import { NotificationCenter } from "@/components/notification-center";
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
 
@@ -146,6 +147,9 @@ export function AppShell({
         <div className="flex-1 overflow-y-auto px-3 py-2">
           <NavLinks items={items} pathname={pathname} unreadTotal={unreadTotal} />
         </div>
+        <div className="flex items-center justify-end border-t border-white/10 px-3 py-2">
+          <NotificationCenter />
+        </div>
         <UserCard user={user} />
       </aside>
 
@@ -217,6 +221,9 @@ export function AppShell({
               Projectra
             </span>
           </span>
+          <div className="ml-auto">
+            <NotificationCenter />
+          </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>

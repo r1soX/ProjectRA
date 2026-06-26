@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { MediaLightbox } from "@/components/ui/media-lightbox";
+import { MentionTextarea } from "@/components/ui/mention-textarea";
 import { cn } from "@/lib/cn";
 import { formatLastSeen } from "@/lib/presence";
 import { useOnline } from "@/components/presence-provider";
@@ -29,7 +30,7 @@ import {
   deleteMessage,
   type ChatState,
 } from "./actions";
-import type { ActiveChannel, ChatMessage } from "./messages-client";
+import type { ActiveChannel, ChatMessage, ChatUser } from "./messages-client";
 
 const EMOJIS = "😀 😁 😂 🤣 😊 😍 😘 😎 🤔 😴 😢 😭 😡 👍 👎 👏 🙏 🔥 🎉 ✅ ❌ ❤️ 💯 🚀 👀 💪 🤝 😅 😉 🙌 ✨ ⭐ 💡 📌 ⚡ 🥳".split(" ");
 const MB = 1024 * 1024;
@@ -64,7 +65,7 @@ type LightboxState =
   | { kind: "video"; src: string; name?: string }
   | null;
 
-export function ConversationView({ active }: { active: ActiveChannel }) {
+export function ConversationView({ active, users = [] }: { active: ActiveChannel; users?: ChatUser[] }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [body, setBody] = useState("");
@@ -390,18 +391,19 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
           )}
         </div>
 
-        <textarea
+        <MentionTextarea
           name="body"
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={setBody}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              if (canSend) e.currentTarget.form?.requestSubmit();
+              if (canSend) (e.target as HTMLTextAreaElement).form?.requestSubmit();
             }
           }}
           rows={1}
-          placeholder={uploading ? "Загрузка файла…" : "Сообщение…"}
+          placeholder={uploading ? "Загрузка файла…" : "Сообщение… (@ — упомянуть)"}
+          users={users}
           className="max-h-32 min-h-[40px] flex-1 resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-base sm:text-sm text-neutral-100 outline-none backdrop-blur focus:border-sky-500/70 focus:ring-2 focus:ring-sky-500/25"
         />
         <Button type="submit" loading={pending} disabled={!canSend}>

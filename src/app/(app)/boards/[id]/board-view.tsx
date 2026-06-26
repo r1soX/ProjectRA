@@ -514,6 +514,7 @@ export function BoardView({
       <TaskModal
         task={selectedTask}
         members={assignable}
+        directory={directory}
         canEdit={
           selectedTask
             ? isAdmin || selectedTask.createdById === currentUserId

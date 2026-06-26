@@ -36,7 +36,7 @@ import {
 } from "../actions";
 import { useConfirm } from "@/components/ui/dialog-provider";
 import { CommentsSection } from "./comments-section";
-import type { BoardTask, BoardMemberView } from "./board-view";
+import type { BoardTask, BoardMemberView, DirectoryUser } from "./board-view";
 
 const TASK_COLORS = ["#0ea5e9", "#6366f1", "#8b5cf6", "#ec4899", "#10b981", "#f59e0b", "#ef4444"];
 
@@ -64,6 +64,7 @@ function SectionTitle({
 export function TaskModal({
   task,
   members,
+  directory = [],
   canEdit,
   boardCanEdit,
   currentUserId,
@@ -73,6 +74,7 @@ export function TaskModal({
 }: {
   task: BoardTask | null;
   members: BoardMemberView[];
+  directory?: DirectoryUser[];
   canEdit: boolean;
   boardCanEdit: boolean;
   currentUserId: string;
@@ -471,6 +473,7 @@ export function TaskModal({
                   comments={task.comments}
                   currentUserId={currentUserId}
                   canModerate={canModerate}
+                  mentionUsers={directory}
                 />
               </div>
             </div>

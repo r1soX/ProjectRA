@@ -5,13 +5,14 @@ import { motion, AnimatePresence } from "motion/react";
 import { MessageSquare, Send, Trash2, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
+import { MentionTextarea } from "@/components/ui/mention-textarea";
 import {
   addComment,
   deleteComment,
   editComment,
   type ActionState,
 } from "../actions";
-import type { BoardTask } from "./board-view";
+import type { BoardTask, DirectoryUser } from "./board-view";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleString("ru-RU", {
@@ -27,11 +28,13 @@ export function CommentsSection({
   comments,
   currentUserId,
   canModerate,
+  mentionUsers = [],
 }: {
   taskId: string;
   comments: BoardTask["comments"];
   currentUserId: string;
   canModerate: boolean;
+  mentionUsers?: DirectoryUser[];
 }) {
   const [body, setBody] = useState("");
   const [state, action, pending] = useActionState<ActionState, FormData>(
@@ -168,17 +171,18 @@ export function CommentsSection({
 
       <form action={action} className="flex items-end gap-2">
         <input type="hidden" name="taskId" value={taskId} />
-        <textarea
+        <MentionTextarea
           name="body"
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={setBody}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-              e.currentTarget.form?.requestSubmit();
+              (e.target as HTMLTextAreaElement).form?.requestSubmit();
             }
           }}
           rows={3}
-          placeholder="Написать комментарий… (Ctrl/⌘+Enter — отправить)"
+          placeholder="Написать комментарий… (Ctrl/⌘+Enter — отправить, @ — упомянуть)"
+          users={mentionUsers}
           className="flex-1 resize-none rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-base sm:text-sm text-neutral-100 outline-none backdrop-blur focus:border-sky-500/70 focus:ring-2 focus:ring-sky-500/25"
         />
         <Button type="submit" loading={pending} disabled={!body.trim()} className="self-end">
