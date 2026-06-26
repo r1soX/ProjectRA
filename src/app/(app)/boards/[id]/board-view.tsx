@@ -373,6 +373,7 @@ export function BoardView({
 
       {/* Columns */}
       <DndContext
+        id="board-dnd"
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={onDragStart}
