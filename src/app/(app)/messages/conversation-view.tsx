@@ -59,7 +59,7 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-neutral-800 px-4 py-3">
+      <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
         <Link
           href="/messages"
           className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200 md:hidden"
@@ -121,10 +121,10 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
                 )}
                 <div
                   className={cn(
-                    "max-w-[78%] rounded-2xl px-3 py-2",
+                    "max-w-[78%] rounded-2xl px-3.5 py-2 shadow-sm",
                     m.mine
-                      ? "rounded-br-sm bg-sky-600 text-white"
-                      : "rounded-bl-sm bg-neutral-800 text-neutral-100",
+                      ? "rounded-br-md bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-sky-500/20"
+                      : "rounded-bl-md border border-white/10 bg-white/[0.06] text-neutral-100 backdrop-blur",
                   )}
                 >
                   {!m.mine && isBoard && (
@@ -154,7 +154,7 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
       {/* Composer */}
       <form
         action={action}
-        className="flex items-end gap-2 border-t border-neutral-800 p-3"
+        className="flex items-end gap-2 border-t border-white/10 p-3"
       >
         <input type="hidden" name="channelId" value={active.channelId} />
         <textarea

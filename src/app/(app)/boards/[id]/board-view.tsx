@@ -296,7 +296,7 @@ export function BoardView({
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-neutral-800 px-4 py-3 sm:px-6">
+      <div className="flex flex-wrap items-center gap-3 border-b border-white/10 px-4 py-3 sm:px-6">
         <Link
           href="/boards"
           className="rounded-md p-1.5 text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-200"
@@ -618,7 +618,7 @@ function SortableColumn({
           ))}
         </SortableContext>
         {column.tasks.length === 0 && (
-          <div className="rounded-lg border border-dashed border-neutral-800 py-6 text-center text-xs text-neutral-600">
+          <div className="rounded-lg border border-dashed border-white/10 py-6 text-center text-xs text-neutral-600">
             Перетащите задачу сюда
           </div>
         )}
@@ -729,7 +729,7 @@ function AddColumn({ boardId }: { boardId: string }) {
     return (
       <button
         onClick={() => setAdding(true)}
-        className="flex h-min w-[82vw] max-w-[19rem] shrink-0 items-center gap-1.5 rounded-xl border border-dashed border-neutral-800 px-3 py-2.5 text-sm text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300 sm:w-72"
+        className="flex h-min w-[82vw] max-w-[19rem] shrink-0 items-center gap-1.5 rounded-xl border border-dashed border-white/10 px-3 py-2.5 text-sm text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300 sm:w-72"
       >
         <Plus className="h-4 w-4" /> Добавить колонку
       </button>

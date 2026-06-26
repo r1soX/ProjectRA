@@ -63,7 +63,7 @@ export function SearchClient({
               <Link
                 key={b.id}
                 href={`/boards/${b.id}`}
-                className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-3 transition hover:border-neutral-700 hover:bg-neutral-900/70"
+                className="flex items-center gap-3 rounded-lg glass glass-hover p-3 transition hover:border-neutral-700 hover:bg-neutral-900/70"
               >
                 <span
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-white"
@@ -90,7 +90,7 @@ export function SearchClient({
                 <Link
                   key={t.id}
                   href={`/boards/${t.boardId}`}
-                  className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-3 transition hover:border-neutral-700 hover:bg-neutral-900/70"
+                  className="flex items-center gap-3 rounded-lg glass glass-hover p-3 transition hover:border-neutral-700 hover:bg-neutral-900/70"
                 >
                   <span className={cn("h-2 w-2 shrink-0 rounded-full", pr.dot)} />
                   <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">

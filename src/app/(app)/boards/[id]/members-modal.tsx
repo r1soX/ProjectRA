@@ -49,7 +49,7 @@ export function MembersModal({
             return (
               <div
                 key={u.id}
-                className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-2.5"
+                className="flex items-center gap-3 rounded-lg glass p-2.5"
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-xs font-semibold text-white">
                   {u.initials}

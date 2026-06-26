@@ -52,11 +52,11 @@ export function MessagesClient({
       {/* Conversation list */}
       <aside
         className={cn(
-          "w-full flex-col border-r border-neutral-800 md:flex md:w-80",
+          "w-full flex-col border-r border-white/10 md:flex md:w-80",
           active ? "hidden md:flex" : "flex",
         )}
       >
-        <div className="border-b border-neutral-800 px-4 py-3">
+        <div className="border-b border-white/10 px-4 py-3">
           <h1 className="text-lg font-bold text-neutral-100">Сообщения</h1>
         </div>
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-2">
@@ -71,8 +71,8 @@ export function MessagesClient({
               <button
                 type="submit"
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-neutral-800/60",
-                  active?.otherUserId === u.id && "bg-neutral-800",
+                  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-white/5",
+                  active?.otherUserId === u.id && "bg-white/10",
                 )}
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-xs font-semibold text-white">
@@ -102,8 +102,8 @@ export function MessagesClient({
               <button
                 type="submit"
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-neutral-800/60",
-                  active?.boardId === b.id && "bg-neutral-800",
+                  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-white/5",
+                  active?.boardId === b.id && "bg-white/10",
                 )}
               >
                 <span

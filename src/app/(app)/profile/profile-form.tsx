@@ -46,7 +46,7 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-5 sm:p-6">
+    <section className="rounded-xl glass p-5 sm:p-6">
       <h2 className="mb-4 text-lg font-semibold text-neutral-100">{title}</h2>
       {children}
     </section>

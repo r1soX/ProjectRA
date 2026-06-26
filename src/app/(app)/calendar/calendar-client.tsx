@@ -118,7 +118,7 @@ export function CalendarClient({
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-neutral-800 px-4 py-3 sm:px-6">
+      <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3 sm:px-6">
         <h1 className="min-w-0 truncate text-base font-bold capitalize text-neutral-100 sm:text-lg">
           {month.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
         </h1>
@@ -136,7 +136,7 @@ export function CalendarClient({
       </div>
 
       {/* Weekday row */}
-      <div className="grid grid-cols-7 border-b border-neutral-800 text-center text-xs text-neutral-500">
+      <div className="grid grid-cols-7 border-b border-white/10 text-center text-xs text-neutral-500">
         {WEEKDAYS.map((w) => (
           <div key={w} className="py-2">
             {w}
@@ -238,7 +238,7 @@ function DayCell({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-[64px] flex-col gap-1 border-b border-r border-neutral-800/70 p-1 sm:min-h-[110px] sm:p-1.5",
+        "flex min-h-[64px] flex-col gap-1 border-b border-r border-white/[0.06] p-1 sm:min-h-[110px] sm:p-1.5",
         !inMonth && "bg-neutral-950/40",
         isOver && "bg-sky-500/10 ring-1 ring-inset ring-sky-500/40",
       )}
@@ -410,7 +410,7 @@ function TaskDetailModal({
                   {task.assignees.map((a, i) => (
                     <span
                       key={i}
-                      className="flex h-6 w-6 items-center justify-center rounded-full border border-neutral-800 bg-gradient-to-br from-sky-500 to-indigo-500 text-[9px] font-semibold text-white"
+                      className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-sky-500 to-indigo-500 text-[9px] font-semibold text-white"
                     >
                       {a.initials}
                     </span>

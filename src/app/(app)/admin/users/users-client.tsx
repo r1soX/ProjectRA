@@ -195,7 +195,7 @@ function UserRow({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.97 }}
-      className="flex flex-col gap-3 rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 sm:flex-row sm:items-center"
+      className="flex flex-col gap-3 rounded-xl glass p-4 sm:flex-row sm:items-center"
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div
