@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
   LayoutDashboard,
+  LayoutGrid,
   Users,
   User as UserIcon,
   LogOut,
@@ -21,6 +22,7 @@ type NavItem = { href: string; label: string; icon: React.ElementType };
 
 const baseNav: NavItem[] = [
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
+  { href: "/boards", label: "Доски", icon: LayoutGrid },
   { href: "/profile", label: "Профиль", icon: UserIcon },
 ];
 
