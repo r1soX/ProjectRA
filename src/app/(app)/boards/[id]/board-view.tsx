@@ -222,18 +222,18 @@ export function BoardView({
 
   // When dragging a column, only collide with other columns so they shift to
   // reveal the drop position; for tasks, use corner-based detection.
-  const collision = useCallback<CollisionDetection>(
-    (args) => {
-      if (args.active.data.current?.type === "column") {
-        const columnsOnly = args.droppableContainers.filter((d) =>
-          cols.some((c) => c.id === d.id),
-        );
-        return closestCenter({ ...args, droppableContainers: columnsOnly });
-      }
-      return closestCorners(args);
-    },
-    [cols],
-  );
+  // Stable identity (reads cols via ref) so DndContext doesn't re-init.
+  const colsRef = useRef(cols);
+  colsRef.current = cols;
+  const collision = useCallback<CollisionDetection>((args) => {
+    if (args.active.data.current?.type === "column") {
+      const columnsOnly = args.droppableContainers.filter((d) =>
+        colsRef.current.some((c) => c.id === d.id),
+      );
+      return closestCenter({ ...args, droppableContainers: columnsOnly });
+    }
+    return closestCorners(args);
+  }, []);
 
   function onDragStart(e: DragStartEvent) {
     draggingRef.current = true;

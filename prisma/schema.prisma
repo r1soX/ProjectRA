@@ -96,6 +96,11 @@ model Task {
   canvasX     Float? // position on the links canvas
   canvasY     Float?
   isPersonal  Boolean   @default(false)
+  // recurrence: null = одноразовая
+  recurFreq     String? // DAILY | WEEKLY | MONTHLY
+  recurInterval Int      @default(1) // каждые N (для DAILY)
+  recurDays     String? // JSON int[] — WEEKLY: 1-7 (Пн-Вс), MONTHLY: 1-31
+  recurUntil    DateTime?
   startDate   DateTime?
   dueDate     DateTime?
   createdById String
