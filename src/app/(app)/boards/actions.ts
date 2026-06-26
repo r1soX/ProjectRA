@@ -377,6 +377,22 @@ export async function addComment(
   return { ok: true };
 }
 
+export async function editComment(commentId: string, body: string) {
+  const user = await requireUser();
+  const text = body.trim();
+  if (!text) return;
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    select: { userId: true, task: { select: { boardId: true } } },
+  });
+  if (!comment) return;
+  if (comment.userId !== user.id) {
+    throw new Error("Редактировать можно только свой комментарий");
+  }
+  await prisma.comment.update({ where: { id: commentId }, data: { body: text } });
+  bump(comment.task.boardId);
+}
+
 export async function deleteComment(commentId: string) {
   const user = await requireUser();
   const comment = await prisma.comment.findUnique({

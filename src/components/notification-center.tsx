@@ -14,6 +14,35 @@ type Toast = {
   isBoard: boolean;
 };
 
+/** Short pleasant "ding" via Web Audio — no asset needed. */
+function playPing() {
+  try {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const now = ctx.currentTime;
+    [880, 1320].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const t = now + i * 0.09;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.15, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.24);
+    });
+    setTimeout(() => ctx.close(), 700);
+  } catch {
+    /* audio blocked or unavailable */
+  }
+}
+
 export function NotificationCenter() {
   const router = useRouter();
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -31,11 +60,13 @@ export function NotificationCenter() {
       // Update unread badges everywhere.
       router.refresh();
 
-      // Don't toast a channel the user is already looking at.
+      // Don't toast/ring a channel the user is already looking at.
       const viewing =
         window.location.pathname.startsWith("/messages") &&
         new URLSearchParams(window.location.search).get("c") === p.channelId;
       if (viewing) return;
+
+      playPing();
 
       const id =
         typeof crypto !== "undefined" && crypto.randomUUID

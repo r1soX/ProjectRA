@@ -2,9 +2,14 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { MessageSquare, Send, Trash2 } from "lucide-react";
+import { MessageSquare, Send, Trash2, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { addComment, deleteComment, type ActionState } from "../actions";
+import {
+  addComment,
+  deleteComment,
+  editComment,
+  type ActionState,
+} from "../actions";
 import type { BoardTask } from "./board-view";
 
 function formatTime(iso: string) {
@@ -33,18 +38,27 @@ export function CommentsSection({
     {},
   );
   const [delPending, startDel] = useTransition();
+  const [, startEdit] = useTransition();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   useEffect(() => {
     if (state.ok) setBody("");
   }, [state]);
 
+  function saveEdit(id: string) {
+    const text = editValue.trim();
+    if (text) startEdit(() => editComment(id, text));
+    setEditingId(null);
+  }
+
   return (
-    <div className="border-t border-neutral-800 pt-4">
+    <div className="pt-1">
       <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-neutral-300">
         <MessageSquare className="h-4 w-4 text-neutral-500" />
         Комментарии
         {comments.length > 0 && (
-          <span className="rounded-full bg-neutral-800 px-1.5 text-xs text-neutral-400">
+          <span className="rounded-full bg-white/10 px-1.5 text-xs text-neutral-300">
             {comments.length}
           </span>
         )}
@@ -64,7 +78,7 @@ export function CommentsSection({
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-[10px] font-semibold text-white">
                 {c.authorInitials}
               </span>
-              <div className="min-w-0 flex-1 rounded-lg bg-neutral-800/60 px-3 py-2">
+              <div className="min-w-0 flex-1 rounded-lg bg-white/[0.05] px-3 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-medium text-neutral-200">
                     {c.authorName}
@@ -73,6 +87,19 @@ export function CommentsSection({
                     <span className="text-[10px] text-neutral-500">
                       {formatTime(c.createdAt)}
                     </span>
+                    {c.userId === currentUserId && editingId !== c.id && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(c.id);
+                          setEditValue(c.body);
+                        }}
+                        className="text-neutral-600 transition hover:text-sky-400"
+                        title="Редактировать"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     {(c.userId === currentUserId || canModerate) && (
                       <button
                         type="button"
@@ -86,9 +113,46 @@ export function CommentsSection({
                     )}
                   </div>
                 </div>
-                <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-neutral-200">
-                  {c.body}
-                </p>
+                {editingId === c.id ? (
+                  <div className="mt-1.5">
+                    <textarea
+                      value={editValue}
+                      autoFocus
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          saveEdit(c.id);
+                        }
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      rows={2}
+                      className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-neutral-100 outline-none focus:border-sky-500"
+                    />
+                    <div className="mt-1 flex justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(null)}
+                        className="rounded-md p-1 text-neutral-400 hover:bg-white/5"
+                        title="Отмена"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => saveEdit(c.id)}
+                        className="rounded-md p-1 text-sky-400 hover:bg-white/5"
+                        title="Сохранить"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-neutral-200">
+                    {c.body}
+                  </p>
+                )}
               </div>
             </motion.div>
           ))}
@@ -111,7 +175,7 @@ export function CommentsSection({
           }}
           rows={3}
           placeholder="Написать комментарий… (Ctrl/⌘+Enter — отправить)"
-          className="flex-1 resize-none rounded-xl border border-neutral-700 bg-neutral-900/60 px-3.5 py-2.5 text-sm text-neutral-100 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
+          className="flex-1 resize-none rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-neutral-100 outline-none backdrop-blur focus:border-sky-500/70 focus:ring-2 focus:ring-sky-500/25"
         />
         <Button type="submit" loading={pending} disabled={!body.trim()} className="self-end">
           <Send className="h-4 w-4" />
