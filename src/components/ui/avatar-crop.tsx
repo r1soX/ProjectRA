@@ -12,14 +12,17 @@ import { motion, AnimatePresence } from "motion/react";
 import { X, ZoomIn, ZoomOut, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const SIZE = 300; // canvas / preview diameter in px
+/** Visible preview size in CSS px (canvas is 1:1 here — no DPR scaling needed for preview) */
+const PREVIEW = 280;
+/** Exported JPEG size */
+const EXPORT_PX = 512;
 
 export function AvatarCropModal({
   src,
   onConfirm,
   onClose,
 }: {
-  src: string;             // object URL from file picker
+  src: string;
   onConfirm: (blob: Blob) => void;
   onClose: () => void;
 }) {
@@ -27,14 +30,16 @@ export function AvatarCropModal({
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [loaded, setLoaded] = useState(false);
 
-  // zoom: fraction of the image's shorter dimension that fills the circle
+  /** zoom=1: shortest side fills the circle exactly */
   const [zoom, setZoom] = useState(1);
-  // offset: pan in image pixels (center of circle maps to this image coord)
+  /** offset: image coordinate (in natural px) of the circle center */
   const [offset, setOffset] = useState({ x: 0, y: 0 });
 
-  const dragStart = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
+  const dragStart = useRef<{
+    px: number; py: number; ox: number; oy: number;
+  } | null>(null);
 
-  // Load image once src changes
+  // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     const img = new Image();
     img.onload = () => {
@@ -44,74 +49,77 @@ export function AvatarCropModal({
       setLoaded(true);
     };
     img.src = src;
-    return () => {
-      setLoaded(false);
-      imgRef.current = null;
-    };
+    return () => { setLoaded(false); imgRef.current = null; };
   }, [src]);
 
-  // Draw whenever state changes
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    const img = imgRef.current;
-    if (!canvas || !img) return;
-    const ctx = canvas.getContext("2d")!;
-    const R = SIZE / 2;
-
-    // How many image pixels fit the circle at current zoom
-    const minDim = Math.min(img.naturalWidth, img.naturalHeight);
-    const imgSpan = minDim / zoom; // image pixels shown across circle diameter
-
-    const scale = SIZE / imgSpan; // canvas px per image px
-    const sx = offset.x - imgSpan / 2;
-    const sy = offset.y - imgSpan / 2;
-
-    ctx.clearRect(0, 0, SIZE, SIZE);
-
-    // Clip to circle
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(R, R, R, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.drawImage(
-      img,
-      sx, sy, imgSpan, imgSpan,
-      0, 0, SIZE, SIZE,
-    );
-    ctx.restore();
-
-    // Dark ring
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(R, R, R - 1, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Grid overlay
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
-    ctx.lineWidth = 1;
-    for (let i = 1; i < 3; i++) {
-      const x = (SIZE / 3) * i;
-      const y = (SIZE / 3) * i;
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, SIZE); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(SIZE, y); ctx.stroke();
-    }
-    void scale; // suppress unused warning
-  }, [offset, zoom]);
-
-  useEffect(() => { draw(); }, [draw, loaded]);
-
-  // Clamp offset so the circle stays within the image
-  function clampOffset(ox: number, oy: number, currentZoom: number) {
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  /** How many natural image px fill the preview circle at current zoom. */
+  function imgSpan(z: number) {
     const img = imgRef.current!;
-    const minDim = Math.min(img.naturalWidth, img.naturalHeight);
-    const half = (minDim / currentZoom) / 2;
+    return Math.min(img.naturalWidth, img.naturalHeight) / z;
+  }
+
+  /** Keep the crop square fully inside the image. */
+  function clamp(ox: number, oy: number, z: number) {
+    const img = imgRef.current!;
+    const half = imgSpan(z) / 2;
     return {
-      x: Math.max(half, Math.min(img.naturalWidth - half, ox)),
+      x: Math.max(half, Math.min(img.naturalWidth  - half, ox)),
       y: Math.max(half, Math.min(img.naturalHeight - half, oy)),
     };
   }
 
+  // ── Draw preview ───────────────────────────────────────────────────────────
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    const img = imgRef.current;
+    if (!canvas || !img) return;
+
+    const ctx = canvas.getContext("2d")!;
+    const R = PREVIEW / 2;
+    const span = imgSpan(zoom);
+    const sx = offset.x - span / 2;
+    const sy = offset.y - span / 2;
+
+    ctx.clearRect(0, 0, PREVIEW, PREVIEW);
+
+    // ── dim area outside circle ──
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(0, 0, PREVIEW, PREVIEW);
+
+    // ── clip to circle and draw image ──
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(R, R, R, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(img, sx, sy, span, span, 0, 0, PREVIEW, PREVIEW);
+    ctx.restore();
+
+    // ── thin ring ──
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(R, R, R - 1, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // ── rule-of-thirds grid (inside circle only) ──
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(R, R, R, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 3; i++) {
+      const v = (PREVIEW / 3) * i;
+      ctx.beginPath(); ctx.moveTo(v, 0); ctx.lineTo(v, PREVIEW); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, v); ctx.lineTo(PREVIEW, v); ctx.stroke();
+    }
+    ctx.restore();
+  }, [offset, zoom]);
+
+  useEffect(() => { draw(); }, [draw, loaded]);
+
+  // ── Pointer drag ───────────────────────────────────────────────────────────
   function onPointerDown(e: ReactPointerEvent<HTMLCanvasElement>) {
     e.currentTarget.setPointerCapture(e.pointerId);
     dragStart.current = { px: e.clientX, py: e.clientY, ox: offset.x, oy: offset.y };
@@ -119,16 +127,11 @@ export function AvatarCropModal({
 
   function onPointerMove(e: ReactPointerEvent<HTMLCanvasElement>) {
     if (!dragStart.current || !imgRef.current) return;
-    const img = imgRef.current;
-    const minDim = Math.min(img.naturalWidth, img.naturalHeight);
-    const imgSpan = minDim / zoom;
-    const pxPerImgPx = SIZE / imgSpan;
-
-    const dx = (e.clientX - dragStart.current.px) / pxPerImgPx;
-    const dy = (e.clientY - dragStart.current.py) / pxPerImgPx;
-    const next = clampOffset(
-      dragStart.current.ox - dx,
-      dragStart.current.oy - dy,
+    const span = imgSpan(zoom);
+    const scale = span / PREVIEW; // image px per canvas px
+    const next = clamp(
+      dragStart.current.ox - (e.clientX - dragStart.current.px) * scale,
+      dragStart.current.oy - (e.clientY - dragStart.current.py) * scale,
       zoom,
     );
     setOffset(next);
@@ -138,26 +141,38 @@ export function AvatarCropModal({
 
   function onWheel(e: ReactWheelEvent<HTMLCanvasElement>) {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.08 : 0.08;
+    const delta = e.deltaY < 0 ? 0.1 : -0.1;
     setZoom((z) => {
-      const next = Math.max(0.5, Math.min(5, z + delta));
-      setOffset((o) => clampOffset(o.x, o.y, next));
+      const next = Math.max(0.5, Math.min(6, z + delta));
+      setOffset((o) => clamp(o.x, o.y, next));
       return next;
     });
   }
 
+  // ── Export — offscreen canvas, NO decorations ──────────────────────────────
   function handleConfirm() {
-    const canvas = canvasRef.current!;
-    canvas.toBlob(
+    const img = imgRef.current;
+    if (!img) return;
+
+    const span = imgSpan(zoom);
+    const sx = offset.x - span / 2;
+    const sy = offset.y - span / 2;
+
+    const off = document.createElement("canvas");
+    off.width  = EXPORT_PX;
+    off.height = EXPORT_PX;
+    off.getContext("2d")!.drawImage(img, sx, sy, span, span, 0, 0, EXPORT_PX, EXPORT_PX);
+
+    off.toBlob(
       (blob) => { if (blob) onConfirm(blob); },
       "image/jpeg",
-      0.92,
+      0.93,
     );
   }
 
-  // Escape key
+  // ── Escape key ────────────────────────────────────────────────────────────
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
     return () => {
@@ -195,14 +210,14 @@ export function AvatarCropModal({
             </button>
           </div>
 
-          {/* Canvas */}
+          {/* Canvas preview */}
           <div className="flex justify-center">
             <canvas
               ref={canvasRef}
-              width={SIZE}
-              height={SIZE}
+              width={PREVIEW}
+              height={PREVIEW}
               className="cursor-grab rounded-full active:cursor-grabbing"
-              style={{ width: SIZE, height: SIZE, touchAction: "none" }}
+              style={{ width: PREVIEW, height: PREVIEW, touchAction: "none" }}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
@@ -211,9 +226,8 @@ export function AvatarCropModal({
             />
           </div>
 
-          {/* Hint */}
           <p className="mt-3 text-center text-xs text-neutral-500">
-            Перетаскивайте · колёсиком прокрутки — масштаб
+            Перетаскивайте · колёсико — масштаб
           </p>
 
           {/* Zoom slider */}
@@ -222,13 +236,13 @@ export function AvatarCropModal({
             <input
               type="range"
               min={0.5}
-              max={5}
+              max={6}
               step={0.01}
               value={zoom}
               onChange={(e) => {
                 const next = parseFloat(e.target.value);
                 setZoom(next);
-                setOffset((o) => clampOffset(o.x, o.y, next));
+                setOffset((o) => clamp(o.x, o.y, next));
               }}
               className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-white/10 accent-sky-400"
             />
