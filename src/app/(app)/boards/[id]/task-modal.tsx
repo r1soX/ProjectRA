@@ -143,7 +143,7 @@ export function TaskModal({
             </div>
 
             {/* Scrollable content */}
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
               <form action={formAction} className="flex flex-col gap-5 p-4 sm:p-6">
                 <input
                   name="title"

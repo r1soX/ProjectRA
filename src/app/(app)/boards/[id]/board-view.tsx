@@ -51,7 +51,7 @@ import { useConfirm, usePrompt } from "@/components/ui/dialog-provider";
 import { TaskModal } from "./task-modal";
 import { MembersModal } from "./members-modal";
 import { BoardSettingsModal } from "./board-settings-modal";
-import { TaskCardBody } from "./task-card-body";
+import { TaskCardBody, isTaskOverdue } from "./task-card-body";
 
 export type BoardMemberView = {
   userId: string;
@@ -203,6 +203,13 @@ export function BoardView({
     if (overId.startsWith(DROP_PREFIX)) return overId.slice(DROP_PREFIX.length);
     return findTaskColumn(overId);
   }
+  // For a column drag, the drop target may be another column, a dropzone, or a
+  // task nested in a column — resolve all of them to a column id.
+  function columnOfOver(overId: string): string | null {
+    if (cols.some((c) => c.id === overId)) return overId;
+    if (overId.startsWith(DROP_PREFIX)) return overId.slice(DROP_PREFIX.length);
+    return findTaskColumn(overId);
+  }
 
   function onDragStart(e: DragStartEvent) {
     draggingRef.current = true;
@@ -259,9 +266,10 @@ export function BoardView({
     // Compute next state, then update + persist OUTSIDE the state updater
     // (calling actions inside a setState updater is an illegal side effect).
     if (over && activeType === "column") {
-      if (active.id !== over.id) {
+      const overCol = columnOfOver(String(over.id));
+      if (overCol && overCol !== active.id) {
         const oldI = cols.findIndex((c) => c.id === active.id);
-        const newI = cols.findIndex((c) => c.id === over.id);
+        const newI = cols.findIndex((c) => c.id === overCol);
         if (oldI >= 0 && newI >= 0) {
           const next = arrayMove(cols, oldI, newI);
           setCols(next);
@@ -660,7 +668,10 @@ function SortableTask({
       {...listeners}
       onClick={() => onOpen(task.id)}
       className={cn(
-        "block w-full cursor-pointer select-none overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] text-left shadow-sm transition hover:-translate-y-px hover:border-white/20 hover:bg-white/[0.07] hover:shadow-md",
+        "block w-full cursor-pointer select-none overflow-hidden rounded-xl border text-left shadow-sm transition hover:-translate-y-px hover:shadow-md",
+        isTaskOverdue(task)
+          ? "border-red-500/50 bg-red-500/[0.07] shadow-red-500/20 ring-1 ring-red-500/40 hover:border-red-500/70"
+          : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.07]",
         isDragging && "opacity-40",
       )}
     >

@@ -337,15 +337,21 @@ function ChipBody({
   dragging?: boolean;
 }) {
   const pr = PRIORITY_META[normalizePriority(task.priority)];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const overdue = new Date(task.dueDate) < today;
   return (
     <div
       className={cn(
-        "flex items-center gap-1 overflow-hidden rounded border-l-2 bg-neutral-800/80 px-1.5 py-1 text-[11px] text-neutral-200",
+        "flex items-center gap-1 overflow-hidden rounded border-l-2 px-1.5 py-1 text-[11px]",
+        overdue
+          ? "bg-red-500/15 text-red-200 ring-1 ring-red-500/40"
+          : "bg-neutral-800/80 text-neutral-200",
         dragging && "border border-sky-500/50 shadow-xl",
       )}
-      style={{ borderLeftColor: task.color ?? pr.bar }}
+      style={{ borderLeftColor: overdue ? "#ef4444" : (task.color ?? pr.bar) }}
     >
-      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", pr.dot)} />
+      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", overdue ? "bg-red-400" : pr.dot)} />
       <span className="truncate">{task.title}</span>
     </div>
   );

@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Share2,
   Lock,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
@@ -16,6 +17,11 @@ function isOverdue(s: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return d < today;
+}
+
+/** True when the task has a due date in the past. */
+export function isTaskOverdue(task: { dueDate: string | null }) {
+  return task.dueDate ? isOverdue(task.dueDate) : false;
 }
 
 export function formatDue(s: string) {
@@ -36,6 +42,12 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
       />
       <div className="p-3">
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          {isTaskOverdue(task) && (
+            <span className="inline-flex animate-pulse items-center gap-1 rounded bg-red-500/25 px-1.5 py-0.5 text-[11px] font-bold uppercase text-red-300 ring-1 ring-red-500/50">
+              <AlertTriangle className="h-3 w-3" />
+              просрочено
+            </span>
+          )}
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium",
