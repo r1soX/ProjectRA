@@ -83,6 +83,10 @@ export type BoardTask = {
   color: string | null;
   priority: string;
   isPersonal: boolean;
+  recurFreq: string | null;
+  recurInterval: number;
+  recurDays: string | null;
+  recurUntil: string | null;
   startDate: string | null;
   dueDate: string | null;
   createdById: string;
@@ -210,6 +214,7 @@ export function BoardView({
   }
   function resolveColumn(overId: string): string | null {
     if (overId.startsWith(DROP_PREFIX)) return overId.slice(DROP_PREFIX.length);
+    if (cols.some((c) => c.id === overId)) return overId; // dropped on a column
     return findTaskColumn(overId);
   }
   // For a column drag, the drop target may be another column, a dropzone, or a
@@ -226,13 +231,16 @@ export function BoardView({
   const colsRef = useRef(cols);
   colsRef.current = cols;
   const collision = useCallback<CollisionDetection>((args) => {
+    const isColumn = (id: string | number) =>
+      colsRef.current.some((c) => c.id === id);
     if (args.active.data.current?.type === "column") {
-      const columnsOnly = args.droppableContainers.filter((d) =>
-        colsRef.current.some((c) => c.id === d.id),
-      );
+      const columnsOnly = args.droppableContainers.filter((d) => isColumn(d.id));
       return closestCenter({ ...args, droppableContainers: columnsOnly });
     }
-    return closestCorners(args);
+    // Task drag: collide only with tasks and column dropzones — never the raw
+    // column container — so dropping into an EMPTY column still resolves.
+    const taskTargets = args.droppableContainers.filter((d) => !isColumn(d.id));
+    return closestCorners({ ...args, droppableContainers: taskTargets });
   }, []);
 
   function onDragStart(e: DragStartEvent) {
@@ -480,6 +488,7 @@ export function BoardView({
             ? isAdmin || selectedTask.createdById === currentUserId
             : false
         }
+        boardCanEdit={canEdit}
         currentUserId={currentUserId}
         canModerate={isOwner}
         canDelete={

@@ -7,9 +7,11 @@ import {
   Share2,
   Lock,
   AlertTriangle,
+  Repeat,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
+import { ruleFromTask, describeRecurrence } from "@/lib/recurrence";
 import type { BoardTask } from "./board-view";
 
 function isOverdue(s: string) {
@@ -63,6 +65,15 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
               личная
             </span>
           )}
+          {(() => {
+            const rule = ruleFromTask(task);
+            return rule ? (
+              <span className="inline-flex items-center gap-1 rounded bg-violet-500/15 px-1.5 py-0.5 text-[11px] text-violet-300">
+                <Repeat className="h-3 w-3" />
+                {describeRecurrence(rule)}
+              </span>
+            ) : null;
+          })()}
           {task.labels.map((l) => (
             <span
               key={l.id}

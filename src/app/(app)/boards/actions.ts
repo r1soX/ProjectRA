@@ -7,7 +7,13 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { getBoardRole, canEdit } from "@/lib/boards";
 import { normalizePriority } from "@/lib/priority";
+import { ruleFromTask, nextOccurrence } from "@/lib/recurrence";
 import { publishBoard } from "@/lib/realtime";
+
+function normalizeRecurFreq(v: FormDataEntryValue | null): string | null {
+  const s = typeof v === "string" ? v : "";
+  return s === "DAILY" || s === "WEEKLY" || s === "MONTHLY" ? s : null;
+}
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
 
@@ -241,6 +247,13 @@ export async function updateTask(taskId: string, formData: FormData) {
       isPersonal: formData.get("isPersonal") === "on",
       startDate: parseDate(formData.get("startDate")),
       dueDate: parseDate(formData.get("dueDate")),
+      recurFreq: normalizeRecurFreq(formData.get("recurFreq")),
+      recurInterval: Math.max(
+        1,
+        parseInt(String(formData.get("recurInterval") ?? "1"), 10) || 1,
+      ),
+      recurDays: String(formData.get("recurDays") ?? "").trim() || null,
+      recurUntil: parseDate(formData.get("recurUntil")),
     },
   });
   bump(boardId);
@@ -252,6 +265,52 @@ export async function deleteTask(taskId: string) {
   if (!ctx) return;
   await prisma.task.delete({ where: { id: taskId } });
   bump(ctx.task.boardId);
+}
+
+/**
+ * "Выполнить" a recurring task: advance its due date to the next occurrence.
+ * Workflow action — any board editor may do it.
+ */
+export async function completeRecurring(taskId: string) {
+  const boardId = await boardIdOfTask(taskId);
+  if (!boardId) return;
+  await requireBoardEditor(boardId);
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: {
+      recurFreq: true,
+      recurInterval: true,
+      recurDays: true,
+      recurUntil: true,
+      dueDate: true,
+    },
+  });
+  if (!task) return;
+  const rule = ruleFromTask({
+    recurFreq: task.recurFreq,
+    recurInterval: task.recurInterval,
+    recurDays: task.recurDays,
+    recurUntil: task.recurUntil
+      ? task.recurUntil.toISOString().slice(0, 10)
+      : null,
+  });
+  if (!rule) return;
+
+  const now = new Date();
+  const today = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+  const due = task.dueDate ?? today;
+  const base = due > today ? due : today;
+  const next = nextOccurrence(rule, base);
+
+  await prisma.task.update({
+    where: { id: taskId },
+    // No more occurrences → stop the recurrence but keep the task.
+    data: next ? { dueDate: next } : { recurFreq: null },
+  });
+  bump(boardId);
 }
 
 /** Reschedule a task's due date (used by the calendar). */

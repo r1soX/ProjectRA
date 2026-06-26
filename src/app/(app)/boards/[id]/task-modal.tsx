@@ -15,11 +15,23 @@ import {
   Palette,
   Users as UsersIcon,
   X,
+  Repeat,
+  CheckCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { PRIORITIES, PRIORITY_META, normalizePriority } from "@/lib/priority";
-import { updateTask, deleteTask, toggleAssignee } from "../actions";
+import {
+  WEEKDAY_LABELS,
+  parseRecurDays,
+  type RecurFreq,
+} from "@/lib/recurrence";
+import {
+  updateTask,
+  deleteTask,
+  toggleAssignee,
+  completeRecurring,
+} from "../actions";
 import { useConfirm } from "@/components/ui/dialog-provider";
 import { CommentsSection } from "./comments-section";
 import type { BoardTask, BoardMemberView } from "./board-view";
@@ -51,6 +63,7 @@ export function TaskModal({
   task,
   members,
   canEdit,
+  boardCanEdit,
   currentUserId,
   canModerate,
   canDelete,
@@ -59,6 +72,7 @@ export function TaskModal({
   task: BoardTask | null;
   members: BoardMemberView[];
   canEdit: boolean;
+  boardCanEdit: boolean;
   currentUserId: string;
   canModerate: boolean;
   canDelete: boolean;
@@ -73,6 +87,7 @@ export function TaskModal({
   );
   const [assignPending, startAssign] = useTransition();
   const [delPending, startDel] = useTransition();
+  const [completePending, startComplete] = useTransition();
   const confirm = useConfirm();
   const openedAt = useRef(0);
 
@@ -285,6 +300,30 @@ export function TaskModal({
                       </span>
                     </label>
 
+                    <div>
+                      <SectionTitle icon={Repeat}>Повторение</SectionTitle>
+                      <RecurrenceEditor
+                        key={task.id}
+                        task={task}
+                        disabled={!canEdit}
+                      />
+                    </div>
+
+                    {task.recurFreq && boardCanEdit && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        loading={completePending}
+                        onClick={() =>
+                          startComplete(() => completeRecurring(task.id))
+                        }
+                        className="w-full"
+                      >
+                        <CheckCheck className="h-4 w-4" />
+                        Выполнить — следующая дата
+                      </Button>
+                    )}
+
                     {task.links.length > 0 && (
                       <div>
                         <SectionTitle icon={Share2}>Связи</SectionTitle>
@@ -374,6 +413,146 @@ export function TaskModal({
         </div>
       )}
     </AnimatePresence>
+  );
+}
+
+function parseDayList(s: string): number[] {
+  return Array.from(
+    new Set(
+      s
+        .split(/[,\s]+/)
+        .map((x) => parseInt(x, 10))
+        .filter((n) => n >= 1 && n <= 31),
+    ),
+  );
+}
+
+function RecurrenceEditor({
+  task,
+  disabled,
+}: {
+  task: BoardTask;
+  disabled: boolean;
+}) {
+  const initFreq: "" | RecurFreq =
+    task.recurFreq === "DAILY" ||
+    task.recurFreq === "WEEKLY" ||
+    task.recurFreq === "MONTHLY"
+      ? task.recurFreq
+      : "";
+  const [freq, setFreq] = useState<"" | RecurFreq>(initFreq);
+  const [interval, setIntervalN] = useState(task.recurInterval || 1);
+  const [days, setDays] = useState<number[]>(parseRecurDays(task.recurDays));
+  const [until, setUntil] = useState(task.recurUntil ?? "");
+
+  const recurDaysValue =
+    freq === "WEEKLY" || freq === "MONTHLY" ? JSON.stringify(days) : "";
+
+  const freqs: [string, string][] = [
+    ["", "Нет"],
+    ["DAILY", "День"],
+    ["WEEKLY", "Неделя"],
+    ["MONTHLY", "Месяц"],
+  ];
+
+  return (
+    <div className="space-y-2.5">
+      <input type="hidden" name="recurFreq" value={freq} />
+      <input type="hidden" name="recurInterval" value={interval} />
+      <input type="hidden" name="recurDays" value={recurDaysValue} />
+      <input type="hidden" name="recurUntil" value={until} />
+
+      <div className="grid grid-cols-4 gap-1.5">
+        {freqs.map(([val, label]) => (
+          <button
+            key={val}
+            type="button"
+            disabled={disabled}
+            onClick={() => {
+              setFreq(val as "" | RecurFreq);
+              if (val !== "WEEKLY" && val !== "MONTHLY") setDays([]);
+            }}
+            className={cn(
+              "rounded-lg border px-1 py-1.5 text-xs transition disabled:opacity-50",
+              freq === val
+                ? "border-violet-500/50 bg-violet-500/15 text-violet-200"
+                : "border-neutral-700 bg-neutral-900/40 text-neutral-400 hover:bg-neutral-800/60",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {freq === "DAILY" && (
+        <label className="flex items-center gap-2 text-xs text-neutral-400">
+          каждые
+          <input
+            type="number"
+            min={1}
+            max={365}
+            value={interval}
+            disabled={disabled}
+            onChange={(e) => setIntervalN(Math.max(1, parseInt(e.target.value, 10) || 1))}
+            className="h-8 w-16 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-center text-neutral-100 outline-none focus:border-sky-500"
+          />
+          дн.
+        </label>
+      )}
+
+      {freq === "WEEKLY" && (
+        <div className="flex flex-wrap gap-1">
+          {WEEKDAY_LABELS.map((lbl, i) => {
+            const n = i + 1;
+            const active = days.includes(n);
+            return (
+              <button
+                key={n}
+                type="button"
+                disabled={disabled}
+                onClick={() =>
+                  setDays((ds) =>
+                    ds.includes(n) ? ds.filter((x) => x !== n) : [...ds, n],
+                  )
+                }
+                className={cn(
+                  "h-7 w-9 rounded-md border text-xs transition disabled:opacity-50",
+                  active
+                    ? "border-violet-500/50 bg-violet-500/20 text-violet-200"
+                    : "border-neutral-700 text-neutral-400 hover:bg-neutral-800/60",
+                )}
+              >
+                {lbl}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {freq === "MONTHLY" && (
+        <input
+          type="text"
+          disabled={disabled}
+          defaultValue={days.join(", ")}
+          onChange={(e) => setDays(parseDayList(e.target.value))}
+          placeholder="числа месяца, напр. 1, 15"
+          className="h-8 w-full rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 outline-none focus:border-sky-500"
+        />
+      )}
+
+      {freq && (
+        <label className="flex items-center gap-2 text-xs text-neutral-400">
+          до
+          <input
+            type="date"
+            value={until}
+            disabled={disabled}
+            onChange={(e) => setUntil(e.target.value)}
+            className="h-8 flex-1 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 [color-scheme:dark] outline-none focus:border-sky-500"
+          />
+        </label>
+      )}
+    </div>
   );
 }
 
