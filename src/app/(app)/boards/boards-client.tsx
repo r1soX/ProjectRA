@@ -157,7 +157,7 @@ export function BoardsClient({ boards }: { boards: BoardCard[] }) {
             >
               <Link
                 href={`/boards/${b.id}`}
-                className="group block overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/40 transition hover:-translate-y-0.5 hover:border-neutral-700 hover:bg-neutral-900/70"
+                className="glass glass-hover group block overflow-hidden rounded-2xl shadow-lg shadow-black/20 transition hover:-translate-y-1 hover:shadow-xl hover:shadow-sky-500/10"
               >
                 <div className="h-1.5" style={{ backgroundColor: b.color }} />
                 <div className="p-5">

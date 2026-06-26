@@ -522,7 +522,7 @@ function SortableColumn({
       style={style}
       {...sortable.attributes}
       className={cn(
-        "flex w-[82vw] max-w-[19rem] shrink-0 flex-col rounded-xl border border-neutral-800 bg-neutral-900/30 sm:w-72",
+        "glass flex w-[82vw] max-w-[19rem] shrink-0 flex-col rounded-2xl sm:w-72",
         sortable.isDragging && "opacity-40",
       )}
     >
@@ -660,7 +660,7 @@ function SortableTask({
       {...listeners}
       onClick={() => onOpen(task.id)}
       className={cn(
-        "block w-full cursor-pointer select-none overflow-hidden rounded-lg border border-neutral-800 bg-neutral-800/60 text-left transition-colors hover:border-neutral-600 hover:bg-neutral-800",
+        "block w-full cursor-pointer select-none overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] text-left shadow-sm transition hover:-translate-y-px hover:border-white/20 hover:bg-white/[0.07] hover:shadow-md",
         isDragging && "opacity-40",
       )}
     >
