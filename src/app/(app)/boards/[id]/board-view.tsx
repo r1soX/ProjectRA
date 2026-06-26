@@ -168,32 +168,14 @@ export function BoardView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardId]);
 
-  // Re-sync local state when the server sends fresh data.
-  const signature = useMemo(
-    () =>
-      JSON.stringify(
-        columns.map((c) => [
-          c.id,
-          c.title,
-          c.tasks.map((t) => [
-            t.id,
-            t.title,
-            t.color,
-            t.priority,
-            t.startDate,
-            t.dueDate,
-            t.assigneeIds.join(","),
-            t.labels.map((l) => l.id).join(","),
-            t.comments.length,
-          ]),
-        ]),
-      ),
-    [columns],
-  );
+  // Re-sync local state whenever the server sends fresh data (any field),
+  // except while a drag is in progress. `columns` only changes identity when
+  // the page re-fetches, so this picks up every edit in real time.
   useEffect(() => {
-    setCols(columns);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature]);
+    if (!draggingRef.current) setCols(columns);
+  }, [columns]);
+
+  const closeTask = useCallback(() => setSelectedTaskId(null), []);
 
   const sensors = useSensors(
     // Desktop: start dragging after a small movement.
@@ -496,7 +478,7 @@ export function BoardView({
             ? isAdmin || selectedTask.createdById === currentUserId
             : false
         }
-        onClose={() => setSelectedTaskId(null)}
+        onClose={closeTask}
       />
       <MembersModal
         open={membersOpen}
