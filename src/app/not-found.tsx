@@ -3,7 +3,7 @@ import { Aurora } from "@/components/visual/aurora";
 
 export default function NotFound() {
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-neutral-950 px-4 text-center">
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-neutral-950 px-4 text-center">
       <Aurora />
       <div className="relative z-10">
         <p className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-7xl font-black text-transparent">

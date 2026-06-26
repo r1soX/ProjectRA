@@ -119,10 +119,10 @@ export function CalendarClient({
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-neutral-800 px-4 py-3 sm:px-6">
-        <h1 className="text-lg font-bold capitalize text-neutral-100">
+        <h1 className="min-w-0 truncate text-base font-bold capitalize text-neutral-100 sm:text-lg">
           {month.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
         </h1>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <Button size="sm" variant="ghost" onClick={() => setMonth(addMonths(month, -1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -238,14 +238,14 @@ function DayCell({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-[90px] flex-col gap-1 border-b border-r border-neutral-800/70 p-1.5 sm:min-h-[110px]",
+        "flex min-h-[64px] flex-col gap-1 border-b border-r border-neutral-800/70 p-1 sm:min-h-[110px] sm:p-1.5",
         !inMonth && "bg-neutral-950/40",
         isOver && "bg-sky-500/10 ring-1 ring-inset ring-sky-500/40",
       )}
     >
       <span
         className={cn(
-          "mb-0.5 inline-flex h-6 w-6 items-center justify-center self-start rounded-full text-xs",
+          "inline-flex h-6 w-6 items-center justify-center self-start rounded-full text-xs sm:mb-0.5",
           isToday
             ? "bg-sky-500 font-semibold text-white"
             : inMonth
@@ -255,20 +255,44 @@ function DayCell({
       >
         {day}
       </span>
-      {visible.map((t) => (
-        <TaskChip
-          key={t.id}
-          task={t}
-          draggable={canModify(t)}
-          onOpen={() => onOpenTask(t)}
-        />
-      ))}
-      {more > 0 && (
+
+      {/* Tablet / desktop: full chips */}
+      <div className="hidden flex-col gap-1 sm:flex">
+        {visible.map((t) => (
+          <TaskChip
+            key={t.id}
+            task={t}
+            draggable={canModify(t)}
+            onOpen={() => onOpenTask(t)}
+          />
+        ))}
+        {more > 0 && (
+          <button
+            onClick={onMore}
+            className="rounded px-1 text-left text-[11px] text-neutral-500 hover:text-neutral-300"
+          >
+            +{more} ещё
+          </button>
+        )}
+      </div>
+
+      {/* Mobile: dots, tap the day to see the list */}
+      {tasks.length > 0 && (
         <button
           onClick={onMore}
-          className="rounded px-1 text-left text-[11px] text-neutral-500 hover:text-neutral-300"
+          className="mt-auto flex flex-wrap gap-1 p-0.5 sm:hidden"
+          aria-label="Задачи дня"
         >
-          +{more} ещё
+          {tasks.slice(0, 8).map((t, i) => (
+            <span
+              key={i}
+              className="h-1.5 w-1.5 rounded-full"
+              style={{
+                backgroundColor:
+                  t.color ?? PRIORITY_META[normalizePriority(t.priority)].bar,
+              }}
+            />
+          ))}
         </button>
       )}
     </div>

@@ -322,7 +322,7 @@ export function LinksCanvas({
         >
           <Background />
           <Controls showInteractive={false} />
-          <MiniMap pannable zoomable />
+          <MiniMap pannable zoomable className="!hidden sm:!block" />
         </ReactFlow>
       </div>
     </div>

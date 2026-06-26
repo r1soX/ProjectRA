@@ -125,7 +125,7 @@ export function AppShell({
   const items = [...baseNav, ...(user.role === "ADMIN" ? adminNav : [])];
 
   return (
-    <div className="flex min-h-screen bg-neutral-950">
+    <div className="flex min-h-dvh bg-neutral-950">
       {/* Desktop sidebar */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900/40 md:flex">
         <div className="flex h-14 items-center px-5">

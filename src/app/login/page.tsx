@@ -9,7 +9,7 @@ export default async function LoginPage() {
   if (user) redirect("/dashboard");
 
   return (
-    <main className="relative flex min-h-screen bg-neutral-950">
+    <main className="relative flex min-h-dvh bg-neutral-950">
       {/* Left brand panel (desktop only) */}
       <section className="relative hidden flex-1 overflow-hidden border-r border-white/5 p-12 lg:block">
         <Aurora />

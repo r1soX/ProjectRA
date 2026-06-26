@@ -303,8 +303,10 @@ export function BoardView({
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
-        <h1 className="text-lg font-bold text-neutral-100">{title}</h1>
+        <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+        <h1 className="max-w-[45vw] truncate text-lg font-bold text-neutral-100 sm:max-w-none">
+          {title}
+        </h1>
         <span
           className={cn(
             "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs",
