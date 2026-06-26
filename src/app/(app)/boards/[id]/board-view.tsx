@@ -370,6 +370,7 @@ export function BoardView({
         boardId={boardId}
         currentTitle={title}
         currentColor={color}
+        currentIsPersonal={isPersonal}
         onClose={() => setSettingsOpen(false)}
       />
     </div>

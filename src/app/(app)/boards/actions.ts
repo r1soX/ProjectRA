@@ -76,11 +76,22 @@ export async function createBoard(
   return { ok: true, message: board.id };
 }
 
-export async function updateBoard(boardId: string, title: string, color: string) {
-  await requireBoardEditor(boardId);
-  await prisma.board.update({
-    where: { id: boardId },
-    data: { title: title.trim(), color },
+export async function updateBoard(
+  boardId: string,
+  title: string,
+  color: string,
+  isPersonal: boolean,
+) {
+  const board = await requireBoardOwner(boardId);
+  await prisma.$transaction(async (tx) => {
+    await tx.board.update({
+      where: { id: boardId },
+      data: { title: title.trim(), color, isPersonal },
+    });
+    // Switching to a personal board drops all members (owner only).
+    if (isPersonal && !board.isPersonal) {
+      await tx.boardMember.deleteMany({ where: { boardId } });
+    }
   });
   revalidatePath(`/boards/${boardId}`);
   revalidatePath("/boards");
