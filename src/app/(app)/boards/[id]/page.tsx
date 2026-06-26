@@ -89,6 +89,7 @@ export default async function BoardPage({
       priority: t.priority,
       startDate: toDateInput(t.startDate),
       dueDate: toDateInput(t.dueDate),
+      createdById: t.createdById,
       createdByName: shortName(t.createdBy),
       assigneeIds: t.assignees.map((a) => a.userId),
       assignees: t.assignees.map((a) => ({
@@ -135,6 +136,7 @@ export default async function BoardPage({
       isPersonal={board.isPersonal}
       role={role}
       currentUserId={user.id}
+      isAdmin={user.role === "ADMIN"}
       columns={columns}
       members={headerMembers}
       assignable={assignable}

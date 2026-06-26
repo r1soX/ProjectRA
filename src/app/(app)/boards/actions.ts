@@ -224,11 +224,26 @@ export async function updateTask(taskId: string, formData: FormData) {
 }
 
 export async function deleteTask(taskId: string) {
-  const boardId = await boardIdOfTask(taskId);
-  if (!boardId) return;
-  await requireBoardEditor(boardId);
+  const user = await requireUser();
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { boardId: true, createdById: true },
+  });
+  if (!task) return;
+
+  const isAdmin = user.role === "ADMIN";
+  // Admins may delete any task. Everyone else: only tasks they created,
+  // and only on a board they can access.
+  if (!isAdmin) {
+    const role = await getBoardRole(task.boardId, user.id);
+    if (!role) throw new Error("Нет доступа к доске");
+    if (task.createdById !== user.id) {
+      throw new Error("Удалить задачу может только её создатель или администратор");
+    }
+  }
+
   await prisma.task.delete({ where: { id: taskId } });
-  bump(boardId);
+  bump(task.boardId);
 }
 
 /** Move a task to a column and persist the destination column's order. */

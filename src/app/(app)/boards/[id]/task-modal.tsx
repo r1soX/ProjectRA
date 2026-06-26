@@ -21,6 +21,7 @@ export function TaskModal({
   canEdit,
   currentUserId,
   canModerate,
+  canDelete,
   onClose,
 }: {
   task: BoardTask | null;
@@ -28,6 +29,7 @@ export function TaskModal({
   canEdit: boolean;
   currentUserId: string;
   canModerate: boolean;
+  canDelete: boolean;
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -144,33 +146,39 @@ export function TaskModal({
             <p className="text-sm text-red-300">{state.error}</p>
           )}
 
-          {canEdit && (
+          {(canEdit || canDelete) && (
             <div className="flex items-center justify-between border-t border-neutral-800 pt-4">
-              <Button
-                type="button"
-                variant="danger"
-                size="sm"
-                loading={delPending}
-                onClick={() => {
-                  if (confirm("Удалить задачу?")) {
-                    startDel(async () => {
-                      await deleteTask(task.id);
-                      onClose();
-                    });
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                Удалить
-              </Button>
-              <div className="flex gap-2">
-                <Button type="button" variant="ghost" onClick={onClose}>
-                  Отмена
+              {canDelete ? (
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="sm"
+                  loading={delPending}
+                  onClick={() => {
+                    if (confirm("Удалить задачу?")) {
+                      startDel(async () => {
+                        await deleteTask(task.id);
+                        onClose();
+                      });
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Удалить
                 </Button>
-                <Button type="submit" loading={pending}>
-                  Сохранить
-                </Button>
-              </div>
+              ) : (
+                <span />
+              )}
+              {canEdit && (
+                <div className="flex gap-2">
+                  <Button type="button" variant="ghost" onClick={onClose}>
+                    Отмена
+                  </Button>
+                  <Button type="submit" loading={pending}>
+                    Сохранить
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </form>

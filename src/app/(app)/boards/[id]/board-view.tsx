@@ -72,6 +72,7 @@ export type BoardTask = {
   priority: string;
   startDate: string | null;
   dueDate: string | null;
+  createdById: string;
   createdByName: string;
   assigneeIds: string[];
   assignees: { initials: string; shortName: string }[];
@@ -96,6 +97,7 @@ export function BoardView({
   isPersonal,
   role,
   currentUserId,
+  isAdmin,
   columns,
   members,
   assignable,
@@ -107,6 +109,7 @@ export function BoardView({
   isPersonal: boolean;
   role: string;
   currentUserId: string;
+  isAdmin: boolean;
   columns: BoardColumn[];
   members: BoardMemberView[];
   assignable: BoardMemberView[];
@@ -405,6 +408,11 @@ export function BoardView({
         canEdit={canEdit}
         currentUserId={currentUserId}
         canModerate={isOwner}
+        canDelete={
+          selectedTask
+            ? isAdmin || selectedTask.createdById === currentUserId
+            : false
+        }
         onClose={() => setSelectedTaskId(null)}
       />
       <MembersModal
