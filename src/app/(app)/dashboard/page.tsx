@@ -7,7 +7,7 @@ export default async function DashboardPage() {
   return (
     <PageContainer>
       <h1 className="text-2xl font-bold text-neutral-100">
-        Привет, {user.name.split(" ")[0]} 👋
+        Привет, {user.firstName}! 👋
       </h1>
       <p className="mt-2 text-neutral-400">
         Это рабочее пространство Tandem. Доски, задачи и мессенджер появятся на

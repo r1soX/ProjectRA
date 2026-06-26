@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
+import { fullName, initials } from "@/lib/names";
 import {
   createUser,
   toggleActive,
@@ -29,7 +30,10 @@ import {
 export type AdminUser = {
   id: string;
   username: string;
-  name: string;
+  lastName: string;
+  firstName: string;
+  middleName: string | null;
+  birthDate: string | null;
   role: string;
   isActive: boolean;
   createdAt: string;
@@ -82,9 +86,27 @@ function CreateUserModal({
         <Field label="Логин" htmlFor="username" hint="латиница, цифры, . _ -">
           <Input id="username" name="username" placeholder="i.ivanov" autoFocus />
         </Field>
-        <Field label="Имя" htmlFor="cu-name">
-          <Input id="cu-name" name="name" placeholder="Иван Иванов" />
-        </Field>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Фамилия" htmlFor="cu-last">
+            <Input id="cu-last" name="lastName" placeholder="Иванов" />
+          </Field>
+          <Field label="Имя" htmlFor="cu-first">
+            <Input id="cu-first" name="firstName" placeholder="Иван" />
+          </Field>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Отчество" htmlFor="cu-middle">
+            <Input id="cu-middle" name="middleName" placeholder="необязательно" />
+          </Field>
+          <Field label="Дата рождения" htmlFor="cu-birth">
+            <Input
+              id="cu-birth"
+              name="birthDate"
+              type="date"
+              className="[color-scheme:dark]"
+            />
+          </Field>
+        </div>
         <Field label="Пароль" htmlFor="cu-password" hint="Минимум 6 символов">
           <Input id="cu-password" name="password" type="text" placeholder="придумайте пароль" />
         </Field>
@@ -181,11 +203,11 @@ function UserRow({
               : "bg-neutral-700"
           }`}
         >
-          {user.name.slice(0, 1).toUpperCase()}
+          {initials(user)}
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <p className="truncate font-medium text-neutral-100">{user.name}</p>
+            <p className="truncate font-medium text-neutral-100">{fullName(user)}</p>
             {user.role === "ADMIN" && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-300">
                 админ

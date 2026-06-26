@@ -55,10 +55,16 @@ function Card({
 
 export function ProfileForms({
   username,
-  name,
+  lastName,
+  firstName,
+  middleName,
+  birthDate,
 }: {
   username: string;
-  name: string;
+  lastName: string;
+  firstName: string;
+  middleName: string | null;
+  birthDate: string | null;
 }) {
   const [profileState, profileAction, profilePending] = useActionState<
     FormState,
@@ -76,8 +82,28 @@ export function ProfileForms({
           <Field label="Логин">
             <Input value={username} disabled readOnly />
           </Field>
-          <Field label="Имя" htmlFor="name">
-            <Input id="name" name="name" defaultValue={name} />
+          <Field label="Фамилия" htmlFor="lastName">
+            <Input id="lastName" name="lastName" defaultValue={lastName} />
+          </Field>
+          <Field label="Имя" htmlFor="firstName">
+            <Input id="firstName" name="firstName" defaultValue={firstName} />
+          </Field>
+          <Field label="Отчество" htmlFor="middleName">
+            <Input
+              id="middleName"
+              name="middleName"
+              defaultValue={middleName ?? ""}
+              placeholder="необязательно"
+            />
+          </Field>
+          <Field label="Дата рождения" htmlFor="birthDate">
+            <Input
+              id="birthDate"
+              name="birthDate"
+              type="date"
+              defaultValue={birthDate ?? ""}
+              className="[color-scheme:dark]"
+            />
           </Field>
           <StatusBanner state={profileState} />
           <Button type="submit" loading={profilePending}>

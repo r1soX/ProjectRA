@@ -7,11 +7,14 @@ export default async function AdminUsersPage() {
   const admin = await requireAdmin();
 
   const users = await prisma.user.findMany({
-    orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+    orderBy: [{ role: "asc" }, { lastName: "asc" }],
     select: {
       id: true,
       username: true,
-      name: true,
+      lastName: true,
+      firstName: true,
+      middleName: true,
+      birthDate: true,
       role: true,
       isActive: true,
       createdAt: true,
@@ -20,6 +23,7 @@ export default async function AdminUsersPage() {
 
   const data: AdminUser[] = users.map((u) => ({
     ...u,
+    birthDate: u.birthDate ? u.birthDate.toISOString().slice(0, 10) : null,
     createdAt: u.createdAt.toISOString(),
   }));
 

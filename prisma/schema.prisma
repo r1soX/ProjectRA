@@ -15,12 +15,15 @@ datasource db {
 // ── Users & access ────────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique // login, e.g. "v.smolin"
-  name         String
-  email        String?  @unique
+  id           String    @id @default(cuid())
+  username     String    @unique // login, e.g. "v.smolin"
+  lastName     String // Фамилия
+  firstName    String // Имя
+  middleName   String? // Отчество
+  birthDate    DateTime? // дата рождения
+  email        String?   @unique
   passwordHash String
-  role         String   @default("USER") // ADMIN | USER
+  role         String    @default("USER") // ADMIN | USER
   avatar       String? // url or data
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())

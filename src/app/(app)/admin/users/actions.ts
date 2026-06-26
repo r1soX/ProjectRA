@@ -16,7 +16,10 @@ const usernameRule = z
 
 const createSchema = z.object({
   username: usernameRule,
-  name: z.string().trim().min(1, "Введите имя"),
+  lastName: z.string().trim().min(1, "Введите фамилию"),
+  firstName: z.string().trim().min(1, "Введите имя"),
+  middleName: z.string().trim().optional(),
+  birthDate: z.string().trim().optional(),
   password: z.string().min(6, "Минимум 6 символов"),
   role: z.enum(["ADMIN", "USER"]),
 });
@@ -28,7 +31,10 @@ export async function createUser(
   await requireAdmin();
   const parsed = createSchema.safeParse({
     username: formData.get("username"),
-    name: formData.get("name"),
+    lastName: formData.get("lastName"),
+    firstName: formData.get("firstName"),
+    middleName: formData.get("middleName"),
+    birthDate: formData.get("birthDate"),
     password: formData.get("password"),
     role: formData.get("role"),
   });
@@ -36,12 +42,21 @@ export async function createUser(
     return { error: parsed.error.issues[0]?.message };
   }
 
-  const { username, name, password, role } = parsed.data;
+  const { username, lastName, firstName, middleName, birthDate, password, role } =
+    parsed.data;
   const exists = await prisma.user.findUnique({ where: { username } });
   if (exists) return { error: "Логин уже занят" };
 
   await prisma.user.create({
-    data: { username, name, role, passwordHash: await hashPassword(password) },
+    data: {
+      username,
+      lastName,
+      firstName,
+      middleName: middleName || null,
+      birthDate: birthDate ? new Date(birthDate) : null,
+      role,
+      passwordHash: await hashPassword(password),
+    },
   });
   revalidatePath("/admin/users");
   return { ok: true, message: `Пользователь @${username} создан` };

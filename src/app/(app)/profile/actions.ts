@@ -9,7 +9,10 @@ import { requireUser } from "@/lib/auth";
 export type FormState = { ok?: boolean; error?: string; message?: string };
 
 const profileSchema = z.object({
-  name: z.string().trim().min(1, "Введите имя"),
+  lastName: z.string().trim().min(1, "Введите фамилию"),
+  firstName: z.string().trim().min(1, "Введите имя"),
+  middleName: z.string().trim().optional(),
+  birthDate: z.string().trim().optional(),
 });
 
 export async function updateProfile(
@@ -17,17 +20,28 @@ export async function updateProfile(
   formData: FormData,
 ): Promise<FormState> {
   const session = await requireUser();
-  const parsed = profileSchema.safeParse({ name: formData.get("name") });
+  const parsed = profileSchema.safeParse({
+    lastName: formData.get("lastName"),
+    firstName: formData.get("firstName"),
+    middleName: formData.get("middleName"),
+    birthDate: formData.get("birthDate"),
+  });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message };
   }
 
+  const { lastName, firstName, middleName, birthDate } = parsed.data;
   await prisma.user.update({
     where: { id: session.id },
-    data: { name: parsed.data.name },
+    data: {
+      lastName,
+      firstName,
+      middleName: middleName || null,
+      birthDate: birthDate ? new Date(birthDate) : null,
+    },
   });
   revalidatePath("/profile");
-  return { ok: true, message: "Имя обновлено" };
+  return { ok: true, message: "Профиль обновлён" };
 }
 
 const passwordSchema = z

@@ -12,7 +12,9 @@ import {
 export type SessionUser = {
   id: string;
   username: string;
-  name: string;
+  lastName: string;
+  firstName: string;
+  middleName: string | null;
   role: string;
   avatar: string | null;
 };
@@ -45,7 +47,9 @@ export async function getSession(): Promise<SessionUser | null> {
     select: {
       id: true,
       username: true,
-      name: true,
+      lastName: true,
+      firstName: true,
+      middleName: true,
       role: true,
       avatar: true,
       isActive: true,
@@ -56,7 +60,9 @@ export async function getSession(): Promise<SessionUser | null> {
   return {
     id: user.id,
     username: user.username,
-    name: user.name,
+    lastName: user.lastName,
+    firstName: user.firstName,
+    middleName: user.middleName,
     role: user.role,
     avatar: user.avatar,
   };

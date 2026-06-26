@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/cn";
 import { logout } from "@/app/actions/session";
 import type { SessionUser } from "@/lib/auth";
+import { shortName, initials } from "@/lib/names";
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
 
@@ -72,11 +73,11 @@ function UserCard({ user }: { user: SessionUser }) {
   return (
     <div className="flex items-center gap-3 border-t border-neutral-800 p-3">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-sm font-semibold text-white">
-        {user.name.slice(0, 1).toUpperCase()}
+        {initials(user)}
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-neutral-200">
-          {user.name}
+          {shortName(user)}
         </p>
         <p className="truncate text-xs text-neutral-500">@{user.username}</p>
       </div>
