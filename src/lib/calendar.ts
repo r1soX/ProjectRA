@@ -14,7 +14,11 @@ export type CalendarTask = {
   startDate: string | null;
   dueDate: string; // yyyy-mm-dd (always present here)
   createdById: string;
-  assignees: { initials: string }[];
+  assignees: {
+    initials: string;
+    avatar: string | null;
+    emoji: string | null;
+  }[];
 };
 
 function toDateInput(d: Date | null): string | null {
@@ -45,7 +49,13 @@ export async function getCalendarTasks(
       assignees: {
         include: {
           user: {
-            select: { lastName: true, firstName: true, middleName: true },
+            select: {
+              lastName: true,
+              firstName: true,
+              middleName: true,
+              avatar: true,
+              avatarEmoji: true,
+            },
           },
         },
       },
@@ -65,7 +75,11 @@ export async function getCalendarTasks(
       startDate: toDateInput(t.startDate),
       dueDate: toDateInput(t.dueDate)!,
       createdById: t.createdById,
-      assignees: t.assignees.map((a) => ({ initials: initials(a.user) })),
+      assignees: t.assignees.map((a) => ({
+        initials: initials(a.user),
+        avatar: a.user.avatar,
+        emoji: a.user.avatarEmoji,
+      })),
     };
   });
 }

@@ -16,6 +16,8 @@ const userSelect = {
   lastName: true,
   firstName: true,
   middleName: true,
+  avatar: true,
+  avatarEmoji: true,
 } as const;
 
 type PersonRow = {
@@ -24,6 +26,8 @@ type PersonRow = {
   lastName: string;
   firstName: string;
   middleName: string | null;
+  avatar: string | null;
+  avatarEmoji: string | null;
 };
 
 function toMemberView(u: PersonRow, role: string): BoardMemberView {
@@ -33,6 +37,8 @@ function toMemberView(u: PersonRow, role: string): BoardMemberView {
     shortName: shortName(u),
     initials: initials(u),
     username: u.username,
+    avatar: u.avatar,
+    emoji: u.avatarEmoji,
   };
 }
 
@@ -128,6 +134,8 @@ export default async function BoardPage({
         initials: initials(a.user),
         shortName: shortName(a.user),
         confirmed: a.confirmed,
+        avatar: a.user.avatar,
+        emoji: a.user.avatarEmoji,
       })),
       labels: t.labels.map((tl) => ({
         id: tl.label.id,
@@ -139,6 +147,8 @@ export default async function BoardPage({
         body: c.body,
         authorName: shortName(c.user),
         authorInitials: initials(c.user),
+        authorAvatar: c.user.avatar,
+        authorEmoji: c.user.avatarEmoji,
         userId: c.userId,
         createdAt: c.createdAt.toISOString(),
       })),
@@ -159,6 +169,8 @@ export default async function BoardPage({
       fullName: fullName(u),
       username: u.username,
       initials: initials(u),
+      avatar: u.avatar,
+      emoji: u.avatarEmoji,
     }));
   }
 

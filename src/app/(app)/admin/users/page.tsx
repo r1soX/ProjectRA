@@ -18,6 +18,8 @@ export default async function AdminUsersPage() {
       role: true,
       isActive: true,
       createdAt: true,
+      avatar: true,
+      avatarEmoji: true,
     },
   });
 

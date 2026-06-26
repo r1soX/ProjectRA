@@ -17,7 +17,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
+import { Avatar } from "@/components/ui/avatar";
 import { useConfirm } from "@/components/ui/dialog-provider";
+import { cn } from "@/lib/cn";
 import { fullName, initials } from "@/lib/names";
 import {
   createUser,
@@ -38,6 +40,8 @@ export type AdminUser = {
   role: string;
   isActive: boolean;
   createdAt: string;
+  avatar: string | null;
+  avatarEmoji: string | null;
 };
 
 function Banner({ state }: { state: AdminState }) {
@@ -198,15 +202,16 @@ function UserRow({
       className="flex flex-col gap-3 rounded-xl glass p-4 sm:flex-row sm:items-center"
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white ${
-            user.isActive
-              ? "bg-gradient-to-br from-sky-500 to-indigo-500"
-              : "bg-neutral-700"
-          }`}
-        >
-          {initials(user)}
-        </div>
+        <Avatar
+          image={user.avatar}
+          emoji={user.avatarEmoji}
+          initials={initials(user)}
+          size={40}
+          className={cn(
+            "rounded-full",
+            !user.isActive && !user.avatar && !user.avatarEmoji && "grayscale",
+          )}
+        />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="truncate font-medium text-neutral-100">{fullName(user)}</p>

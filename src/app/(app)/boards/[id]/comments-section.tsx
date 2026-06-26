@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { MessageSquare, Send, Trash2, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import {
   addComment,
   deleteComment,
@@ -75,9 +76,12 @@ export function CommentsSection({
               exit={{ opacity: 0 }}
               className="flex gap-2.5"
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-[10px] font-semibold text-white">
-                {c.authorInitials}
-              </span>
+              <Avatar
+                image={c.authorAvatar}
+                emoji={c.authorEmoji}
+                initials={c.authorInitials}
+                size={28}
+              />
               <div className="min-w-0 flex-1 rounded-lg bg-white/[0.05] px-3 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-medium text-neutral-200">

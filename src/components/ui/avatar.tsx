@@ -8,6 +8,7 @@ export function Avatar({
   online,
   ring,
   className,
+  title,
 }: {
   image?: string | null;
   emoji?: string | null;
@@ -16,12 +17,14 @@ export function Avatar({
   online?: boolean;
   ring?: boolean;
   className?: string;
+  title?: string;
 }) {
   const dot = Math.max(8, Math.round(size * 0.28));
   return (
     <span
       className={cn("relative inline-flex shrink-0", className)}
       style={{ width: size, height: size }}
+      title={title}
     >
       {image ? (
         // eslint-disable-next-line @next/next/no-img-element

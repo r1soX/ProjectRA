@@ -19,6 +19,7 @@ import {
   CheckCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
 import { PRIORITIES, PRIORITY_META, normalizePriority } from "@/lib/priority";
 import {
@@ -263,9 +264,12 @@ export function TaskModal({
                                     : "border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:bg-neutral-800",
                                 )}
                               >
-                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-[9px] font-semibold text-white">
-                                  {m.initials}
-                                </span>
+                                <Avatar
+                                  image={m.avatar}
+                                  emoji={m.emoji}
+                                  initials={m.initials}
+                                  size={20}
+                                />
                                 {m.shortName}
                                 {active && <Check className="h-3 w-3" />}
                               </button>
@@ -288,9 +292,12 @@ export function TaskModal({
                               key={a.userId}
                               className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-2 py-1.5 text-xs"
                             >
-                              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-[9px] font-semibold text-white">
-                                {a.initials}
-                              </span>
+                              <Avatar
+                                image={a.avatar}
+                                emoji={a.emoji}
+                                initials={a.initials}
+                                size={20}
+                              />
                               <span className="min-w-0 flex-1 truncate text-neutral-200">
                                 {a.shortName}
                               </span>

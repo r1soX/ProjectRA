@@ -10,6 +10,7 @@ import {
   Repeat,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Avatar } from "@/components/ui/avatar";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
 import { ruleFromTask, describeRecurrence } from "@/lib/recurrence";
 import type { BoardTask } from "./board-view";
@@ -127,12 +128,14 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
               )}
               <div className="flex -space-x-1.5">
                 {task.assignees.slice(0, 3).map((a, i) => (
-                  <span
+                  <Avatar
                     key={i}
-                    className="flex h-6 w-6 items-center justify-center rounded-full border border-neutral-800 bg-gradient-to-br from-sky-500 to-indigo-500 text-[10px] font-semibold text-white"
-                  >
-                    {a.initials}
-                  </span>
+                    image={a.avatar}
+                    emoji={a.emoji}
+                    initials={a.initials}
+                    size={24}
+                    className="rounded-full ring-2 ring-neutral-950"
+                  />
                 ))}
               </div>
             </div>

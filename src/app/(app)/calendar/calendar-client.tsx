@@ -19,6 +19,7 @@ import {
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
 import { setTaskDue } from "../boards/actions";
@@ -414,12 +415,14 @@ function TaskDetailModal({
                 <p className="mb-1 text-xs text-neutral-500">Исполнители</p>
                 <div className="flex -space-x-1.5">
                   {task.assignees.map((a, i) => (
-                    <span
+                    <Avatar
                       key={i}
-                      className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-sky-500 to-indigo-500 text-[9px] font-semibold text-white"
-                    >
-                      {a.initials}
-                    </span>
+                      image={a.avatar}
+                      emoji={a.emoji}
+                      initials={a.initials}
+                      size={24}
+                      className="rounded-full ring-2 ring-neutral-950"
+                    />
                   ))}
                 </div>
               </div>

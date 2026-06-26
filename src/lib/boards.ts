@@ -33,6 +33,8 @@ const userPick = {
     lastName: true,
     firstName: true,
     middleName: true,
+    avatar: true,
+    avatarEmoji: true,
   },
 } as const;
 

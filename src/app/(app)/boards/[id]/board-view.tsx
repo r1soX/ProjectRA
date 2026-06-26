@@ -48,6 +48,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
 import {
   createColumn,
@@ -73,12 +74,16 @@ export type BoardMemberView = {
   shortName: string;
   initials: string;
   username: string;
+  avatar: string | null;
+  emoji: string | null;
 };
 export type DirectoryUser = {
   id: string;
   fullName: string;
   username: string;
   initials: string;
+  avatar: string | null;
+  emoji: string | null;
 };
 export type BoardTask = {
   id: string;
@@ -102,6 +107,8 @@ export type BoardTask = {
     initials: string;
     shortName: string;
     confirmed: boolean;
+    avatar: string | null;
+    emoji: string | null;
   }[];
   labels: { id: string; name: string; color: string }[];
   comments: {
@@ -109,6 +116,8 @@ export type BoardTask = {
     body: string;
     authorName: string;
     authorInitials: string;
+    authorAvatar: string | null;
+    authorEmoji: string | null;
     userId: string;
     createdAt: string;
   }[];
@@ -383,13 +392,15 @@ export function BoardView({
           {members.length > 0 && (
             <div className="hidden -space-x-2 sm:flex">
               {members.slice(0, 5).map((m) => (
-                <span
+                <Avatar
                   key={m.userId}
+                  image={m.avatar}
+                  emoji={m.emoji}
+                  initials={m.initials}
+                  size={28}
                   title={m.shortName}
-                  className="flex h-7 w-7 items-center justify-center rounded-full border border-neutral-900 bg-gradient-to-br from-sky-500 to-indigo-500 text-[10px] font-semibold text-white"
-                >
-                  {m.initials}
-                </span>
+                  className="rounded-full ring-2 ring-neutral-900"
+                />
               ))}
             </div>
           )}

@@ -5,6 +5,7 @@ import { UserPlus, UserMinus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
 import { addMember, removeMember } from "../actions";
 import type { BoardMemberView, DirectoryUser } from "./board-view";
@@ -51,9 +52,12 @@ export function MembersModal({
                 key={u.id}
                 className="flex items-center gap-3 rounded-lg glass p-2.5"
               >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-xs font-semibold text-white">
-                  {u.initials}
-                </span>
+                <Avatar
+                  image={u.avatar}
+                  emoji={u.emoji}
+                  initials={u.initials}
+                  size={32}
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-neutral-100">{u.fullName}</p>
                   <p className="truncate text-xs text-neutral-500">@{u.username}</p>
