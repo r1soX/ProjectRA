@@ -402,7 +402,7 @@ export function BoardView({
           {activeTask ? (
             <DanglingCard task={activeTask} />
           ) : activeColumn ? (
-            <div className="w-72 rotate-2 rounded-xl border border-sky-500/40 bg-neutral-900/90 px-3 py-2.5 shadow-2xl">
+            <div className="w-[82vw] max-w-[19rem] rotate-2 rounded-xl border border-sky-500/40 bg-neutral-900/90 px-3 py-2.5 shadow-2xl sm:w-72">
               <span className="text-sm font-semibold text-neutral-200">
                 {activeColumn.title}
               </span>
@@ -450,7 +450,7 @@ export function BoardView({
 /** The grabbed card hangs from the cursor and gently sways. */
 function DanglingCard({ task }: { task: BoardTask }) {
   return (
-    <div className="pointer-events-none w-[17rem]">
+    <div className="pointer-events-none w-[78vw] max-w-[17rem]">
       <div className="mx-auto h-2 w-2 rounded-full bg-sky-400 shadow-[0_0_8px_2px_rgba(56,189,248,0.6)]" />
       <div className="mx-auto h-3 w-px bg-sky-400/70" />
       <motion.div
@@ -503,7 +503,7 @@ function SortableColumn({
       style={style}
       {...sortable.attributes}
       className={cn(
-        "flex w-72 shrink-0 flex-col rounded-xl border border-neutral-800 bg-neutral-900/30",
+        "flex w-[82vw] max-w-[19rem] shrink-0 flex-col rounded-xl border border-neutral-800 bg-neutral-900/30 sm:w-72",
         sortable.isDragging && "opacity-40",
       )}
     >
@@ -710,14 +710,14 @@ function AddColumn({ boardId }: { boardId: string }) {
     return (
       <button
         onClick={() => setAdding(true)}
-        className="flex h-min w-72 shrink-0 items-center gap-1.5 rounded-xl border border-dashed border-neutral-800 px-3 py-2.5 text-sm text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300"
+        className="flex h-min w-[82vw] max-w-[19rem] shrink-0 items-center gap-1.5 rounded-xl border border-dashed border-neutral-800 px-3 py-2.5 text-sm text-neutral-500 transition hover:border-neutral-700 hover:text-neutral-300 sm:w-72"
       >
         <Plus className="h-4 w-4" /> Добавить колонку
       </button>
     );
   }
   return (
-    <div className="w-72 shrink-0">
+    <div className="w-[82vw] max-w-[19rem] shrink-0 sm:w-72">
       <input
         autoFocus
         value={value}

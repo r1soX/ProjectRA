@@ -80,7 +80,7 @@ export function TaskModal({
               <CalendarRange className="h-4 w-4 text-neutral-500" />
               Сроки
             </p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Дата начала" htmlFor="t-start">
                 <Input id="t-start" name="startDate" type="date" defaultValue={task.startDate ?? ""} disabled={!canEdit} className="[color-scheme:dark]" />
               </Field>
