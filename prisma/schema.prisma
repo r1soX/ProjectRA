@@ -36,6 +36,7 @@ model User {
   comments      Comment[]
   messages      Message[]
   channels      ChannelMember[]
+  channelReads  ChannelRead[]
   notifications Notification[]
 }
 
@@ -182,11 +183,24 @@ model Channel {
   board    Board?          @relation(fields: [boardId], references: [id], onDelete: Cascade)
   messages Message[]
   members  ChannelMember[]
+  reads    ChannelRead[]
 }
 
 model ChannelMember {
   channelId String
   userId    String
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, userId])
+}
+
+// Tracks when a user last read a channel (for unread counters).
+model ChannelRead {
+  channelId  String
+  userId     String
+  lastReadAt DateTime @default(now())
 
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)

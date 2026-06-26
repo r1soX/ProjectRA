@@ -35,16 +35,19 @@ const adminNav: NavItem[] = [
 function NavLinks({
   items,
   pathname,
+  unreadTotal,
   onNavigate,
 }: {
   items: NavItem[];
   pathname: string;
+  unreadTotal: number;
   onNavigate?: () => void;
 }) {
   return (
     <nav className="space-y-1">
       {items.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
+        const badge = href === "/messages" && unreadTotal > 0 ? unreadTotal : 0;
         return (
           <Link
             key={href}
@@ -66,6 +69,11 @@ function NavLinks({
             )}
             <Icon className="relative h-4 w-4 shrink-0" />
             <span className="relative">{label}</span>
+            {badge > 0 && (
+              <span className="relative ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-500 px-1.5 text-xs font-semibold text-white">
+                {badge > 99 ? "99+" : badge}
+              </span>
+            )}
           </Link>
         );
       })}
@@ -100,9 +108,11 @@ function UserCard({ user }: { user: SessionUser }) {
 
 export function AppShell({
   user,
+  unreadTotal,
   children,
 }: {
   user: SessionUser;
+  unreadTotal: number;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -120,7 +130,7 @@ export function AppShell({
           </span>
         </div>
         <div className="flex-1 px-3 py-2">
-          <NavLinks items={items} pathname={pathname} />
+          <NavLinks items={items} pathname={pathname} unreadTotal={unreadTotal} />
         </div>
         <UserCard user={user} />
       </aside>
@@ -158,6 +168,7 @@ export function AppShell({
                 <NavLinks
                   items={items}
                   pathname={pathname}
+                  unreadTotal={unreadTotal}
                   onNavigate={() => setMobileOpen(false)}
                 />
               </div>
@@ -172,9 +183,12 @@ export function AppShell({
         <header className="flex h-14 items-center gap-3 border-b border-neutral-800 px-4 md:hidden">
           <button
             onClick={() => setMobileOpen(true)}
-            className="rounded-md p-2 text-neutral-300 hover:bg-neutral-800"
+            className="relative rounded-md p-2 text-neutral-300 hover:bg-neutral-800"
           >
             <Menu className="h-5 w-5" />
+            {unreadTotal > 0 && (
+              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-sky-500" />
+            )}
           </button>
           <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-lg font-bold text-transparent">
             Projectra

@@ -11,8 +11,14 @@ export type ChatUser = {
   shortName: string;
   initials: string;
   username: string;
+  unread: number;
 };
-export type ChatBoard = { id: string; title: string; color: string };
+export type ChatBoard = {
+  id: string;
+  title: string;
+  color: string;
+  unread: number;
+};
 export type ChatMessage = {
   id: string;
   body: string;
@@ -72,7 +78,7 @@ export function MessagesClient({
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-xs font-semibold text-white">
                   {u.initials}
                 </span>
-                <span className="min-w-0">
+                <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-neutral-100">
                     {u.shortName}
                   </span>
@@ -80,6 +86,7 @@ export function MessagesClient({
                     @{u.username}
                   </span>
                 </span>
+                <UnreadBadge n={u.unread} />
               </button>
             </form>
           ))}
@@ -105,7 +112,7 @@ export function MessagesClient({
                 >
                   #
                 </span>
-                <span className="min-w-0">
+                <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-neutral-100">
                     {b.title}
                   </span>
@@ -113,6 +120,7 @@ export function MessagesClient({
                     чат доски
                   </span>
                 </span>
+                <UnreadBadge n={b.unread} />
               </button>
             </form>
           ))}
@@ -136,6 +144,15 @@ export function MessagesClient({
         )}
       </section>
     </div>
+  );
+}
+
+function UnreadBadge({ n }: { n: number }) {
+  if (n <= 0) return null;
+  return (
+    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-sky-500 px-1.5 text-xs font-semibold text-white">
+      {n > 99 ? "99+" : n}
+    </span>
   );
 }
 

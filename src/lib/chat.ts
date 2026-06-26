@@ -102,6 +102,115 @@ export async function getChannelView(channelId: string, userId: string) {
   return ok ? channel : null;
 }
 
+/** Unread message counts for the current user, grouped by DM user and board. */
+export async function getUnread(meId: string) {
+  const [dmChannels, boards] = await Promise.all([
+    prisma.channel.findMany({
+      where: { type: "DM", members: { some: { userId: meId } } },
+      select: { id: true, members: { select: { userId: true } } },
+    }),
+    getUserBoards(meId),
+  ]);
+  const boardChannels = await prisma.channel.findMany({
+    where: { type: "BOARD", boardId: { in: boards.map((b) => b.id) } },
+    select: { id: true, boardId: true },
+  });
+
+  const allIds = [
+    ...dmChannels.map((c) => c.id),
+    ...boardChannels.map((c) => c.id),
+  ];
+  const byUser: Record<string, number> = {};
+  const byBoard: Record<string, number> = {};
+  if (allIds.length === 0) return { byUser, byBoard, total: 0 };
+
+  const reads = await prisma.channelRead.findMany({
+    where: { userId: meId, channelId: { in: allIds } },
+    select: { channelId: true, lastReadAt: true },
+  });
+  const readMap = new Map(reads.map((r) => [r.channelId, r.lastReadAt]));
+
+  const unreadFor = (channelId: string) => {
+    const lastReadAt = readMap.get(channelId);
+    return prisma.message.count({
+      where: {
+        channelId,
+        userId: { not: meId },
+        ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
+      },
+    });
+  };
+
+  let total = 0;
+  await Promise.all([
+    ...dmChannels.map(async (c) => {
+      const other = c.members.find((m) => m.userId !== meId)?.userId;
+      if (!other) return;
+      const n = await unreadFor(c.id);
+      if (n > 0) {
+        byUser[other] = n;
+        total += n;
+      }
+    }),
+    ...boardChannels.map(async (c) => {
+      if (!c.boardId) return;
+      const n = await unreadFor(c.id);
+      if (n > 0) {
+        byBoard[c.boardId] = n;
+        total += n;
+      }
+    }),
+  ]);
+
+  return { byUser, byBoard, total };
+}
+
+export async function getUnreadTotal(meId: string) {
+  return (await getUnread(meId)).total;
+}
+
+/** Mark a channel as read up to now for the user. */
+export async function markChannelRead(channelId: string, userId: string) {
+  const now = new Date();
+  await prisma.channelRead.upsert({
+    where: { channelId_userId: { channelId, userId } },
+    create: { channelId, userId, lastReadAt: now },
+    update: { lastReadAt: now },
+  });
+}
+
+/** Users that should be notified about a new message in this channel. */
+export async function recipientsOfChannel(
+  channelId: string,
+  exceptUserId: string,
+) {
+  const ch = await prisma.channel.findUnique({
+    where: { id: channelId },
+    select: {
+      type: true,
+      boardId: true,
+      members: { select: { userId: true } },
+    },
+  });
+  if (!ch) return [];
+
+  if (ch.type !== "BOARD") {
+    return ch.members.map((m) => m.userId).filter((id) => id !== exceptUserId);
+  }
+  if (!ch.boardId) return [];
+  const board = await prisma.board.findUnique({
+    where: { id: ch.boardId },
+    select: { ownerId: true, members: { select: { userId: true } } },
+  });
+  if (!board) return [];
+  const ids = new Set<string>([
+    board.ownerId,
+    ...board.members.map((m) => m.userId),
+  ]);
+  ids.delete(exceptUserId);
+  return [...ids];
+}
+
 /** Sidebar data: people to DM + boards to chat in. */
 export async function getConversationList(meId: string) {
   const [users, boards] = await Promise.all([

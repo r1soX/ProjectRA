@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { sendMessage, type ChatState } from "./actions";
+import { sendMessage, markRead, type ChatState } from "./actions";
 import type { ActiveChannel } from "./messages-client";
 
 function formatTime(iso: string) {
@@ -37,6 +37,11 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
     es.addEventListener("change", () => router.refresh());
     return () => es.close();
   }, [active.channelId, router]);
+
+  // Mark the conversation read on open and whenever new messages arrive.
+  useEffect(() => {
+    markRead(active.channelId);
+  }, [active.channelId, active.messages.length]);
 
   // Clear input after a successful send.
   useEffect(() => {

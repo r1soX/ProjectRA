@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth";
-import { getConversationList, getChannelView } from "@/lib/chat";
+import { getConversationList, getChannelView, getUnread } from "@/lib/chat";
 import { fullName, shortName, initials } from "@/lib/names";
 import {
   MessagesClient,
@@ -16,20 +16,10 @@ export default async function MessagesPage({
   const me = await requireUser();
   const { c } = await searchParams;
 
-  const { users, boards } = await getConversationList(me.id);
-
-  const chatUsers: ChatUser[] = users.map((u) => ({
-    id: u.id,
-    fullName: fullName(u),
-    shortName: shortName(u),
-    initials: initials(u),
-    username: u.username,
-  }));
-  const chatBoards: ChatBoard[] = boards.map((b) => ({
-    id: b.id,
-    title: b.title,
-    color: b.color ?? "#0ea5e9",
-  }));
+  const [{ users, boards }, unread] = await Promise.all([
+    getConversationList(me.id),
+    getUnread(me.id),
+  ]);
 
   let active: ActiveChannel | null = null;
   if (c) {
@@ -68,11 +58,28 @@ export default async function MessagesPage({
     }
   }
 
+  // The conversation being viewed is considered read in the list.
+  const byUser = { ...unread.byUser };
+  const byBoard = { ...unread.byBoard };
+  if (active?.otherUserId) byUser[active.otherUserId] = 0;
+  if (active?.boardId) byBoard[active.boardId] = 0;
+
+  const chatUsers: ChatUser[] = users.map((u) => ({
+    id: u.id,
+    fullName: fullName(u),
+    shortName: shortName(u),
+    initials: initials(u),
+    username: u.username,
+    unread: byUser[u.id] ?? 0,
+  }));
+  const chatBoards: ChatBoard[] = boards.map((b) => ({
+    id: b.id,
+    title: b.title,
+    color: b.color ?? "#0ea5e9",
+    unread: byBoard[b.id] ?? 0,
+  }));
+
   return (
-    <MessagesClient
-      users={chatUsers}
-      boards={chatBoards}
-      active={active}
-    />
+    <MessagesClient users={chatUsers} boards={chatBoards} active={active} />
   );
 }

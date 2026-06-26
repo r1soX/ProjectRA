@@ -5,12 +5,15 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { shortName } from "@/lib/names";
 import {
   ensureDmChannel,
   ensureBoardChannel,
   canAccessChannel,
+  markChannelRead,
+  recipientsOfChannel,
 } from "@/lib/chat";
-import { publishChannel } from "@/lib/realtime";
+import { publishChannel, publishUser } from "@/lib/realtime";
 
 export type ChatState = { error?: string; ok?: boolean };
 
@@ -50,7 +53,39 @@ export async function sendMessage(
   }
 
   await prisma.message.create({ data: { channelId, userId: me.id, body } });
+
+  // Notify open viewers of this channel.
   publishChannel(channelId);
+
+  // Notify recipients personally (for toast + unread badge).
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    select: { type: true, board: { select: { title: true } } },
+  });
+  const isBoard = channel?.type === "BOARD";
+  const me2 = await prisma.user.findUniqueOrThrow({
+    where: { id: me.id },
+    select: { lastName: true, firstName: true, middleName: true },
+  });
+  const senderShort = shortName(me2);
+  const payload = {
+    type: "message" as const,
+    channelId,
+    fromName: senderShort,
+    preview: body.length > 90 ? body.slice(0, 90) + "…" : body,
+    title: isBoard ? (channel?.board?.title ?? "Доска") : senderShort,
+    isBoard,
+  };
+  const recipients = await recipientsOfChannel(channelId, me.id);
+  for (const uid of recipients) publishUser(uid, payload);
+
   revalidatePath("/messages");
   return { ok: true };
+}
+
+export async function markRead(channelId: string) {
+  const me = await requireUser();
+  if (!(await canAccessChannel(channelId, me.id))) return;
+  await markChannelRead(channelId, me.id);
+  revalidatePath("/messages");
 }
