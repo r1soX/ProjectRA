@@ -45,6 +45,7 @@ import {
   Lock,
   GripVertical,
   Share2,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -57,7 +58,10 @@ import {
   moveTask,
   reorderColumns,
 } from "../actions";
-import { useConfirm, usePrompt } from "@/components/ui/dialog-provider";
+import {
+  useConfirm,
+  usePrompt,
+} from "@/components/ui/dialog-provider";
 import { TaskModal } from "./task-modal";
 import { MembersModal } from "./members-modal";
 import { BoardSettingsModal } from "./board-settings-modal";
@@ -93,7 +97,12 @@ export type BoardTask = {
   createdById: string;
   createdByName: string;
   assigneeIds: string[];
-  assignees: { initials: string; shortName: string }[];
+  assignees: {
+    userId: string;
+    initials: string;
+    shortName: string;
+    confirmed: boolean;
+  }[];
   labels: { id: string; name: string; color: string }[];
   comments: {
     id: string;
@@ -105,7 +114,12 @@ export type BoardTask = {
   }[];
   links: { otherTitle: string; type: string; direction: "out" | "in" }[];
 };
-export type BoardColumn = { id: string; title: string; tasks: BoardTask[] };
+export type BoardColumn = {
+  id: string;
+  title: string;
+  systemKey: string | null;
+  tasks: BoardTask[];
+};
 
 const DROP_PREFIX = "dropzone-";
 
@@ -302,6 +316,26 @@ export function BoardView({
       if (toCol && col) {
         const oldIndex = col.tasks.findIndex((t) => t.id === activeId);
         if (oldIndex >= 0) {
+          // Guard: moving into "Завершённые задачи".
+          if (col.systemKey === "COMPLETED") {
+            const task = col.tasks[oldIndex];
+            const canComplete = isAdmin || task.createdById === currentUserId;
+            const allConfirmed =
+              task.assignees.length === 0 ||
+              task.assignees.every((a) => a.confirmed);
+            if (!canComplete || !allConfirmed) {
+              setCols(columns); // revert optimistic move
+              confirm({
+                title: "Нельзя завершить задачу",
+                message: !canComplete
+                  ? "Переносить в «Завершённые задачи» может только постановщик задачи или администратор."
+                  : "Сначала все исполнители должны подтвердить выполнение задачи.",
+                confirmLabel: "Понятно",
+              });
+              flushRefresh();
+              return;
+            }
+          }
           const newIndex = overId.startsWith(DROP_PREFIX)
             ? col.tasks.length - 1
             : col.tasks.findIndex((t) => t.id === overId);
@@ -530,10 +564,11 @@ function SortableColumn({
   canEdit: boolean;
   onOpenTask: (id: string) => void;
 }) {
+  const isCompleted = column.systemKey === "COMPLETED";
   const sortable = useSortable({
     id: column.id,
     data: { type: "column" },
-    disabled: !canEdit,
+    disabled: !canEdit || isCompleted,
   });
   const droppable = useDroppable({
     id: DROP_PREFIX + column.id,
@@ -556,12 +591,13 @@ function SortableColumn({
       {...sortable.attributes}
       className={cn(
         "glass flex w-[82vw] max-w-[19rem] shrink-0 flex-col rounded-2xl sm:w-72",
+        isCompleted && "border-emerald-500/30 bg-emerald-500/[0.05]",
         sortable.isDragging && "opacity-40",
       )}
     >
       <div className="flex items-center justify-between gap-2 px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-1.5">
-          {canEdit && (
+          {canEdit && !isCompleted && (
             <button
               {...sortable.listeners}
               className="cursor-grab select-none rounded p-0.5 text-neutral-600 hover:text-neutral-400 active:cursor-grabbing"
@@ -570,14 +606,22 @@ function SortableColumn({
               <GripVertical className="h-4 w-4" />
             </button>
           )}
-          <h3 className="truncate text-sm font-semibold text-neutral-200">
+          {isCompleted && (
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+          )}
+          <h3
+            className={cn(
+              "truncate text-sm font-semibold",
+              isCompleted ? "text-emerald-300" : "text-neutral-200",
+            )}
+          >
             {column.title}
           </h3>
           <span className="rounded-full bg-neutral-800 px-1.5 text-xs text-neutral-400">
             {column.tasks.length}
           </span>
         </div>
-        {canEdit && (
+        {canEdit && !isCompleted && (
           <div className="relative">
             <button
               onClick={() => setMenuOpen((v) => !v)}
@@ -652,12 +696,12 @@ function SortableColumn({
         </SortableContext>
         {column.tasks.length === 0 && (
           <div className="rounded-lg border border-dashed border-white/10 py-6 text-center text-xs text-neutral-600">
-            Перетащите задачу сюда
+            {isCompleted ? "Завершённые задачи появятся здесь" : "Перетащите задачу сюда"}
           </div>
         )}
       </div>
 
-      {canEdit && <AddTask columnId={column.id} />}
+      {canEdit && !isCompleted && <AddTask columnId={column.id} />}
     </div>
   );
 }

@@ -30,6 +30,7 @@ import {
   updateTask,
   deleteTask,
   toggleAssignee,
+  toggleAssigneeConfirm,
   completeRecurring,
 } from "../actions";
 import { useConfirm } from "@/components/ui/dialog-provider";
@@ -88,6 +89,7 @@ export function TaskModal({
   const [assignPending, startAssign] = useTransition();
   const [delPending, startDel] = useTransition();
   const [completePending, startComplete] = useTransition();
+  const [confirmPending, startConfirm] = useTransition();
   const confirm = useConfirm();
   const openedAt = useRef(0);
 
@@ -272,6 +274,62 @@ export function TaskModal({
                         </div>
                       )}
                     </div>
+
+                    {task.assignees.length > 0 && (
+                      <div>
+                        <SectionTitle icon={CheckCheck}>
+                          Выполнение (
+                          {task.assignees.filter((a) => a.confirmed).length}/
+                          {task.assignees.length})
+                        </SectionTitle>
+                        <div className="space-y-1">
+                          {task.assignees.map((a) => (
+                            <div
+                              key={a.userId}
+                              className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-2 py-1.5 text-xs"
+                            >
+                              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-indigo-500 text-[9px] font-semibold text-white">
+                                {a.initials}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate text-neutral-200">
+                                {a.shortName}
+                              </span>
+                              {a.confirmed ? (
+                                <span className="flex items-center gap-1 text-emerald-400">
+                                  <Check className="h-3.5 w-3.5" />
+                                  готово
+                                </span>
+                              ) : (
+                                <span className="text-neutral-500">ожидает</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {task.assignees.some((a) => a.userId === currentUserId) && (
+                          <Button
+                            type="button"
+                            variant={
+                              task.assignees.find((a) => a.userId === currentUserId)
+                                ?.confirmed
+                                ? "ghost"
+                                : "secondary"
+                            }
+                            size="sm"
+                            loading={confirmPending}
+                            onClick={() =>
+                              startConfirm(() => toggleAssigneeConfirm(task.id))
+                            }
+                            className="mt-2 w-full"
+                          >
+                            <CheckCheck className="h-4 w-4" />
+                            {task.assignees.find((a) => a.userId === currentUserId)
+                              ?.confirmed
+                              ? "Отменить подтверждение"
+                              : "Подтвердить выполнение"}
+                          </Button>
+                        )}
+                      </div>
+                    )}
 
                     <div>
                       <SectionTitle icon={Palette}>Цвет</SectionTitle>

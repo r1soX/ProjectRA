@@ -118,3 +118,25 @@ export async function getBoardRole(
 export function canEdit(role: BoardRole | null): boolean {
   return role === "OWNER" || role === "EDITOR";
 }
+
+/** Make sure the board has its protected "Завершённые задачи" column. */
+export async function ensureCompletedColumn(boardId: string) {
+  const existing = await prisma.column.findFirst({
+    where: { boardId, systemKey: "COMPLETED" },
+    select: { id: true },
+  });
+  if (existing) return;
+  const max = await prisma.column.aggregate({
+    where: { boardId },
+    _max: { order: true },
+  });
+  await prisma.column.create({
+    data: {
+      boardId,
+      title: "Завершённые задачи",
+      order: (max._max.order ?? -1) + 1,
+      isSystem: true,
+      systemKey: "COMPLETED",
+    },
+  });
+}

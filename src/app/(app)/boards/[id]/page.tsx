@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getBoardWithData } from "@/lib/boards";
+import { getBoardWithData, ensureCompletedColumn } from "@/lib/boards";
 import { shortName, initials, fullName } from "@/lib/names";
 import {
   BoardView,
@@ -47,6 +47,7 @@ export default async function BoardPage({
 }) {
   const { id } = await params;
   const user = await requireUser();
+  await ensureCompletedColumn(id);
   const result = await getBoardWithData(id, user.id, user.role === "ADMIN");
   if (!result) notFound();
 
@@ -104,6 +105,7 @@ export default async function BoardPage({
   const columns: BoardColumn[] = board.columns.map((c) => ({
     id: c.id,
     title: c.title,
+    systemKey: c.systemKey,
     tasks: c.tasks.map((t) => ({
       id: t.id,
       columnId: t.columnId,
@@ -122,8 +124,10 @@ export default async function BoardPage({
       createdByName: shortName(t.createdBy),
       assigneeIds: t.assignees.map((a) => a.userId),
       assignees: t.assignees.map((a) => ({
+        userId: a.userId,
         initials: initials(a.user),
         shortName: shortName(a.user),
+        confirmed: a.confirmed,
       })),
       labels: t.labels.map((tl) => ({
         id: tl.label.id,

@@ -105,7 +105,15 @@ export async function createBoard(
       isPersonal: parsed.data.isPersonal,
       ownerId: user.id,
       columns: {
-        create: DEFAULT_COLUMNS.map((title, i) => ({ title, order: i })),
+        create: [
+          ...DEFAULT_COLUMNS.map((title, i) => ({ title, order: i })),
+          {
+            title: "Завершённые задачи",
+            order: DEFAULT_COLUMNS.length,
+            isSystem: true,
+            systemKey: "COMPLETED",
+          },
+        ],
       },
     },
   });
@@ -192,19 +200,26 @@ export async function createColumn(boardId: string, title: string) {
 }
 
 export async function renameColumn(columnId: string, title: string) {
-  const boardId = await boardIdOfColumn(columnId);
-  if (!boardId) return;
-  await requireBoardEditor(boardId);
+  const col = await prisma.column.findUnique({
+    where: { id: columnId },
+    select: { boardId: true, isSystem: true },
+  });
+  if (!col || col.isSystem) return;
+  await requireBoardEditor(col.boardId);
   await prisma.column.update({
     where: { id: columnId },
     data: { title: title.trim() || "Без названия" },
   });
-  bump(boardId);
+  bump(col.boardId);
 }
 
 export async function deleteColumn(columnId: string) {
-  const boardId = await boardIdOfColumn(columnId);
-  if (!boardId) return;
+  const col = await prisma.column.findUnique({
+    where: { id: columnId },
+    select: { boardId: true, isSystem: true },
+  });
+  if (!col || col.isSystem) return;
+  const boardId = col.boardId;
   await requireBoardEditor(boardId);
   await prisma.column.delete({ where: { id: columnId } });
   bump(boardId);
@@ -390,13 +405,36 @@ export async function moveTask(
 ) {
   const boardId = await boardIdOfTask(taskId);
   if (!boardId) return;
-  await requireBoardEditor(boardId);
+  const user = await requireBoardEditor(boardId);
 
   const col = await prisma.column.findUnique({
     where: { id: toColumnId },
-    select: { boardId: true },
+    select: { boardId: true, systemKey: true },
   });
   if (!col || col.boardId !== boardId) return;
+
+  // Moving into "Завершённые задачи": only the creator/admin, and only after
+  // every assignee has confirmed completion.
+  if (col.systemKey === "COMPLETED") {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: {
+        createdById: true,
+        assignees: { select: { confirmed: true } },
+      },
+    });
+    if (!task) return;
+    if (user.role !== "ADMIN" && task.createdById !== user.id) {
+      throw new Error(
+        "В «Завершённые задачи» переносит только постановщик задачи или администратор",
+      );
+    }
+    const allConfirmed =
+      task.assignees.length === 0 || task.assignees.every((a) => a.confirmed);
+    if (!allConfirmed) {
+      throw new Error("Не все исполнители подтвердили выполнение задачи");
+    }
+  }
 
   await prisma.$transaction([
     prisma.task.update({ where: { id: taskId }, data: { columnId: toColumnId } }),
@@ -471,6 +509,22 @@ export async function deleteComment(commentId: string) {
   }
   await prisma.comment.delete({ where: { id: commentId } });
   bump(boardId);
+}
+
+/** An assignee confirms (or un-confirms) that they completed the task. */
+export async function toggleAssigneeConfirm(taskId: string) {
+  const user = await requireUser();
+  const row = await prisma.taskAssignee.findUnique({
+    where: { taskId_userId: { taskId, userId: user.id } },
+    select: { confirmed: true },
+  });
+  if (!row) return; // only assignees can confirm their own completion
+  await prisma.taskAssignee.update({
+    where: { taskId_userId: { taskId, userId: user.id } },
+    data: { confirmed: !row.confirmed },
+  });
+  const boardId = await boardIdOfTask(taskId);
+  if (boardId) bump(boardId);
 }
 
 export async function toggleAssignee(taskId: string, userId: string) {

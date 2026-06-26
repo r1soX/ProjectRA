@@ -75,10 +75,12 @@ model BoardMember {
 // ── Columns & tasks ───────────────────────────────────────────────
 
 model Column {
-  id      String @id @default(cuid())
-  boardId String
-  title   String
-  order   Int    @default(0)
+  id        String  @id @default(cuid())
+  boardId   String
+  title     String
+  order     Int     @default(0)
+  isSystem  Boolean @default(false) // системная колонка (нельзя удалять/переименовывать)
+  systemKey String? // напр. "COMPLETED"
 
   board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
   tasks Task[]
@@ -118,8 +120,9 @@ model Task {
 }
 
 model TaskAssignee {
-  taskId String
-  userId String
+  taskId    String
+  userId    String
+  confirmed Boolean @default(false) // исполнитель подтвердил выполнение
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
