@@ -49,7 +49,7 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
             </span>
           ))}
         </div>
-        <p className="text-[15px] leading-snug text-neutral-100 sm:text-sm">
+        <p className="break-words text-[15px] leading-snug text-neutral-100 sm:text-sm">
           {task.title}
         </p>
         {(task.startDate ||
@@ -60,7 +60,7 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
             {task.startDate || task.dueDate ? (
               <span
                 className={cn(
-                  "flex items-center gap-1 text-xs",
+                  "flex min-w-0 items-center gap-1 truncate text-xs",
                   task.dueDate && isOverdue(task.dueDate)
                     ? "text-red-400"
                     : "text-neutral-400",
@@ -76,7 +76,7 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
             ) : (
               <span />
             )}
-            <div className="flex items-center gap-2.5">
+            <div className="flex shrink-0 items-center gap-2.5">
               {task.comments.length > 0 && (
                 <span className="flex items-center gap-1 text-xs text-neutral-400">
                   <MessageSquare className="h-3.5 w-3.5" />
@@ -96,9 +96,10 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
             </div>
           </div>
         )}
-        <div className="mt-2.5 flex items-center gap-1 border-t border-neutral-700/50 pt-2 text-[11px] text-neutral-500">
+        <div className="mt-2.5 flex min-w-0 items-center gap-1 border-t border-neutral-700/50 pt-2 text-[11px] text-neutral-500">
           <UserCircle2 className="h-3.5 w-3.5 shrink-0" />
-          Создал: <span className="text-neutral-400">{task.createdByName}</span>
+          <span className="shrink-0">Создал:</span>
+          <span className="truncate text-neutral-400">{task.createdByName}</span>
         </div>
       </div>
     </>

@@ -7,7 +7,8 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCorners,
   useSensor,
   useSensors,
@@ -179,7 +180,12 @@ export function BoardView({
   }, [signature]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    // Desktop: start dragging after a small movement.
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    // Touch: press-and-hold to drag, so a normal swipe still scrolls.
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 8 },
+    }),
   );
 
   const selectedTask = useMemo(
@@ -379,7 +385,7 @@ export function BoardView({
           flushRefresh();
         }}
       >
-        <div className="flex flex-1 gap-4 overflow-x-auto p-4 sm:p-6">
+        <div className="flex flex-1 gap-4 overflow-x-auto overflow-y-hidden p-4 sm:p-6">
           <SortableContext
             items={cols.map((c) => c.id)}
             strategy={horizontalListSortingStrategy}
@@ -512,7 +518,7 @@ function SortableColumn({
           {canEdit && (
             <button
               {...sortable.listeners}
-              className="cursor-grab touch-none rounded p-0.5 text-neutral-600 hover:text-neutral-400 active:cursor-grabbing"
+              className="cursor-grab select-none rounded p-0.5 text-neutral-600 hover:text-neutral-400 active:cursor-grabbing"
               title="Перетащить колонку"
             >
               <GripVertical className="h-4 w-4" />
@@ -583,7 +589,7 @@ function SortableColumn({
 
       <div
         ref={droppable.setNodeRef}
-        className="flex-1 space-y-2 overflow-y-auto px-2 pb-2"
+        className="flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-2 pb-2"
       >
         <SortableContext
           items={column.tasks.map((t) => t.id)}
@@ -641,7 +647,7 @@ function SortableTask({
       {...listeners}
       onClick={() => onOpen(task.id)}
       className={cn(
-        "block w-full cursor-pointer touch-none overflow-hidden rounded-lg border border-neutral-800 bg-neutral-800/60 text-left transition-colors hover:border-neutral-600 hover:bg-neutral-800",
+        "block w-full cursor-pointer select-none overflow-hidden rounded-lg border border-neutral-800 bg-neutral-800/60 text-left transition-colors hover:border-neutral-600 hover:bg-neutral-800",
         isDragging && "opacity-40",
       )}
     >
