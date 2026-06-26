@@ -798,7 +798,7 @@ function AddTask({ columnId }: { columnId: string }) {
         onBlur={submit}
         rows={2}
         placeholder="Название задачи…"
-        className="w-full resize-none rounded-lg border border-neutral-700 bg-neutral-800 px-2.5 py-2 text-sm text-neutral-100 outline-none focus:border-sky-500"
+        className="w-full resize-none rounded-lg border border-neutral-700 bg-neutral-800 px-2.5 py-2 text-base sm:text-sm text-neutral-100 outline-none focus:border-sky-500"
       />
     </div>
   );

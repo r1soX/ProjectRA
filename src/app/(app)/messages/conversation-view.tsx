@@ -275,7 +275,7 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
                           if (e.key === "Escape") setEditingId(null);
                         }}
                         rows={2}
-                        className="w-full resize-none rounded-lg border border-white/20 bg-black/20 px-2 py-1 text-sm text-white outline-none"
+                        className="w-full resize-none rounded-lg border border-white/20 bg-black/20 px-2 py-1 text-base sm:text-sm text-white outline-none"
                       />
                       <div className="mt-1 flex justify-end gap-1">
                         <button onClick={() => setEditingId(null)} title="Отмена">
@@ -402,7 +402,7 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
           }}
           rows={1}
           placeholder={uploading ? "Загрузка файла…" : "Сообщение…"}
-          className="max-h-32 min-h-[40px] flex-1 resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-neutral-100 outline-none backdrop-blur focus:border-sky-500/70 focus:ring-2 focus:ring-sky-500/25"
+          className="max-h-32 min-h-[40px] flex-1 resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-base sm:text-sm text-neutral-100 outline-none backdrop-blur focus:border-sky-500/70 focus:ring-2 focus:ring-sky-500/25"
         />
         <Button type="submit" loading={pending} disabled={!canSend}>
           <Send className="h-4 w-4" />

@@ -131,7 +131,7 @@ export function CommentsSection({
                         if (e.key === "Escape") setEditingId(null);
                       }}
                       rows={2}
-                      className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-neutral-100 outline-none focus:border-sky-500"
+                      className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-base sm:text-sm text-neutral-100 outline-none focus:border-sky-500"
                     />
                     <div className="mt-1 flex justify-end gap-1.5">
                       <button
@@ -179,7 +179,7 @@ export function CommentsSection({
           }}
           rows={3}
           placeholder="Написать комментарий… (Ctrl/⌘+Enter — отправить)"
-          className="flex-1 resize-none rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-neutral-100 outline-none backdrop-blur focus:border-sky-500/70 focus:ring-2 focus:ring-sky-500/25"
+          className="flex-1 resize-none rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-base sm:text-sm text-neutral-100 outline-none backdrop-blur focus:border-sky-500/70 focus:ring-2 focus:ring-sky-500/25"
         />
         <Button type="submit" loading={pending} disabled={!body.trim()} className="self-end">
           <Send className="h-4 w-4" />
