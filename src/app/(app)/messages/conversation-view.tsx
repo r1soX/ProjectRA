@@ -380,7 +380,7 @@ export function ConversationView({ active }: { active: ActiveChannel }) {
                       setBody((b) => b + e);
                       setEmojiOpen(false);
                     }}
-                    className="rounded-lg p-1 text-lg hover:bg-white/10"
+                    className="flex items-center justify-center rounded-lg p-1 text-lg leading-none hover:bg-white/10"
                   >
                     {e}
                   </button>

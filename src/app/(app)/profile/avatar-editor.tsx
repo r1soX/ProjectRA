@@ -111,7 +111,7 @@ export function AvatarEditor({
                           setEmojiOpen(false);
                           start(() => saveAvatar(null, e));
                         }}
-                        className="rounded-lg p-1 text-xl hover:bg-white/10"
+                        className="flex items-center justify-center rounded-lg p-1 text-xl leading-none hover:bg-white/10"
                       >
                         {e}
                       </button>
