@@ -35,6 +35,7 @@ model User {
   assignments   TaskAssignee[]
   comments      Comment[]
   messages      Message[]
+  channels      ChannelMember[]
   notifications Notification[]
 }
 
@@ -178,8 +179,19 @@ model Channel {
   type      String   @default("BOARD") // BOARD | DM | GROUP
   createdAt DateTime @default(now())
 
-  board    Board?    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  board    Board?          @relation(fields: [boardId], references: [id], onDelete: Cascade)
   messages Message[]
+  members  ChannelMember[]
+}
+
+model ChannelMember {
+  channelId String
+  userId    String
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, userId])
 }
 
 model Message {

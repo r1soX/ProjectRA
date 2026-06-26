@@ -22,3 +22,14 @@ export function subscribeBoard(boardId: string, cb: () => void) {
   bus.on(ch, cb);
   return () => bus.off(ch, cb);
 }
+
+/** Notify subscribers that a chat channel got a new message. */
+export function publishChannel(channelId: string) {
+  bus.emit(`channel:${channelId}`);
+}
+
+export function subscribeChannel(channelId: string, cb: () => void) {
+  const ch = `channel:${channelId}`;
+  bus.on(ch, cb);
+  return () => bus.off(ch, cb);
+}

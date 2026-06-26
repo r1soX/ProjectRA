@@ -32,8 +32,17 @@ export default async function DashboardPage() {
           </p>
         </Link>
 
+        <Link
+          href="/messages"
+          className="group rounded-xl border border-neutral-800 bg-neutral-900/40 p-5 transition hover:-translate-y-0.5 hover:border-sky-500/40 hover:bg-neutral-900/70"
+        >
+          <h2 className="font-semibold text-neutral-100">Мессенджер</h2>
+          <p className="mt-1.5 text-sm text-neutral-500">
+            Чат по доскам и личные сообщения
+          </p>
+        </Link>
+
         {[
-          { title: "Мессенджер", desc: "Чат по доскам и личные сообщения" },
           { title: "Календарь", desc: "Задачи по срокам" },
         ].map((c) => (
           <div

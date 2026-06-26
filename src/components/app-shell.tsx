@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   LayoutDashboard,
   LayoutGrid,
+  MessageCircle,
   Users,
   User as UserIcon,
   LogOut,
@@ -23,6 +24,7 @@ type NavItem = { href: string; label: string; icon: React.ElementType };
 const baseNav: NavItem[] = [
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
   { href: "/boards", label: "Доски", icon: LayoutGrid },
+  { href: "/messages", label: "Сообщения", icon: MessageCircle },
   { href: "/profile", label: "Профиль", icon: UserIcon },
 ];
 
