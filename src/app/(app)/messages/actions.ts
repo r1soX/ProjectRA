@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { shortName } from "@/lib/names";
+import { hasPerm, PERMS } from "@/lib/permissions";
 import {
   ensureDmChannel,
   ensureBoardChannel,
@@ -48,6 +49,9 @@ export async function sendMessage(
   if (!body && !attachmentUrl) return { error: "Введите сообщение" };
   if (!(await canAccessChannel(channelId, me.id))) {
     return { error: "Нет доступа к диалогу" };
+  }
+  if (!(await hasPerm(me.id, me.role, PERMS.MESSAGE_SEND))) {
+    return { error: "Недостаточно прав" };
   }
 
   await prisma.message.create({
@@ -121,7 +125,8 @@ export async function editMessage(messageId: string, body: string) {
     where: { id: messageId },
     select: { userId: true, channelId: true },
   });
-  if (!msg || msg.userId !== me.id) return; // только автор
+  if (!msg || msg.userId !== me.id) return;
+  if (!(await hasPerm(me.id, me.role, PERMS.MESSAGE_EDIT_OWN))) return;
   await prisma.message.update({
     where: { id: messageId },
     data: { body: text, editedAt: new Date() },
@@ -137,7 +142,9 @@ export async function deleteMessage(messageId: string) {
     select: { userId: true, channelId: true },
   });
   if (!msg) return;
-  if (msg.userId !== me.id && me.role !== "ADMIN") return;
+  const delAny = await hasPerm(me.id, me.role, PERMS.MESSAGE_DELETE_ANY);
+  const delOwn = await hasPerm(me.id, me.role, PERMS.MESSAGE_DELETE_OWN);
+  if (!delAny && !(delOwn && msg.userId === me.id)) return;
   await prisma.message.delete({ where: { id: messageId } });
   publishChannel(msg.channelId);
   revalidatePath("/messages");

@@ -12,6 +12,7 @@ import { publishBoard } from "@/lib/realtime";
 import { notifyMentions, notifyAssigned } from "@/lib/notify";
 import { logHistory } from "@/lib/task-history";
 import { shortName } from "@/lib/names";
+import { hasPerm, PERMS } from "@/lib/permissions";
 
 function normalizeRecurFreq(v: FormDataEntryValue | null): string | null {
   const s = typeof v === "string" ? v : "";
@@ -23,6 +24,14 @@ export type ActionState = { ok?: boolean; error?: string; message?: string };
 const DEFAULT_COLUMNS = ["К работе", "В процессе", "Готово"];
 
 // ── helpers ──────────────────────────────────────────────────────
+
+/** Бросает ошибку если у пользователя нет указанного разрешения. */
+async function requirePerm(
+  user: { id: string; role: string },
+  perm: (typeof PERMS)[keyof typeof PERMS],
+) {
+  if (!(await hasPerm(user.id, user.role, perm))) throw new Error("Недостаточно прав");
+}
 
 async function requireBoardEditor(boardId: string) {
   const user = await requireUser();
@@ -54,11 +63,11 @@ async function boardIdOfTask(taskId: string) {
 }
 
 /**
- * A task may be modified/deleted only by its creator or an administrator.
- * Returns the task (boardId + createdById) or null if it no longer exists;
- * throws if the current user is not allowed.
+ * Проверяет право редактировать задачу:
+ *  – TASK_EDIT_ANY  → любую задачу
+ *  – TASK_EDIT_OWN  → только свою
  */
-async function requireTaskMutator(taskId: string) {
+async function requireTaskEditor(taskId: string) {
   const user = await requireUser();
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -66,14 +75,41 @@ async function requireTaskMutator(taskId: string) {
   });
   if (!task) return null;
 
-  if (user.role === "ADMIN") return { user, task };
+  const role = await getBoardRole(task.boardId, user.id);
+  if (!role) throw new Error("Нет доступа к доске");
+
+  const editAny = await hasPerm(user.id, user.role, PERMS.TASK_EDIT_ANY);
+  if (editAny) return { user, task };
+
+  const editOwn = await hasPerm(user.id, user.role, PERMS.TASK_EDIT_OWN);
+  if (editOwn && task.createdById === user.id) return { user, task };
+
+  throw new Error("Нет прав на редактирование задачи");
+}
+
+/**
+ * Проверяет право удалять задачу:
+ *  – TASK_DELETE_ANY → любую
+ *  – TASK_DELETE_OWN → только свою
+ */
+async function requireTaskDeleter(taskId: string) {
+  const user = await requireUser();
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { boardId: true, createdById: true },
+  });
+  if (!task) return null;
 
   const role = await getBoardRole(task.boardId, user.id);
   if (!role) throw new Error("Нет доступа к доске");
-  if (task.createdById !== user.id) {
-    throw new Error("Изменять задачу может только её создатель или администратор");
-  }
-  return { user, task };
+
+  const delAny = await hasPerm(user.id, user.role, PERMS.TASK_DELETE_ANY);
+  if (delAny) return { user, task };
+
+  const delOwn = await hasPerm(user.id, user.role, PERMS.TASK_DELETE_OWN);
+  if (delOwn && task.createdById === user.id) return { user, task };
+
+  throw new Error("Нет прав на удаление задачи");
 }
 
 function parseDate(v: FormDataEntryValue | null): Date | null {
@@ -94,6 +130,7 @@ export async function createBoard(
   formData: FormData,
 ): Promise<ActionState> {
   const user = await requireUser();
+  await requirePerm(user, PERMS.BOARD_CREATE);
   const parsed = boardSchema.safeParse({
     title: formData.get("title"),
     color: formData.get("color") || undefined,
@@ -194,7 +231,8 @@ export async function removeMember(boardId: string, userId: string) {
 // ── columns ──────────────────────────────────────────────────────
 
 export async function createColumn(boardId: string, title: string) {
-  await requireBoardEditor(boardId);
+  const user = await requireBoardEditor(boardId);
+  await requirePerm(user, PERMS.COLUMN_CREATE);
   const count = await prisma.column.count({ where: { boardId } });
   await prisma.column.create({
     data: { boardId, title: title.trim() || "Новая колонка", order: count },
@@ -208,7 +246,8 @@ export async function renameColumn(columnId: string, title: string) {
     select: { boardId: true, isSystem: true },
   });
   if (!col || col.isSystem) return;
-  await requireBoardEditor(col.boardId);
+  const user = await requireBoardEditor(col.boardId);
+  await requirePerm(user, PERMS.COLUMN_EDIT);
   await prisma.column.update({
     where: { id: columnId },
     data: { title: title.trim() || "Без названия" },
@@ -223,7 +262,8 @@ export async function deleteColumn(columnId: string) {
   });
   if (!col || col.isSystem) return;
   const boardId = col.boardId;
-  await requireBoardEditor(boardId);
+  const user = await requireBoardEditor(boardId);
+  await requirePerm(user, PERMS.COLUMN_DELETE);
   await prisma.column.delete({ where: { id: columnId } });
   bump(boardId);
 }
@@ -234,6 +274,7 @@ export async function createTask(columnId: string, title: string) {
   const boardId = await boardIdOfColumn(columnId);
   if (!boardId) return;
   const user = await requireBoardEditor(boardId);
+  await requirePerm(user, PERMS.TASK_CREATE);
   const count = await prisma.task.count({ where: { columnId } });
   const task = await prisma.task.create({
     data: {
@@ -249,7 +290,7 @@ export async function createTask(columnId: string, title: string) {
 }
 
 export async function updateTask(taskId: string, formData: FormData) {
-  const ctx = await requireTaskMutator(taskId);
+  const ctx = await requireTaskEditor(taskId);
   if (!ctx) return { error: "Задача не найдена" } as ActionState;
   const boardId = ctx.task.boardId;
 
@@ -280,7 +321,7 @@ export async function updateTask(taskId: string, formData: FormData) {
 }
 
 export async function deleteTask(taskId: string) {
-  const ctx = await requireTaskMutator(taskId);
+  const ctx = await requireTaskDeleter(taskId);
   if (!ctx) return;
   await prisma.task.delete({ where: { id: taskId } });
   bump(ctx.task.boardId);
@@ -334,7 +375,7 @@ export async function completeRecurring(taskId: string) {
 
 /** Reschedule a task's due date (used by the calendar). */
 export async function setTaskDue(taskId: string, date: string | null) {
-  const ctx = await requireTaskMutator(taskId);
+  const ctx = await requireTaskEditor(taskId);
   if (!ctx) return;
   await prisma.task.update({
     where: { id: taskId },
@@ -410,6 +451,7 @@ export async function moveTask(
   const boardId = await boardIdOfTask(taskId);
   if (!boardId) return;
   const user = await requireBoardEditor(boardId);
+  await requirePerm(user, PERMS.TASK_MOVE);
 
   const col = await prisma.column.findUnique({
     where: { id: toColumnId },
@@ -476,6 +518,9 @@ export async function addComment(
   const user = await requireUser();
   const role = await getBoardRole(boardId, user.id);
   if (!role) return { error: "Нет доступа к доске" };
+  if (!(await hasPerm(user.id, user.role, PERMS.COMMENT_CREATE))) {
+    return { error: "Недостаточно прав" };
+  }
 
   await prisma.comment.create({ data: { taskId, userId: user.id, body } });
 
@@ -501,8 +546,10 @@ export async function editComment(commentId: string, body: string) {
     select: { userId: true, task: { select: { boardId: true } } },
   });
   if (!comment) return;
-  if (comment.userId !== user.id) {
-    throw new Error("Редактировать можно только свой комментарий");
+  const editAny = await hasPerm(user.id, user.role, PERMS.COMMENT_EDIT_ANY);
+  const editOwn = await hasPerm(user.id, user.role, PERMS.COMMENT_EDIT_OWN);
+  if (!editAny && !(editOwn && comment.userId === user.id)) {
+    throw new Error("Нет прав на редактирование комментария");
   }
   await prisma.comment.update({ where: { id: commentId }, data: { body: text } });
   bump(comment.task.boardId);
@@ -516,13 +563,13 @@ export async function deleteComment(commentId: string) {
   });
   if (!comment) return;
 
-  const boardId = comment.task.boardId;
-  const role = await getBoardRole(boardId, user.id);
-  if (comment.userId !== user.id && role !== "OWNER") {
-    throw new Error("Можно удалить только свой комментарий");
+  const delAny = await hasPerm(user.id, user.role, PERMS.COMMENT_DELETE_ANY);
+  const delOwn = await hasPerm(user.id, user.role, PERMS.COMMENT_DELETE_OWN);
+  if (!delAny && !(delOwn && comment.userId === user.id)) {
+    throw new Error("Нет прав на удаление комментария");
   }
   await prisma.comment.delete({ where: { id: commentId } });
-  bump(boardId);
+  bump(comment.task.boardId);
 }
 
 /** An assignee confirms (or un-confirms) that they completed the task. */
@@ -542,7 +589,8 @@ export async function toggleAssigneeConfirm(taskId: string) {
 }
 
 export async function toggleAssignee(taskId: string, userId: string) {
-  const ctx = await requireTaskMutator(taskId);
+  const ctx = await requireTaskEditor(taskId);
+  if (ctx) await requirePerm(ctx.user, PERMS.TASK_ASSIGN);
   if (!ctx) return;
   const { user, task: ctxTask } = ctx;
   const boardId = ctxTask.boardId;
@@ -584,6 +632,7 @@ export async function createSubtask(parentTaskId: string, title: string) {
   const user = await requireUser();
   const role = await getBoardRole(parent.boardId, user.id);
   if (!canEdit(role)) throw new Error("Нет прав");
+  await requirePerm(user, PERMS.TASK_CREATE);
 
   // Place in same column as parent (not COMPLETED)
   const firstCol = await prisma.column.findFirst({
@@ -681,6 +730,9 @@ export async function logTime(
   const user = await requireUser();
   const role = await getBoardRole(boardId, user.id);
   if (!role) return { error: "Нет доступа" };
+  if (!(await hasPerm(user.id, user.role, PERMS.TIME_LOG))) {
+    return { error: "Недостаточно прав" };
+  }
 
   await prisma.timeEntry.create({
     data: { taskId, userId: user.id, minutes, note: note.trim() || null },
@@ -697,9 +749,10 @@ export async function deleteTimeEntry(entryId: string): Promise<ActionState> {
     select: { userId: true, task: { select: { boardId: true } } },
   });
   if (!entry) return { error: "Не найдено" };
-  if (user.role !== "ADMIN" && entry.userId !== user.id) {
-    return { error: "Удалить можно только своё время" };
-  }
+  const canDel = entry.userId === user.id
+    ? await hasPerm(user.id, user.role, PERMS.TIME_DELETE_OWN)
+    : user.role === "ADMIN";
+  if (!canDel) return { error: "Нет прав на удаление записи" };
   await prisma.timeEntry.delete({ where: { id: entryId } });
   bump(entry.task.boardId);
   return { ok: true };
