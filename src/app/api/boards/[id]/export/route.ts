@@ -122,11 +122,13 @@ export async function GET(
     }
   }
 
-  const safeName = board.title.replace(/[^a-zA-Zа-яёА-ЯЁ0-9_-]/g, "_");
+  const safeName =
+    board.title.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "") ||
+    "board";
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${safeName}.csv"`,
+      "Content-Disposition": `attachment; filename="${safeName}.csv"; filename*=UTF-8''${encodeURIComponent(board.title)}.csv`,
     },
   });
 }
