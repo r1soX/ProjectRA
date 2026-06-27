@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { getBoardRole, canEdit } from "@/lib/boards";
 import { normalizePriority } from "@/lib/priority";
+import { normalizeStatus } from "@/lib/status";
 import { ruleFromTask, nextOccurrence } from "@/lib/recurrence";
 import { publishBoard } from "@/lib/realtime";
 import { notifyMentions, notifyAssigned } from "@/lib/notify";
@@ -235,6 +236,54 @@ export async function deleteBoard(boardId: string) {
   redirect("/boards");
 }
 
+/** Create a ready-to-explore starter board for onboarding. */
+export async function createStarterBoard(): Promise<{ boardId: string }> {
+  const user = await requireUser();
+  await requirePerm(user, PERMS.BOARD_CREATE);
+  const board = await prisma.board.create({
+    data: {
+      title: "Мой первый проект",
+      color: "#0ea5e9",
+      isPersonal: true,
+      ownerId: user.id,
+      columns: {
+        create: [
+          { title: "К работе", order: 0 },
+          { title: "В процессе", order: 1 },
+          { title: "Готово", order: 2 },
+          {
+            title: "Завершённые задачи",
+            order: 3,
+            isSystem: true,
+            systemKey: "COMPLETED",
+          },
+        ],
+      },
+    },
+    include: { columns: true },
+  });
+  const todo = board.columns.find((c) => c.order === 0)?.id ?? board.columns[0].id;
+  const samples = [
+    "👋 Изучите доску — перетащите эту карточку",
+    "Создайте свою задачу (кнопка «Добавить задачу» или ⌘K)",
+    "Назначьте исполнителя в карточке задачи",
+  ];
+  for (let i = 0; i < samples.length; i++) {
+    await prisma.task.create({
+      data: {
+        boardId: board.id,
+        columnId: todo,
+        title: samples[i],
+        order: i,
+        createdById: user.id,
+      },
+    });
+  }
+  revalidatePath("/boards");
+  revalidatePath("/dashboard");
+  return { boardId: board.id };
+}
+
 // ── members ──────────────────────────────────────────────────────
 
 async function requireBoardOwner(boardId: string) {
@@ -380,6 +429,7 @@ export async function updateTask(taskId: string, formData: FormData) {
       description: String(formData.get("description") ?? "").trim() || null,
       color: String(formData.get("color") ?? "").trim() || null,
       priority: normalizePriority(formData.get("priority")),
+      status: normalizeStatus(formData.get("status")),
       isPersonal: formData.get("isPersonal") === "on",
       startDate: parseDate(formData.get("startDate")),
       dueDate: parseDate(formData.get("dueDate")),
@@ -657,6 +707,26 @@ export async function deleteComment(commentId: string) {
     throw new Error("Нет прав на удаление комментария");
   }
   await prisma.comment.delete({ where: { id: commentId } });
+  bump(comment.task.boardId);
+}
+
+/** Add/remove an emoji reaction on a comment (any board member). */
+export async function toggleCommentReaction(commentId: string, emoji: string) {
+  const user = await requireUser();
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    select: { task: { select: { boardId: true } } },
+  });
+  if (!comment) return;
+  if (!(await getBoardRole(comment.task.boardId, user.id))) return;
+
+  const key = { commentId_userId_emoji: { commentId, userId: user.id, emoji } };
+  const existing = await prisma.commentReaction.findUnique({ where: key });
+  if (existing) {
+    await prisma.commentReaction.delete({ where: key });
+  } else {
+    await prisma.commentReaction.create({ data: { commentId, userId: user.id, emoji } });
+  }
   bump(comment.task.boardId);
 }
 

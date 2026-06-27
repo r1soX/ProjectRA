@@ -23,6 +23,7 @@ import {
   Plus,
   Pencil,
   Tag,
+  Activity,
   Paperclip,
   FileText,
   Upload,
@@ -34,6 +35,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/cn";
 import { PRIORITIES, PRIORITY_META, normalizePriority } from "@/lib/priority";
+import { STATUSES, STATUS_META, normalizeStatus } from "@/lib/status";
 import {
   WEEKDAY_LABELS,
   parseRecurDays,
@@ -280,6 +282,15 @@ export function TaskModal({
 
                   {/* Sidebar: properties */}
                   <aside className="space-y-5 lg:rounded-xl lg:border lg:border-neutral-800 lg:bg-neutral-950/30 lg:p-4">
+                    <div>
+                      <SectionTitle icon={Activity}>Статус</SectionTitle>
+                      <StatusSelector
+                        key={task.id}
+                        initial={task.status}
+                        disabled={!canEdit}
+                      />
+                    </div>
+
                     <div>
                       <SectionTitle icon={Flag}>Срочность</SectionTitle>
                       <PrioritySelector
@@ -1598,6 +1609,44 @@ function RecurrenceEditor({
         </label>
       )}
     </div>
+  );
+}
+
+function StatusSelector({
+  initial,
+  disabled,
+}: {
+  initial: string;
+  disabled: boolean;
+}) {
+  const [value, setValue] = useState(normalizeStatus(initial));
+  return (
+    <>
+      <input type="hidden" name="status" value={value} />
+      <div className="grid grid-cols-3 gap-1.5">
+        {STATUSES.map((s) => {
+          const meta = STATUS_META[s];
+          const active = value === s;
+          return (
+            <button
+              key={s}
+              type="button"
+              disabled={disabled}
+              onClick={() => setValue(s)}
+              className={cn(
+                "flex items-center justify-center gap-1 rounded-lg border px-1 py-1.5 text-xs transition disabled:opacity-50",
+                active
+                  ? "border-transparent " + meta.badge
+                  : "border-neutral-700 bg-neutral-900/40 text-neutral-400 hover:bg-neutral-800/60",
+              )}
+            >
+              <span className={cn("h-2 w-2 rounded-full", meta.dot)} />
+              {meta.label}
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

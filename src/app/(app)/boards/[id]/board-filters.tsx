@@ -7,6 +7,7 @@ import {
   User as UserIcon,
   Tag,
   Flag,
+  Activity,
   CalendarClock,
   Bookmark,
   X,
@@ -17,6 +18,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { usePrompt, useConfirm } from "@/components/ui/dialog-provider";
 import { PRIORITIES, PRIORITY_META } from "@/lib/priority";
+import { STATUSES, STATUS_META } from "@/lib/status";
 import { cn } from "@/lib/cn";
 import type { BoardMemberView, BoardLabel } from "./board-view";
 
@@ -26,6 +28,7 @@ export type BoardFilterState = {
   assignees: string[];
   labels: string[];
   priorities: string[];
+  statuses: string[];
   due: DueFilter;
   text: string;
 };
@@ -36,6 +39,7 @@ export const EMPTY_FILTERS: BoardFilterState = {
   assignees: [],
   labels: [],
   priorities: [],
+  statuses: [],
   due: "any",
   text: "",
 };
@@ -46,6 +50,7 @@ export function isFilterActive(f: BoardFilterState): boolean {
     f.assignees.length > 0 ||
     f.labels.length > 0 ||
     f.priorities.length > 0 ||
+    f.statuses.length > 0 ||
     f.due !== "any" ||
     f.text.trim().length > 0
   );
@@ -230,6 +235,26 @@ export function BoardFilters({
           }
         </Dropdown>
       )}
+
+      {/* Status */}
+      <Dropdown
+        label={filters.statuses.length ? `Статус · ${filters.statuses.length}` : "Статус"}
+        icon={Activity}
+        active={filters.statuses.length > 0}
+      >
+        {() =>
+          STATUSES.map((s) => (
+            <CheckRow
+              key={s}
+              active={filters.statuses.includes(s)}
+              onClick={() => onChange({ ...filters, statuses: toggleIn(filters.statuses, s) })}
+            >
+              <span className={cn("h-2 w-2 shrink-0 rounded-full", STATUS_META[s].dot)} />
+              <span>{STATUS_META[s].label}</span>
+            </CheckRow>
+          ))
+        }
+      </Dropdown>
 
       {/* Priority */}
       <Dropdown

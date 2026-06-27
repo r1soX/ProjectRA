@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { MessageSquare, Send, Trash2, Pencil, Check, X } from "lucide-react";
+import { MessageSquare, Send, Trash2, Pencil, Check, X, SmilePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { MentionTextarea } from "@/components/ui/mention-textarea";
@@ -10,10 +10,70 @@ import {
   addComment,
   deleteComment,
   editComment,
+  toggleCommentReaction,
   type ActionState,
 } from "../actions";
 import { renderWithMentions } from "@/lib/render-mentions";
+import { cn } from "@/lib/cn";
 import type { BoardTask, DirectoryUser } from "./board-view";
+
+const REACTION_EMOJIS = ["👍", "❤️", "🎉", "😄", "🚀", "👀"];
+
+function CommentReactions({ comment }: { comment: BoardTask["comments"][number] }) {
+  const [, start] = useTransition();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const toggle = (emoji: string) => start(() => toggleCommentReaction(comment.id, emoji));
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      {comment.reactions.map((r) => (
+        <button
+          key={r.emoji}
+          type="button"
+          onClick={() => toggle(r.emoji)}
+          className={cn(
+            "flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs transition",
+            r.mine
+              ? "border-sky-500/50 bg-sky-500/15"
+              : "border-neutral-700 bg-neutral-800/60 hover:bg-neutral-800",
+          )}
+        >
+          <span>{r.emoji}</span>
+          <span className="text-neutral-300">{r.count}</span>
+        </button>
+      ))}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setPickerOpen((v) => !v)}
+          aria-label="Добавить реакцию"
+          className="flex h-6 w-6 items-center justify-center rounded-full border border-neutral-700 bg-neutral-800/60 text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-200"
+        >
+          <SmilePlus className="h-3.5 w-3.5" />
+        </button>
+        {pickerOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setPickerOpen(false)} />
+            <div className="absolute bottom-full left-0 z-20 mb-1 flex gap-0.5 rounded-xl border border-neutral-700 bg-neutral-800 p-1.5 shadow-xl">
+              {REACTION_EMOJIS.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => {
+                    toggle(e);
+                    setPickerOpen(false);
+                  }}
+                  className="rounded-lg px-1.5 py-0.5 text-lg transition hover:bg-white/10"
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleString("ru-RU", {
@@ -196,6 +256,7 @@ export function CommentsSection({
                     {renderWithMentions(c.body)}
                   </p>
                 )}
+                {editingId !== c.id && <CommentReactions comment={c} />}
               </div>
             </motion.div>
           ))}

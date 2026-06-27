@@ -44,6 +44,8 @@ model User {
   timeEntries        TimeEntry[]
   permissionOverrides UserPermission[]
   boardTemplates     BoardTemplate[]
+  commentReactions   CommentReaction[]
+  auditLogs          AuditLog[]
 }
 
 // ── Boards ────────────────────────────────────────────────────────
@@ -101,6 +103,7 @@ model Task {
   order       Int       @default(0)
   color       String?
   priority    String    @default("MEDIUM") // LOW | MEDIUM | URGENT
+  status      String    @default("todo") // backlog | todo | in_progress | done | canceled
   canvasX     Float?
   canvasY     Float?
   isPersonal  Boolean   @default(false)
@@ -192,8 +195,35 @@ model Comment {
   editedAt  DateTime?
   createdAt DateTime  @default(now())
 
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task      Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions CommentReaction[]
+}
+
+// Emoji reactions on a comment.
+model CommentReaction {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId, emoji])
+}
+
+// Admin audit log: who did what.
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String // e.g. "user.create", "perm.role.update", "template.delete"
+  target    String? // human-readable target
+  meta      String? // JSON details
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
 }
 
 // ── Messenger ─────────────────────────────────────────────────────

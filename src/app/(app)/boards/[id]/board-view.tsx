@@ -47,6 +47,9 @@ import {
   Share2,
   CheckCircle2,
   Download,
+  LayoutGrid,
+  List as ListIcon,
+  Table2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
@@ -68,6 +71,7 @@ import {
 import { useToast } from "@/components/ui/toast-provider";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { normalizePriority } from "@/lib/priority";
+import { normalizeStatus } from "@/lib/status";
 import {
   BoardFilters,
   EMPTY_FILTERS,
@@ -75,6 +79,7 @@ import {
   type BoardFilterState,
   type SavedView,
 } from "./board-filters";
+import { BoardListView, BoardTableView } from "./board-views";
 import { TaskModal } from "./task-modal";
 import { MembersModal } from "./members-modal";
 import { BoardSettingsModal } from "./board-settings-modal";
@@ -104,6 +109,7 @@ export type BoardTask = {
   description: string | null;
   color: string | null;
   priority: string;
+  status: string;
   isPersonal: boolean;
   recurFreq: string | null;
   recurInterval: number;
@@ -135,6 +141,7 @@ export type BoardTask = {
     authorEmoji: string | null;
     userId: string;
     createdAt: string;
+    reactions: { emoji: string; count: number; mine: boolean }[];
   }[];
   links: { otherTitle: string; type: string; direction: "out" | "in" }[];
 };
@@ -176,6 +183,8 @@ function matchesFilters(t: BoardTask, f: BoardFilterState, meId: string): boolea
   if (f.labels.length && !f.labels.some((id) => t.labels.some((l) => l.id === id)))
     return false;
   if (f.priorities.length && !f.priorities.includes(normalizePriority(t.priority)))
+    return false;
+  if (f.statuses.length && !f.statuses.includes(normalizeStatus(t.status)))
     return false;
   const text = f.text.trim().toLowerCase();
   if (text && !t.title.toLowerCase().includes(text)) return false;
@@ -342,6 +351,26 @@ export function BoardView({
     setViews(next);
     try {
       localStorage.setItem(viewsKey, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Board / List / Table view (persisted per board).
+  const [view, setView] = useState<"board" | "list" | "table">("board");
+  const viewKey = `projectra:view:${boardId}`;
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(viewKey);
+      if (v === "list" || v === "table" || v === "board") setView(v);
+    } catch {
+      /* ignore */
+    }
+  }, [viewKey]);
+  function changeView(v: "board" | "list" | "table") {
+    setView(v);
+    try {
+      localStorage.setItem(viewKey, v);
     } catch {
       /* ignore */
     }
@@ -581,6 +610,30 @@ export function BoardView({
               доступна всем
             </span>
           )}
+          <div className="flex items-center gap-0.5 rounded-lg border border-neutral-700 bg-neutral-800/60 p-0.5">
+            {(
+              [
+                ["board", LayoutGrid, "Канбан"],
+                ["list", ListIcon, "Список"],
+                ["table", Table2, "Таблица"],
+              ] as const
+            ).map(([v, Icon, label]) => (
+              <button
+                key={v}
+                onClick={() => changeView(v)}
+                title={label}
+                aria-label={label}
+                className={cn(
+                  "rounded-md p-1.5 transition",
+                  view === v
+                    ? "bg-white/10 text-neutral-100"
+                    : "text-neutral-500 hover:text-neutral-300",
+                )}
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            ))}
+          </div>
           <Link
             href={`/boards/${boardId}/links`}
             className="inline-flex h-8 items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-800 px-3 text-sm text-neutral-100 transition hover:bg-neutral-700"
@@ -653,6 +706,7 @@ export function BoardView({
         onApplyView={(v) => setFilters(v.filters)}
         onDeleteView={(name) => persistViews(views.filter((v) => v.name !== name))}
       />
+      {view === "board" ? (
       <DndContext
         id="board-dnd"
         sensors={sensors}
@@ -709,6 +763,11 @@ export function BoardView({
           ) : null}
         </DragOverlay>
       </DndContext>
+      ) : view === "list" ? (
+        <BoardListView columns={filteredCols} onOpenTask={setSelectedTaskId} />
+      ) : (
+        <BoardTableView columns={filteredCols} onOpenTask={setSelectedTaskId} />
+      )}
       </>
       )}
 

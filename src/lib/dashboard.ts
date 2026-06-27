@@ -18,6 +18,35 @@ export type MyWork = {
   stats: { active: number; overdue: number; today: number; week: number };
 };
 
+export type OnboardingStep = { key: string; label: string; done: boolean };
+
+/** First-run checklist progress for the user. */
+export async function getOnboardingProgress(userId: string): Promise<{
+  steps: OnboardingStep[];
+  ownsBoard: boolean;
+  allDone: boolean;
+}> {
+  const [ownedBoards, tasks, assigns, comments, messages] = await Promise.all([
+    prisma.board.count({ where: { ownerId: userId } }),
+    prisma.task.count({ where: { createdById: userId } }),
+    prisma.taskAssignee.count({ where: { task: { createdById: userId } } }),
+    prisma.comment.count({ where: { userId } }),
+    prisma.message.count({ where: { userId } }),
+  ]);
+  const steps: OnboardingStep[] = [
+    { key: "board", label: "Создайте свою доску", done: ownedBoards > 0 },
+    { key: "task", label: "Создайте первую задачу", done: tasks > 0 },
+    { key: "assign", label: "Назначьте исполнителя", done: assigns > 0 },
+    { key: "comment", label: "Оставьте комментарий", done: comments > 0 },
+    { key: "chat", label: "Напишите в чат команды", done: messages > 0 },
+  ];
+  return {
+    steps,
+    ownsBoard: ownedBoards > 0,
+    allDone: steps.every((s) => s.done),
+  };
+}
+
 /** Tasks assigned to the user that aren't completed, bucketed by urgency. */
 export async function getMyWork(userId: string): Promise<MyWork> {
   const now = new Date();

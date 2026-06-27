@@ -74,7 +74,10 @@ export async function getBoardWithData(
               labels: { include: { label: true } },
               comments: {
                 orderBy: { createdAt: "asc" },
-                include: { user: userPick },
+                include: {
+                  user: userPick,
+                  reactions: { select: { emoji: true, userId: true } },
+                },
               },
               subtasks: {
                 select: { column: { select: { systemKey: true } } },

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { hasPerm, PERMS } from "@/lib/permissions";
+import { logAudit } from "@/lib/audit";
 
 /** Managing board templates needs the ADMIN role + the explicit capability. */
 async function requireTemplateAdmin() {
@@ -36,6 +37,7 @@ export async function createTemplate(
       columns: { create: cols.map((title, i) => ({ title, order: i })) },
     },
   });
+  await logAudit(user.id, "template.create", trimmed);
   revalidatePath("/admin/templates");
 }
 
@@ -45,7 +47,7 @@ export async function updateTemplate(
   description: string,
   columns: string[],
 ) {
-  await requireTemplateAdmin();
+  const user = await requireTemplateAdmin();
   const tpl = await prisma.boardTemplate.findUnique({
     where: { id },
     select: { isSystem: true },
@@ -65,16 +67,18 @@ export async function updateTemplate(
       },
     }),
   ]);
+  await logAudit(user.id, "template.update", trimmed);
   revalidatePath("/admin/templates");
 }
 
 export async function deleteTemplate(id: string) {
-  await requireTemplateAdmin();
+  const user = await requireTemplateAdmin();
   const tpl = await prisma.boardTemplate.findUnique({
     where: { id },
-    select: { isSystem: true },
+    select: { isSystem: true, name: true },
   });
   if (!tpl || tpl.isSystem) return; // built-in templates can't be deleted
   await prisma.boardTemplate.delete({ where: { id } });
+  await logAudit(user.id, "template.delete", tpl.name);
   revalidatePath("/admin/templates");
 }

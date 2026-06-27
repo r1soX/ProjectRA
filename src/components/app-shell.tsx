@@ -19,6 +19,8 @@ import {
   BarChart2,
   LayoutTemplate,
   Inbox,
+  BarChart3,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { logout } from "@/app/actions/session";
@@ -61,6 +63,8 @@ const baseNav: NavItem[] = [
 ];
 
 const adminNav: NavItem[] = [
+  { href: "/admin/analytics", label: "Аналитика", icon: BarChart3 },
+  { href: "/admin/audit", label: "Журнал", icon: ScrollText },
   { href: "/admin/users", label: "Пользователи", icon: Users, cap: "adminUsers" },
   { href: "/admin/permissions", label: "Права доступа", icon: Shield, cap: "adminPerms" },
   { href: "/admin/templates", label: "Шаблоны", icon: LayoutTemplate, cap: "adminTemplates" },

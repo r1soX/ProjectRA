@@ -160,6 +160,7 @@ export default async function BoardPage({
       description: t.description,
       color: t.color,
       priority: t.priority,
+      status: t.status,
       isPersonal: t.isPersonal,
       recurFreq: t.recurFreq,
       recurInterval: t.recurInterval,
@@ -186,16 +187,30 @@ export default async function BoardPage({
         name: tl.label.name,
         color: tl.label.color,
       })),
-      comments: (canViewComments ? t.comments : []).map((c) => ({
-        id: c.id,
-        body: c.body,
-        authorName: shortName(c.user),
-        authorInitials: initials(c.user),
-        authorAvatar: c.user.avatar,
-        authorEmoji: c.user.avatarEmoji,
-        userId: c.userId,
-        createdAt: c.createdAt.toISOString(),
-      })),
+      comments: (canViewComments ? t.comments : []).map((c) => {
+        const byEmoji = new Map<string, { count: number; mine: boolean }>();
+        for (const r of c.reactions) {
+          const e = byEmoji.get(r.emoji) ?? { count: 0, mine: false };
+          e.count++;
+          if (r.userId === user.id) e.mine = true;
+          byEmoji.set(r.emoji, e);
+        }
+        return {
+          id: c.id,
+          body: c.body,
+          authorName: shortName(c.user),
+          authorInitials: initials(c.user),
+          authorAvatar: c.user.avatar,
+          authorEmoji: c.user.avatarEmoji,
+          userId: c.userId,
+          createdAt: c.createdAt.toISOString(),
+          reactions: [...byEmoji.entries()].map(([emoji, v]) => ({
+            emoji,
+            count: v.count,
+            mine: v.mine,
+          })),
+        };
+      }),
       links: linksByTask.get(t.id) ?? [],
     })),
   }));

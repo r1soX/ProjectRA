@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/cn";
 import { Avatar } from "@/components/ui/avatar";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
+import { STATUS_META, normalizeStatus } from "@/lib/status";
 import { ruleFromTask, describeRecurrence } from "@/lib/recurrence";
 import type { BoardTask } from "./board-view";
 
@@ -41,6 +42,7 @@ export function formatDue(s: string) {
 /** Inner content of a task card (without the outer border/bg wrapper). */
 export function TaskCardBody({ task }: { task: BoardTask }) {
   const priority = PRIORITY_META[normalizePriority(task.priority)];
+  const status = STATUS_META[normalizeStatus(task.status)];
   return (
     <>
       <div
@@ -55,6 +57,15 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
               просрочено
             </span>
           )}
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium",
+              status.badge,
+            )}
+          >
+            <span className={cn("h-1.5 w-1.5 rounded-full", status.dot)} />
+            {status.label}
+          </span>
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium",

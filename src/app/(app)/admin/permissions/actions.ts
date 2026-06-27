@@ -12,6 +12,7 @@ import {
   type PermKey,
 } from "@/lib/permissions";
 import type { PermTemplateKey, PermTemplateSetKey } from "@/lib/perm-templates";
+import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 
 // Managing permissions requires both the ADMIN role and the explicit
@@ -30,8 +31,9 @@ export async function updateRolePerm(
   perm: string,
   granted: boolean | null,
 ) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   await setRolePerm(role, perm as PermKey, granted);
+  await logAudit(admin.id, "perm.role", `${role} · ${perm}`, { granted });
   revalidatePath("/admin/permissions");
 }
 
@@ -40,8 +42,9 @@ export async function updateUserPerm(
   perm: string,
   granted: boolean | null,
 ) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   await setUserPerm(userId, perm as PermKey, granted);
+  await logAudit(admin.id, "perm.user", perm, { userId, granted });
   revalidatePath("/admin/permissions");
 }
 
@@ -115,7 +118,8 @@ export async function applyPermTemplate(
   userRole: string,
   templateKey: PermTemplateKey,
 ): Promise<{ permMap: Record<string, boolean> }> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  await logAudit(admin.id, "perm.template", templateKey, { userId });
 
   // "Стандарт": drop all personal overrides → user falls back to role defaults.
   if (templateKey === "standard") {
@@ -158,7 +162,8 @@ export async function applyRoleTemplate(
   role: string,
   templateKey: PermTemplateKey,
 ): Promise<{ permMap: Record<string, boolean> }> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  await logAudit(admin.id, "perm.template", `${role} · ${templateKey}`, { role });
 
   // Reset the role to its built-in defaults first.
   await prisma.rolePermission.deleteMany({ where: { role } });

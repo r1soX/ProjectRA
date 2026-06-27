@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { requireAdmin } from "@/lib/auth";
 import { hasPerm, PERMS, type PermKey } from "@/lib/permissions";
+import { logAudit } from "@/lib/audit";
 
 export type AdminState = { ok?: boolean; error?: string; message?: string };
 
@@ -38,7 +39,7 @@ export async function createUser(
   _prev: AdminState,
   formData: FormData,
 ): Promise<AdminState> {
-  await requireAdminPerm(PERMS.ADMIN_USERS_CREATE);
+  const admin = await requireAdminPerm(PERMS.ADMIN_USERS_CREATE);
   const parsed = createSchema.safeParse({
     username: formData.get("username"),
     lastName: formData.get("lastName"),
@@ -68,6 +69,7 @@ export async function createUser(
       passwordHash: await hashPassword(password),
     },
   });
+  await logAudit(admin.id, "user.create", `@${username}`);
   revalidatePath("/admin/users");
   return { ok: true, message: `Пользователь @${username} создан` };
 }
@@ -81,6 +83,9 @@ export async function toggleActive(userId: string): Promise<void> {
     where: { id: userId },
     data: { isActive: !user.isActive },
   });
+  await logAudit(admin.id, "user.activate", `@${user.username}`, {
+    isActive: !user.isActive,
+  });
   revalidatePath("/admin/users");
 }
 
@@ -90,7 +95,8 @@ export async function setRole(
 ): Promise<void> {
   const admin = await requireAdminPerm(PERMS.ADMIN_USERS_EDIT);
   if (userId === admin.id) return; // can't demote yourself
-  await prisma.user.update({ where: { id: userId }, data: { role } });
+  const target = await prisma.user.update({ where: { id: userId }, data: { role } });
+  await logAudit(admin.id, "user.role", `@${target.username}`, { role });
   revalidatePath("/admin/users");
 }
 
@@ -120,6 +126,11 @@ export async function resetPassword(
 export async function deleteUser(userId: string): Promise<void> {
   const admin = await requireAdminPerm(PERMS.ADMIN_USERS_DELETE);
   if (userId === admin.id) return; // can't delete yourself
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { username: true },
+  });
   await prisma.user.delete({ where: { id: userId } });
+  await logAudit(admin.id, "user.delete", target ? `@${target.username}` : userId);
   revalidatePath("/admin/users");
 }
