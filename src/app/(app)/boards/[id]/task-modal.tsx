@@ -649,34 +649,43 @@ function SubtasksSection({
       </div>
 
       {showInput && canEdit && (
-        <form
-          className="mt-1.5 flex gap-1.5"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const t = newTitle.trim();
-            if (!t) return;
-            setAdding(true);
-            await onAdd(t);
-            setNewTitle("");
-            setAdding(false);
-          }}
-        >
+        <div className="mt-1.5 flex gap-1.5">
           <input
             autoFocus
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && setShowInput(false)}
+            onKeyDown={async (e) => {
+              if (e.key === "Escape") { setShowInput(false); return; }
+              if (e.key === "Enter") {
+                e.preventDefault();
+                const t = newTitle.trim();
+                if (!t || adding) return;
+                setAdding(true);
+                await onAdd(t);
+                setNewTitle("");
+                setAdding(false);
+              }
+            }}
             placeholder="Подзадача…"
             className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2.5 py-1.5 text-xs text-neutral-100 outline-none focus:border-sky-500"
           />
           <button
-            type="submit"
+            type="button"
             disabled={!newTitle.trim() || adding}
+            onClick={async () => {
+              const t = newTitle.trim();
+              if (!t || adding) return;
+              setAdding(true);
+              await onAdd(t);
+              setNewTitle("");
+              setAdding(false);
+              setShowInput(false);
+            }}
             className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-xs text-neutral-300 transition hover:bg-neutral-700 disabled:opacity-40"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
-        </form>
+        </div>
       )}
     </div>
   );
@@ -716,8 +725,7 @@ function TimeTrackingSection({
     return m >= 60 ? `${Math.floor(m / 60)}ч ${m % 60}м` : `${m}м`;
   }
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit() {
     setErr("");
     const mins = parseInt(minutes, 10);
     if (!mins || mins < 1) { setErr("Введите минуты"); return; }
@@ -774,7 +782,7 @@ function TimeTrackingSection({
       {!loaded && <p className="text-xs text-neutral-600">Загрузка…</p>}
 
       {showForm && (
-        <form onSubmit={submit} className="mb-2 space-y-1.5">
+        <div className="mb-2 space-y-1.5">
           <div className="flex gap-1.5">
             <input
               autoFocus
@@ -782,25 +790,28 @@ function TimeTrackingSection({
               min={1}
               value={minutes}
               onChange={(e) => setMinutes(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
               placeholder="мин."
               className="h-8 w-20 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 outline-none focus:border-sky-500"
             />
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
               placeholder="Заметка (необязательно)"
               className="h-8 flex-1 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 outline-none focus:border-sky-500"
             />
             <button
-              type="submit"
+              type="button"
               disabled={submitting}
+              onClick={submit}
               className="h-8 rounded-lg border border-neutral-700 bg-neutral-800 px-2 text-xs text-neutral-300 transition hover:bg-neutral-700 disabled:opacity-40"
             >
               <Check className="h-3.5 w-3.5" />
             </button>
           </div>
           {err && <p className="text-xs text-red-400">{err}</p>}
-        </form>
+        </div>
       )}
 
       {open && entries.length > 0 && (

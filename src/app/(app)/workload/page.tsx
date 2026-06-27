@@ -26,7 +26,12 @@ export default async function WorkloadPage() {
   const tasks = await prisma.task.findMany({
     where: {
       parentId: null,
-      column: { systemKey: { not: "COMPLETED" } },
+      column: {
+        OR: [
+          { systemKey: null },
+          { systemKey: { not: "COMPLETED" } },
+        ],
+      },
       assignees: { some: {} },
     },
     select: {

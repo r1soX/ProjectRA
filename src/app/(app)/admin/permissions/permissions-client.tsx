@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { cn } from "@/lib/cn";
 import { Avatar } from "@/components/ui/avatar";
 import { Shield, Users, ChevronDown, ChevronUp, Check, X } from "lucide-react";
-import { updateRolePerm, updateUserPerm } from "./actions";
+import { updateRolePerm, updateUserPerm, applyPermTemplate } from "./actions";
+import { PERM_TEMPLATES, type PermTemplateKey } from "@/lib/perm-templates";
 
 type PermKey = string;
 type PermGroup = { group: string; items: { perm: PermKey; label: string }[] };
@@ -20,7 +21,7 @@ type UserEntry = {
   permMap: PermMap;
 };
 
-// ── Tri-state toggle: true = granted, false = denied, null = default ───────
+// ── Toggle ─────────────────────────────────────────────────────────────────
 
 function PermToggle({
   value,
@@ -43,7 +44,7 @@ function PermToggle({
           : "border-red-500/40 bg-red-500/10 text-red-400",
         "disabled:opacity-40",
       )}
-      title={value ? "Разрешено (нажмите, чтобы запретить)" : "Запрещено (нажмите, чтобы разрешить)"}
+      title={value ? "Разрешено" : "Запрещено"}
     >
       {value ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
     </button>
@@ -65,7 +66,9 @@ function RolePermPanel({
 }) {
   const [map, setMap] = useState<PermMap>(permMap);
   const [pending, start] = useTransition();
-  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(groups.map((g) => g.group)));
+  const [openGroups, setOpenGroups] = useState<Set<string>>(
+    new Set(groups.map((g) => g.group)),
+  );
 
   function toggle(perm: PermKey) {
     const newVal = !map[perm];
@@ -95,7 +98,10 @@ function RolePermPanel({
         {groups.map((g) => {
           const open = openGroups.has(g.group);
           return (
-            <div key={g.group} className="rounded-xl border border-white/[0.07] overflow-hidden">
+            <div
+              key={g.group}
+              className="overflow-hidden rounded-xl border border-white/[0.07]"
+            >
               <button
                 type="button"
                 onClick={() => toggleGroup(g.group)}
@@ -111,7 +117,10 @@ function RolePermPanel({
               {open && (
                 <div className="divide-y divide-white/[0.05]">
                   {g.items.map(({ perm, label: lbl }) => (
-                    <div key={perm} className="flex items-center justify-between px-3 py-2">
+                    <div
+                      key={perm}
+                      className="flex items-center justify-between px-3 py-2"
+                    >
                       <span className="text-xs text-neutral-400">{lbl}</span>
                       <PermToggle
                         value={!!map[perm]}
@@ -142,6 +151,13 @@ function UserPermRow({
   const [open, setOpen] = useState(false);
   const [map, setMap] = useState<PermMap>(user.permMap);
   const [pending, start] = useTransition();
+  const [templatePending, startTemplate] = useTransition();
+  const [activeTemplate, setActiveTemplate] = useState<PermTemplateKey | null>(null);
+
+  // Sync when server refreshes props after template apply
+  useEffect(() => {
+    setMap(user.permMap);
+  }, [user.permMap]);
 
   function toggle(perm: PermKey) {
     const newVal = !map[perm];
@@ -149,8 +165,19 @@ function UserPermRow({
     start(() => updateUserPerm(user.id, perm, newVal));
   }
 
+  function handleTemplate(key: PermTemplateKey) {
+    setActiveTemplate(key);
+    startTemplate(async () => {
+      const result = await applyPermTemplate(user.id, user.role, key);
+      setMap(result.permMap);
+      setActiveTemplate(null);
+    });
+  }
+
+  const templateKeys = Object.keys(PERM_TEMPLATES) as PermTemplateKey[];
+
   return (
-    <div className="rounded-xl border border-white/[0.07] overflow-hidden">
+    <div className="overflow-hidden rounded-xl border border-white/[0.07]">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -163,13 +190,19 @@ function UserPermRow({
           size={32}
         />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-neutral-100">{user.fullName}</p>
+          <p className="truncate text-sm font-medium text-neutral-100">
+            {user.fullName}
+          </p>
           <p className="text-xs text-neutral-500">@{user.username}</p>
         </div>
-        <span className={cn(
-          "rounded px-2 py-0.5 text-xs font-medium",
-          user.role === "ADMIN" ? "bg-sky-500/20 text-sky-300" : "bg-neutral-800 text-neutral-400",
-        )}>
+        <span
+          className={cn(
+            "rounded px-2 py-0.5 text-xs font-medium",
+            user.role === "ADMIN"
+              ? "bg-sky-500/20 text-sky-300"
+              : "bg-neutral-800 text-neutral-400",
+          )}
+        >
           {user.role === "ADMIN" ? "Администратор" : "Пользователь"}
         </span>
         {open ? (
@@ -178,10 +211,46 @@ function UserPermRow({
           <ChevronDown className="h-4 w-4 shrink-0 text-neutral-600" />
         )}
       </button>
+
       {open && (
         <div className="border-t border-white/[0.07] px-4 py-4">
-          <p className="mb-3 text-xs text-neutral-500">
-            Переопределения накладываются поверх прав роли. Переключите, чтобы принудительно разрешить или запретить отдельное право.
+          {/* Templates */}
+          <div className="mb-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              Применить шаблон прав
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {templateKeys.map((key) => {
+                const tpl = PERM_TEMPLATES[key];
+                const isLoading = templatePending && activeTemplate === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={templatePending || pending}
+                    onClick={() => handleTemplate(key)}
+                    className={cn(
+                      "flex flex-col rounded-lg border px-3 py-2 text-left transition disabled:opacity-50",
+                      tpl.bg,
+                      tpl.border,
+                      "hover:brightness-125",
+                    )}
+                  >
+                    <span className={cn("text-xs font-semibold", tpl.color)}>
+                      {isLoading ? "Применяю…" : tpl.label}
+                    </span>
+                    <span className="text-[11px] text-neutral-500">
+                      {tpl.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Individual toggles */}
+          <p className="mb-3 text-xs text-neutral-600">
+            Или переключите права вручную — они перекрывают настройки роли.
           </p>
           <div className="grid gap-x-4 gap-y-0 sm:grid-cols-2 lg:grid-cols-3">
             {groups.map((g) => (
@@ -195,7 +264,7 @@ function UserPermRow({
                     <PermToggle
                       value={!!map[perm]}
                       onToggle={() => toggle(perm)}
-                      disabled={pending}
+                      disabled={pending || templatePending}
                     />
                   </div>
                 ))}
@@ -231,17 +300,23 @@ export function PermissionsClient({
       </p>
 
       {/* Tabs */}
-      <div className="mb-6 flex gap-1 rounded-xl bg-neutral-900/60 p-1 w-fit">
+      <div className="mb-6 flex w-fit gap-1 rounded-xl bg-neutral-900/60 p-1">
         {(["roles", "users"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition",
-              tab === t ? "bg-white/10 text-neutral-100" : "text-neutral-500 hover:text-neutral-300",
+              tab === t
+                ? "bg-white/10 text-neutral-100"
+                : "text-neutral-500 hover:text-neutral-300",
             )}
           >
-            {t === "roles" ? <Shield className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+            {t === "roles" ? (
+              <Shield className="h-4 w-4" />
+            ) : (
+              <Users className="h-4 w-4" />
+            )}
             {t === "roles" ? "По ролям" : "По пользователям"}
           </button>
         ))}
@@ -249,8 +324,18 @@ export function PermissionsClient({
 
       {tab === "roles" && (
         <div className="grid gap-6 lg:grid-cols-2">
-          <RolePermPanel role="USER" label="Пользователь" permMap={userRoleMap} groups={groups} />
-          <RolePermPanel role="ADMIN" label="Администратор" permMap={adminRoleMap} groups={groups} />
+          <RolePermPanel
+            role="USER"
+            label="Пользователь"
+            permMap={userRoleMap}
+            groups={groups}
+          />
+          <RolePermPanel
+            role="ADMIN"
+            label="Администратор"
+            permMap={adminRoleMap}
+            groups={groups}
+          />
         </div>
       )}
 

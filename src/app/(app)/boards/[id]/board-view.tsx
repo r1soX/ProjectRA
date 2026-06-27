@@ -46,7 +46,6 @@ import {
   GripVertical,
   Share2,
   CheckCircle2,
-  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
@@ -418,15 +417,6 @@ export function BoardView({
             <Share2 className="h-4 w-4" />
             <span className="hidden sm:inline">Связи</span>
           </Link>
-          <a
-            href={`/api/boards/${boardId}/export`}
-            download
-            className="inline-flex h-8 items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-800 px-3 text-sm text-neutral-100 transition hover:bg-neutral-700"
-            title="Экспорт CSV"
-          >
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">CSV</span>
-          </a>
           {isOwner && isPersonal && (
             <Button size="sm" variant="secondary" onClick={() => setMembersOpen(true)}>
               <UsersIcon className="h-4 w-4" />
