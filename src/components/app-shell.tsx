@@ -17,6 +17,7 @@ import {
   X,
   Shield,
   BarChart2,
+  LayoutTemplate,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { logout } from "@/app/actions/session";
@@ -40,6 +41,7 @@ const baseNav: NavItem[] = [
 const adminNav: NavItem[] = [
   { href: "/admin/users", label: "Пользователи", icon: Users },
   { href: "/admin/permissions", label: "Права доступа", icon: Shield },
+  { href: "/admin/templates", label: "Шаблоны", icon: LayoutTemplate },
 ];
 
 function NavLinks({
@@ -152,7 +154,7 @@ export function AppShell({
           <NavLinks items={items} pathname={pathname} unreadTotal={unreadTotal} />
         </div>
         <div className="flex items-center justify-end border-t border-white/10 px-3 py-2">
-          <NotificationCenter />
+          <NotificationCenter variant="desktop" />
         </div>
         <UserCard user={user} />
       </aside>
@@ -226,7 +228,7 @@ export function AppShell({
             </span>
           </span>
           <div className="ml-auto">
-            <NotificationCenter />
+            <NotificationCenter variant="mobile" />
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>

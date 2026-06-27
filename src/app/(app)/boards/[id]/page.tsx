@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getBoardWithData, ensureCompletedColumn } from "@/lib/boards";
+import { hasPerm, PERMS } from "@/lib/permissions";
 import { shortName, initials, fullName } from "@/lib/names";
 import {
   BoardView,
@@ -53,9 +54,16 @@ export default async function BoardPage({
 }) {
   const { id } = await params;
   const user = await requireUser();
+  if (!(await hasPerm(user.id, user.role, PERMS.BOARD_VIEW))) notFound();
   await ensureCompletedColumn(id);
   const result = await getBoardWithData(id, user.id, user.role === "ADMIN");
   if (!result) notFound();
+
+  // Tasks / comments visibility honour the granular view permissions.
+  const canViewTasks = await hasPerm(user.id, user.role, PERMS.TASK_VIEW);
+  const canViewComments = await hasPerm(user.id, user.role, PERMS.COMMENT_VIEW);
+  const canExportTasks = await hasPerm(user.id, user.role, PERMS.EXPORT_TASKS);
+  const canExportBoard = await hasPerm(user.id, user.role, PERMS.EXPORT_BOARD);
 
   const { board, role } = result;
   const isOwner = role === "OWNER";
@@ -112,7 +120,7 @@ export default async function BoardPage({
     id: c.id,
     title: c.title,
     systemKey: c.systemKey,
-    tasks: c.tasks.map((t) => ({
+    tasks: (canViewTasks ? c.tasks : []).map((t) => ({
       id: t.id,
       columnId: t.columnId,
       title: t.title,
@@ -142,7 +150,7 @@ export default async function BoardPage({
         name: tl.label.name,
         color: tl.label.color,
       })),
-      comments: t.comments.map((c) => ({
+      comments: (canViewComments ? t.comments : []).map((c) => ({
         id: c.id,
         body: c.body,
         authorName: shortName(c.user),
@@ -174,6 +182,12 @@ export default async function BoardPage({
     }));
   }
 
+  const boardLabels = board.labels.map((l) => ({
+    id: l.id,
+    name: l.name,
+    color: l.color,
+  }));
+
   return (
     <BoardView
       boardId={board.id}
@@ -187,6 +201,9 @@ export default async function BoardPage({
       members={headerMembers}
       assignable={assignable}
       directory={directory}
+      boardLabels={boardLabels}
+      canExportTasks={canExportTasks}
+      canExportBoard={canExportBoard}
     />
   );
 }

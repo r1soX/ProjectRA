@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getConversationList, getChannelView, getUnread } from "@/lib/chat";
+import { hasPerm, PERMS } from "@/lib/permissions";
 import { fullName, shortName, initials } from "@/lib/names";
 import {
   MessagesClient,
@@ -14,6 +16,7 @@ export default async function MessagesPage({
   searchParams: Promise<{ c?: string }>;
 }) {
   const me = await requireUser();
+  if (!(await hasPerm(me.id, me.role, PERMS.MESSAGE_VIEW))) redirect("/dashboard");
   const { c } = await searchParams;
 
   const [{ users, boards }, unread] = await Promise.all([

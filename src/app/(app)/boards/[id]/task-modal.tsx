@@ -21,6 +21,8 @@ import {
   Clock,
   History,
   Plus,
+  Pencil,
+  Tag,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -43,11 +45,21 @@ import {
   toggleSubtaskDone,
   deleteSubtask,
   logTime,
+  editTimeEntry,
   deleteTimeEntry,
+  createLabel,
+  editLabel,
+  deleteLabel,
+  toggleTaskLabel,
 } from "../actions";
 import { useConfirm } from "@/components/ui/dialog-provider";
 import { CommentsSection } from "./comments-section";
-import type { BoardTask, BoardMemberView, DirectoryUser } from "./board-view";
+import type {
+  BoardTask,
+  BoardMemberView,
+  BoardLabel,
+  DirectoryUser,
+} from "./board-view";
 
 const TASK_COLORS = ["#0ea5e9", "#6366f1", "#8b5cf6", "#ec4899", "#10b981", "#f59e0b", "#ef4444"];
 
@@ -76,21 +88,27 @@ export function TaskModal({
   task,
   members,
   directory = [],
+  boardId,
+  boardLabels = [],
   canEdit,
   boardCanEdit,
   currentUserId,
   canModerate,
   canDelete,
+  highlightCommentId = null,
   onClose,
 }: {
   task: BoardTask | null;
   members: BoardMemberView[];
   directory?: DirectoryUser[];
+  boardId: string;
+  boardLabels?: BoardLabel[];
   canEdit: boolean;
   boardCanEdit: boolean;
   currentUserId: string;
   canModerate: boolean;
   canDelete: boolean;
+  highlightCommentId?: string | null;
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -399,10 +417,29 @@ export function TaskModal({
                       entries={timeEntries}
                       loaded={detailLoaded}
                       onLogged={(entry) => setTimeEntries((es) => [entry, ...es])}
+                      onEdit={async (id, minutes, note) => {
+                        await editTimeEntry(id, minutes, note);
+                        setTimeEntries((es) =>
+                          es.map((e) =>
+                            e.id === id
+                              ? { ...e, minutes, note: note.trim() || null }
+                              : e,
+                          ),
+                        );
+                      }}
                       onDelete={async (id) => {
                         await deleteTimeEntry(id);
                         setTimeEntries((es) => es.filter((e) => e.id !== id));
                       }}
+                    />
+
+                    <LabelsSection
+                      boardId={boardId}
+                      taskId={task.id}
+                      assignedIds={task.labels.map((l) => l.id)}
+                      labels={boardLabels}
+                      canAssign={canEdit}
+                      canManage={boardCanEdit}
                     />
 
                     <div>
@@ -539,6 +576,7 @@ export function TaskModal({
                   currentUserId={currentUserId}
                   canModerate={canModerate}
                   mentionUsers={directory}
+                  highlightCommentId={highlightCommentId}
                 />
               </div>
 
@@ -661,9 +699,12 @@ function SubtasksSection({
                 const t = newTitle.trim();
                 if (!t || adding) return;
                 setAdding(true);
-                await onAdd(t);
-                setNewTitle("");
-                setAdding(false);
+                try {
+                  await onAdd(t);
+                  setNewTitle("");
+                } finally {
+                  setAdding(false);
+                }
               }
             }}
             placeholder="Подзадача…"
@@ -676,10 +717,13 @@ function SubtasksSection({
               const t = newTitle.trim();
               if (!t || adding) return;
               setAdding(true);
-              await onAdd(t);
-              setNewTitle("");
-              setAdding(false);
-              setShowInput(false);
+              try {
+                await onAdd(t);
+                setNewTitle("");
+                setShowInput(false);
+              } finally {
+                setAdding(false);
+              }
             }}
             className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-xs text-neutral-300 transition hover:bg-neutral-700 disabled:opacity-40"
           >
@@ -687,6 +731,205 @@ function SubtasksSection({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Labels section ────────────────────────────────────────────────────────
+
+const LABEL_COLORS = [
+  "#ef4444", "#f59e0b", "#10b981", "#0ea5e9",
+  "#6366f1", "#8b5cf6", "#ec4899", "#64748b",
+];
+
+function LabelsSection({
+  boardId,
+  taskId,
+  assignedIds,
+  labels,
+  canAssign,
+  canManage,
+}: {
+  boardId: string;
+  taskId: string;
+  assignedIds: string[];
+  labels: BoardLabel[];
+  canAssign: boolean;
+  canManage: boolean;
+}) {
+  const confirm = useConfirm();
+  const [, startToggle] = useTransition();
+  const [, startMutate] = useTransition();
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState(LABEL_COLORS[3]);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState("");
+
+  const assigned = new Set(assignedIds);
+
+  function submitCreate() {
+    const name = newName.trim();
+    if (!name) return;
+    setNewName("");
+    setCreating(false);
+    startMutate(async () => {
+      await createLabel(boardId, name, newColor);
+    });
+  }
+  function beginEdit(l: BoardLabel) {
+    setEditId(l.id);
+    setEditName(l.name);
+    setEditColor(l.color);
+  }
+  function submitEdit() {
+    const name = editName.trim();
+    if (!editId || !name) return;
+    const id = editId;
+    setEditId(null);
+    startMutate(() => editLabel(id, name, editColor));
+  }
+
+  if (!canAssign && !canManage && labels.length === 0) return null;
+
+  const Swatches = ({
+    value,
+    onPick,
+  }: {
+    value: string;
+    onPick: (c: string) => void;
+  }) => (
+    <div className="flex items-center gap-1">
+      {LABEL_COLORS.map((c) => (
+        <button
+          key={c}
+          type="button"
+          onClick={() => onPick(c)}
+          style={{ backgroundColor: c }}
+          className={cn(
+            "h-5 w-5 rounded-full transition",
+            value === c && "ring-2 ring-white ring-offset-1 ring-offset-neutral-900",
+          )}
+        />
+      ))}
+    </div>
+  );
+
+  return (
+    <div>
+      <SectionTitle icon={Tag}>Метки</SectionTitle>
+      <div className="space-y-1">
+        {labels.map((l) =>
+          editId === l.id ? (
+            <div key={l.id} className="space-y-1.5 rounded-lg bg-white/[0.04] p-1.5">
+              <input
+                autoFocus
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); submitEdit(); }
+                  if (e.key === "Escape") setEditId(null);
+                }}
+                className="h-7 w-full rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 outline-none focus:border-sky-500"
+              />
+              <div className="flex items-center gap-1">
+                <Swatches value={editColor} onPick={setEditColor} />
+                <span className="flex-1" />
+                <button type="button" onClick={submitEdit} className="rounded p-0.5 text-sky-400 hover:bg-white/5">
+                  <Check className="h-3.5 w-3.5" />
+                </button>
+                <button type="button" onClick={() => setEditId(null)} className="rounded p-0.5 text-neutral-500 hover:bg-white/5">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div key={l.id} className="group flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={!canAssign}
+                onClick={() => startToggle(() => toggleTaskLabel(taskId, l.id))}
+                style={assigned.has(l.id) ? { backgroundColor: l.color } : undefined}
+                className={cn(
+                  "flex min-w-0 flex-1 items-center gap-1.5 rounded-full border px-2 py-1 text-xs transition disabled:opacity-60",
+                  assigned.has(l.id)
+                    ? "border-transparent text-white"
+                    : "border-neutral-700 text-neutral-400 hover:bg-neutral-800/60",
+                )}
+              >
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: l.color }} />
+                <span className="truncate">{l.name}</span>
+                {assigned.has(l.id) && <Check className="ml-auto h-3 w-3 shrink-0" />}
+              </button>
+              {canManage && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => beginEdit(l)}
+                    className="hidden rounded p-0.5 text-neutral-600 hover:text-sky-400 group-hover:block"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: "Удалить метку?",
+                        message: `«${l.name}» исчезнет со всех задач доски.`,
+                        confirmLabel: "Удалить",
+                        danger: true,
+                      });
+                      if (ok) startMutate(() => deleteLabel(l.id));
+                    }}
+                    className="hidden rounded p-0.5 text-neutral-600 hover:text-red-400 group-hover:block"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </>
+              )}
+            </div>
+          ),
+        )}
+        {labels.length === 0 && !creating && (
+          <p className="text-xs text-neutral-600">Меток пока нет.</p>
+        )}
+      </div>
+
+      {canManage &&
+        (creating ? (
+          <div className="mt-1.5 space-y-1.5 rounded-lg bg-white/[0.04] p-1.5">
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Название метки"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); submitCreate(); }
+                if (e.key === "Escape") setCreating(false);
+              }}
+              className="h-7 w-full rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 outline-none focus:border-sky-500"
+            />
+            <div className="flex items-center gap-1">
+              <Swatches value={newColor} onPick={setNewColor} />
+              <span className="flex-1" />
+              <button type="button" onClick={submitCreate} className="rounded p-0.5 text-sky-400 hover:bg-white/5">
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button type="button" onClick={() => setCreating(false)} className="rounded p-0.5 text-neutral-500 hover:bg-white/5">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="mt-1.5 flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-300"
+          >
+            <Plus className="h-3.5 w-3.5" /> Добавить метку
+          </button>
+        ))}
     </div>
   );
 }
@@ -700,12 +943,14 @@ function TimeTrackingSection({
   entries,
   loaded,
   onLogged,
+  onEdit,
   onDelete,
 }: {
   taskId: string;
   entries: TimeItem[];
   loaded: boolean;
   onLogged: (entry: TimeItem) => void;
+  onEdit: (id: string, minutes: number, note: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
@@ -715,6 +960,24 @@ function TimeTrackingSection({
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState("");
   const [delPending, startDel] = useTransition();
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editMin, setEditMin] = useState("");
+  const [editNote, setEditNote] = useState("");
+  const [editPending, startEdit] = useTransition();
+
+  function beginEdit(e: TimeItem) {
+    setEditId(e.id);
+    setEditMin(String(e.minutes));
+    setEditNote(e.note ?? "");
+  }
+  function saveEdit() {
+    const mins = parseInt(editMin, 10);
+    if (!editId || !mins || mins < 1) return;
+    const id = editId;
+    const note = editNote;
+    setEditId(null);
+    startEdit(() => onEdit(id, mins, note));
+  }
 
   const totalMins = entries.reduce((s, e) => s + e.minutes, 0);
   const totalLabel = totalMins >= 60
@@ -730,8 +993,15 @@ function TimeTrackingSection({
     const mins = parseInt(minutes, 10);
     if (!mins || mins < 1) { setErr("Введите минуты"); return; }
     setSubmitting(true);
-    const res = await logTime(taskId, mins, note);
-    setSubmitting(false);
+    let res: Awaited<ReturnType<typeof logTime>>;
+    try {
+      res = await logTime(taskId, mins, note);
+    } catch {
+      setErr("Не удалось сохранить — попробуйте ещё раз");
+      return;
+    } finally {
+      setSubmitting(false);
+    }
     if (res?.error) { setErr(res.error); return; }
     onLogged({
       id: crypto.randomUUID(),
@@ -816,25 +1086,68 @@ function TimeTrackingSection({
 
       {open && entries.length > 0 && (
         <div className="space-y-1">
-          {entries.map((e) => (
-            <div key={e.id} className="group flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-white/[0.03]">
-              <Clock className="h-3 w-3 shrink-0 text-sky-400/60" />
-              <span className="font-medium text-sky-300 text-xs">{fmtMins(e.minutes)}</span>
-              {e.note && <span className="min-w-0 flex-1 truncate text-[11px] text-neutral-500">{e.note}</span>}
-              {!e.note && <span className="flex-1" />}
-              <span className="shrink-0 text-[10px] text-neutral-600">{e.userName}</span>
-              {e.isMe && (
-                <button
-                  type="button"
-                  disabled={delPending}
-                  onClick={() => startDel(() => onDelete(e.id))}
-                  className="hidden rounded p-0.5 text-neutral-700 hover:text-red-400 group-hover:block"
-                >
-                  <X className="h-3 w-3" />
+          {entries.map((e) =>
+            editId === e.id ? (
+              <div key={e.id} className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] px-1 py-1">
+                <input
+                  autoFocus
+                  type="number"
+                  min={1}
+                  value={editMin}
+                  onChange={(ev) => setEditMin(ev.target.value)}
+                  onKeyDown={(ev) => {
+                    if (ev.key === "Enter") { ev.preventDefault(); saveEdit(); }
+                    if (ev.key === "Escape") setEditId(null);
+                  }}
+                  className="h-7 w-16 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 outline-none focus:border-sky-500"
+                />
+                <input
+                  value={editNote}
+                  onChange={(ev) => setEditNote(ev.target.value)}
+                  onKeyDown={(ev) => {
+                    if (ev.key === "Enter") { ev.preventDefault(); saveEdit(); }
+                    if (ev.key === "Escape") setEditId(null);
+                  }}
+                  placeholder="Заметка"
+                  className="h-7 min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 outline-none focus:border-sky-500"
+                />
+                <button type="button" onClick={saveEdit} className="rounded p-0.5 text-sky-400 hover:bg-white/5">
+                  <Check className="h-3.5 w-3.5" />
                 </button>
-              )}
-            </div>
-          ))}
+                <button type="button" onClick={() => setEditId(null)} className="rounded p-0.5 text-neutral-500 hover:bg-white/5">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div key={e.id} className="group flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-white/[0.03]">
+                <Clock className="h-3 w-3 shrink-0 text-sky-400/60" />
+                <span className="font-medium text-sky-300 text-xs">{fmtMins(e.minutes)}</span>
+                {e.note && <span className="min-w-0 flex-1 truncate text-[11px] text-neutral-500">{e.note}</span>}
+                {!e.note && <span className="flex-1" />}
+                <span className="shrink-0 text-[10px] text-neutral-600">{e.userName}</span>
+                {e.isMe && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={editPending}
+                      onClick={() => beginEdit(e)}
+                      className="hidden rounded p-0.5 text-neutral-700 hover:text-sky-400 group-hover:block"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={delPending}
+                      onClick={() => startDel(() => onDelete(e.id))}
+                      className="hidden rounded p-0.5 text-neutral-700 hover:text-red-400 group-hover:block"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </>
+                )}
+              </div>
+            ),
+          )}
         </div>
       )}
     </div>

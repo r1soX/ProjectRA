@@ -144,7 +144,10 @@ export function MentionTextarea({
         autoFocus={autoFocus}
         rows={rows}
         placeholder={placeholder}
-        className={className}
+        // `block` removes the inline baseline/descender gap below the textarea,
+        // otherwise the wrapper is a few px taller than the field and an
+        // items-end sibling (send button) ends up lower than the input.
+        className={`block ${className ?? ""}`}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
       />

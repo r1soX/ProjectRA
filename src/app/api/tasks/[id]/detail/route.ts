@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { shortName } from "@/lib/names";
+import { hasPerm, PERMS } from "@/lib/permissions";
 
 export async function GET(
   _req: NextRequest,
@@ -77,6 +78,14 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Time entries respect view scope: TIME_VIEW_ALL → everyone's,
+  // TIME_VIEW_OWN → only your own, neither → none.
+  const canViewAllTime = await hasPerm(user.id, user.role, PERMS.TIME_VIEW_ALL);
+  const canViewOwnTime = await hasPerm(user.id, user.role, PERMS.TIME_VIEW_OWN);
+  const visibleTimeEntries = task.timeEntries.filter((e) =>
+    canViewAllTime ? true : canViewOwnTime ? e.user.id === user.id : false,
+  );
+
   return NextResponse.json({
     subtasks: task.subtasks.map((s) => ({
       id: s.id,
@@ -91,7 +100,7 @@ export async function GET(
       userName: shortName(h.user),
       isMe: h.user.id === user.id,
     })),
-    timeEntries: task.timeEntries.map((e) => ({
+    timeEntries: visibleTimeEntries.map((e) => ({
       id: e.id,
       minutes: e.minutes,
       note: e.note,

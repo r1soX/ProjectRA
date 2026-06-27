@@ -62,6 +62,7 @@ export async function notifyMentions(
   taskId: string,
   taskTitle: string,
   boardId: string,
+  commentId?: string,
 ) {
   const usernames = parseMentions(text);
   if (!usernames.length) return;
@@ -71,13 +72,17 @@ export async function notifyMentions(
     select: { id: true },
   });
 
+  const link = `/boards/${boardId}?task=${taskId}${
+    commentId ? `&comment=${commentId}` : ""
+  }`;
+
   await Promise.all(
     users.map((u) =>
       createNotification(
         u.id,
         "mention_comment",
         { taskId, taskTitle, boardId, fromName: authorName },
-        `/boards/${boardId}?task=${taskId}`,
+        link,
       ),
     ),
   );

@@ -9,7 +9,7 @@ import {
   useTransition,
 } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
   DndContext,
@@ -46,6 +46,7 @@ import {
   GripVertical,
   Share2,
   CheckCircle2,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
@@ -129,6 +130,7 @@ export type BoardColumn = {
   systemKey: string | null;
   tasks: BoardTask[];
 };
+export type BoardLabel = { id: string; name: string; color: string };
 
 const DROP_PREFIX = "dropzone-";
 
@@ -144,6 +146,9 @@ export function BoardView({
   members,
   assignable,
   directory,
+  boardLabels,
+  canExportTasks,
+  canExportBoard,
 }: {
   boardId: string;
   title: string;
@@ -156,6 +161,9 @@ export function BoardView({
   members: BoardMemberView[];
   assignable: BoardMemberView[];
   directory: DirectoryUser[];
+  boardLabels: BoardLabel[];
+  canExportTasks: boolean;
+  canExportBoard: boolean;
 }) {
   const canEdit = role === "OWNER" || role === "EDITOR";
   const isOwner = role === "OWNER";
@@ -164,10 +172,12 @@ export function BoardView({
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
   const [activeColumn, setActiveColumn] = useState<BoardColumn | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [, start] = useTransition();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const confirm = useConfirm();
   const draggingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
@@ -199,7 +209,25 @@ export function BoardView({
     if (!draggingRef.current) setCols(columns);
   }, [columns]);
 
-  const closeTask = useCallback(() => setSelectedTaskId(null), []);
+  const closeTask = useCallback(() => {
+    setSelectedTaskId(null);
+    setHighlightCommentId(null);
+  }, []);
+
+  // Open a task (and optionally highlight a comment) from a notification
+  // deep-link like /boards/<id>?task=<taskId>&comment=<commentId>. The params
+  // are consumed once and stripped so a refresh/back doesn't reopen the modal.
+  useEffect(() => {
+    const t = searchParams.get("task");
+    if (!t) return;
+    setSelectedTaskId(t);
+    setHighlightCommentId(searchParams.get("comment"));
+    const sp = new URLSearchParams(Array.from(searchParams.entries()));
+    sp.delete("task");
+    sp.delete("comment");
+    const qs = sp.toString();
+    router.replace(`/boards/${boardId}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }, [searchParams, boardId, router]);
 
   const sensors = useSensors(
     // Desktop: start dragging after a small movement.
@@ -417,6 +445,13 @@ export function BoardView({
             <Share2 className="h-4 w-4" />
             <span className="hidden sm:inline">Связи</span>
           </Link>
+          {(canExportTasks || canExportBoard) && (
+            <ExportMenu
+              boardId={boardId}
+              canExportTasks={canExportTasks}
+              canExportBoard={canExportBoard}
+            />
+          )}
           {isOwner && isPersonal && (
             <Button size="sm" variant="secondary" onClick={() => setMembersOpen(true)}>
               <UsersIcon className="h-4 w-4" />
@@ -515,6 +550,8 @@ export function BoardView({
         task={selectedTask}
         members={assignable}
         directory={directory}
+        boardId={boardId}
+        boardLabels={boardLabels}
         canEdit={
           selectedTask
             ? isAdmin || selectedTask.createdById === currentUserId
@@ -522,6 +559,7 @@ export function BoardView({
         }
         boardCanEdit={canEdit}
         currentUserId={currentUserId}
+        highlightCommentId={highlightCommentId}
         canModerate={isOwner}
         canDelete={
           selectedTask
@@ -545,6 +583,64 @@ export function BoardView({
         currentIsPersonal={isPersonal}
         onClose={() => setSettingsOpen(false)}
       />
+    </div>
+  );
+}
+
+function ExportMenu({
+  boardId,
+  canExportTasks,
+  canExportBoard,
+}: {
+  boardId: string;
+  canExportTasks: boolean;
+  canExportBoard: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="Экспорт"
+        className="inline-flex h-8 items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-800 px-3 text-sm text-neutral-100 transition hover:bg-neutral-700"
+      >
+        <Download className="h-4 w-4" />
+        <span className="hidden sm:inline">Экспорт</span>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-lg border border-neutral-700 bg-neutral-800 py-1 shadow-xl"
+            >
+              {canExportTasks && (
+                <a
+                  href={`/api/boards/${boardId}/export?format=csv`}
+                  download
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-700"
+                >
+                  <Download className="h-3.5 w-3.5" /> Задачи (CSV)
+                </a>
+              )}
+              {canExportBoard && (
+                <a
+                  href={`/api/boards/${boardId}/export?format=json`}
+                  download
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-700"
+                >
+                  <Download className="h-3.5 w-3.5" /> Вся доска (JSON)
+                </a>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

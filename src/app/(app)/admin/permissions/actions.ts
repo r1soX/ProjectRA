@@ -7,15 +7,21 @@ import {
   setUserPerm,
   getRolePermMap,
   invalidatePermCache,
+  hasPerm,
   PERMS,
   type PermKey,
 } from "@/lib/permissions";
 import type { PermTemplateKey } from "@/lib/perm-templates";
 import { revalidatePath } from "next/cache";
 
+// Managing permissions requires both the ADMIN role and the explicit
+// "manage permissions" capability (which an admin may have revoked).
 async function requireAdmin() {
   const user = await requireUser();
   if (user.role !== "ADMIN") throw new Error("Нет прав");
+  if (!(await hasPerm(user.id, user.role, PERMS.ADMIN_PERMISSIONS_MANAGE))) {
+    throw new Error("Недостаточно прав");
+  }
   return user;
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -161,7 +162,14 @@ function formatRelative(iso: string) {
 
 // ── Main component ────────────────────────────────────────────────────────
 
-export function NotificationCenter() {
+export function NotificationCenter({
+  variant = "desktop",
+}: {
+  // AppShell mounts this twice (desktop sidebar + mobile header). Only the
+  // instance matching the current breakpoint runs the SSE subscription and
+  // renders the toasts/panel — otherwise every notification shows twice.
+  variant?: "desktop" | "mobile";
+}) {
   const router = useRouter();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -170,6 +178,22 @@ export function NotificationCenter() {
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
+  // Panel & toasts are portaled to <body> so their z-index isn't trapped
+  // inside the sidebar's stacking context (otherwise <main> paints over them
+  // and steals their clicks).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  // Only the instance for the active breakpoint owns the SSE stream + overlays.
+  const [active, setActive] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const update = () =>
+      setActive(variant === "desktop" ? mq.matches : !mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, [variant]);
 
   const unread = notifs.filter((n) => !n.isRead).length;
 
@@ -196,8 +220,9 @@ export function NotificationCenter() {
     );
   }
 
-  // SSE — real-time events
+  // SSE — real-time events (only the active-breakpoint instance subscribes)
   useEffect(() => {
+    if (!active) return;
     const es = new EventSource("/api/notifications/stream");
 
     es.addEventListener("message", (e) => {
@@ -256,12 +281,12 @@ export function NotificationCenter() {
     });
 
     return () => es.close();
-  }, [router]);
+  }, [router, active]);
 
   // Load on mount (to populate badge count) and whenever panel opens
   useEffect(() => {
-    loadNotifs();
-  }, []);
+    if (active) loadNotifs();
+  }, [active]);
 
   useEffect(() => {
     if (panelOpen) loadNotifs();
@@ -329,9 +354,14 @@ export function NotificationCenter() {
           )}
         </button>
 
-        {/* ── Notification panel (fixed to viewport) ── */}
-        <AnimatePresence>
-          {panelOpen && (
+      </div>
+
+      {/* ── Notification panel (portaled to body, fixed to viewport) ── */}
+      {mounted &&
+        active &&
+        createPortal(
+          <AnimatePresence>
+            {panelOpen && (
             <motion.div
               ref={panelRef}
               initial={{ opacity: 0, scale: 0.96, y: -6 }}
@@ -414,13 +444,17 @@ export function NotificationCenter() {
                 )}
               </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
 
-      {/* ── Toasts ── */}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[300] flex w-[calc(100vw-2rem)] flex-col-reverse gap-2 sm:bottom-6 sm:right-6 sm:w-80">
-        <AnimatePresence>
+      {/* ── Toasts (portaled to body for correct stacking) ── */}
+      {mounted &&
+        active &&
+        createPortal(
+          <div className="pointer-events-none fixed bottom-4 right-4 z-[300] flex w-[calc(100vw-2rem)] flex-col-reverse gap-2 sm:bottom-6 sm:right-6 sm:w-80">
+            <AnimatePresence>
           {toasts.map((t) => {
             const meta = notifMeta(t.type, {});
             const Icon = t.type === "message"
@@ -458,8 +492,10 @@ export function NotificationCenter() {
               </motion.div>
             );
           })}
-        </AnimatePresence>
-      </div>
+            </AnimatePresence>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

@@ -5,8 +5,18 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { requireAdmin } from "@/lib/auth";
+import { hasPerm, PERMS, type PermKey } from "@/lib/permissions";
 
 export type AdminState = { ok?: boolean; error?: string; message?: string };
+
+/** Admin role + the specific granular permission must both be present. */
+async function requireAdminPerm(perm: PermKey) {
+  const admin = await requireAdmin();
+  if (!(await hasPerm(admin.id, admin.role, perm))) {
+    throw new Error("Недостаточно прав");
+  }
+  return admin;
+}
 
 const usernameRule = z
   .string()
@@ -28,7 +38,7 @@ export async function createUser(
   _prev: AdminState,
   formData: FormData,
 ): Promise<AdminState> {
-  await requireAdmin();
+  await requireAdminPerm(PERMS.ADMIN_USERS_CREATE);
   const parsed = createSchema.safeParse({
     username: formData.get("username"),
     lastName: formData.get("lastName"),
@@ -63,7 +73,7 @@ export async function createUser(
 }
 
 export async function toggleActive(userId: string): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireAdminPerm(PERMS.ADMIN_USERS_ACTIVATE);
   if (userId === admin.id) return; // can't block yourself
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return;
@@ -78,7 +88,7 @@ export async function setRole(
   userId: string,
   role: "ADMIN" | "USER",
 ): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireAdminPerm(PERMS.ADMIN_USERS_EDIT);
   if (userId === admin.id) return; // can't demote yourself
   await prisma.user.update({ where: { id: userId }, data: { role } });
   revalidatePath("/admin/users");
@@ -93,7 +103,7 @@ export async function resetPassword(
   _prev: AdminState,
   formData: FormData,
 ): Promise<AdminState> {
-  await requireAdmin();
+  await requireAdminPerm(PERMS.ADMIN_USERS_EDIT);
   const parsed = resetSchema.safeParse({
     userId: formData.get("userId"),
     password: formData.get("password"),
@@ -108,7 +118,7 @@ export async function resetPassword(
 }
 
 export async function deleteUser(userId: string): Promise<void> {
-  const admin = await requireAdmin();
+  const admin = await requireAdminPerm(PERMS.ADMIN_USERS_DELETE);
   if (userId === admin.id) return; // can't delete yourself
   await prisma.user.delete({ where: { id: userId } });
   revalidatePath("/admin/users");

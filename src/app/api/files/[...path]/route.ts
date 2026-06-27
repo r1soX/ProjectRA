@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { readUpload, mimeFromExt } from "@/lib/upload";
+import { hasPerm, PERMS } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,9 @@ export async function GET(
 ) {
   const user = await getSession();
   if (!user) return new Response("Unauthorized", { status: 401 });
+  if (!(await hasPerm(user.id, user.role, PERMS.FILE_VIEW))) {
+    return new Response("Forbidden", { status: 403 });
+  }
 
   const { path: segments } = await params;
   const relative = segments.join("/");

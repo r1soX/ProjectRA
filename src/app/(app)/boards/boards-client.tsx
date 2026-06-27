@@ -32,11 +32,15 @@ export const BOARD_COLORS = [
   "#64748b",
 ];
 
+export type BoardTemplateOption = { id: string; name: string };
+
 function CreateBoardModal({
   open,
+  templates,
   onClose,
 }: {
   open: boolean;
+  templates: BoardTemplateOption[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -59,6 +63,24 @@ function CreateBoardModal({
         <Field label="Название" htmlFor="board-title">
           <Input id="board-title" name="title" placeholder="Например, Запуск продукта" autoFocus />
         </Field>
+
+        {templates.length > 0 && (
+          <Field label="Шаблон" htmlFor="board-template">
+            <select
+              id="board-template"
+              name="templateId"
+              defaultValue=""
+              className="w-full rounded-xl border border-neutral-700 bg-neutral-900/60 px-3 py-2.5 text-base sm:text-sm text-neutral-100 outline-none focus:border-sky-500"
+            >
+              <option value="">Пустая доска</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
 
         <Field label="Цвет">
           <input type="hidden" name="color" value={color} />
@@ -120,7 +142,13 @@ function CreateBoardModal({
   );
 }
 
-export function BoardsClient({ boards }: { boards: BoardCard[] }) {
+export function BoardsClient({
+  boards,
+  templates = [],
+}: {
+  boards: BoardCard[];
+  templates?: BoardTemplateOption[];
+}) {
   const [createOpen, setCreateOpen] = useState(false);
 
   return (
@@ -197,7 +225,11 @@ export function BoardsClient({ boards }: { boards: BoardCard[] }) {
         </div>
       )}
 
-      <CreateBoardModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <CreateBoardModal
+        open={createOpen}
+        templates={templates}
+        onClose={() => setCreateOpen(false)}
+      />
     </div>
   );
 }

@@ -138,27 +138,70 @@ export async function createBoard(
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
 
+  const columnsCreate = await columnsForNewBoard(
+    String(formData.get("templateId") ?? ""),
+  );
+
   const board = await prisma.board.create({
     data: {
       title: parsed.data.title,
       color: parsed.data.color || "#0ea5e9",
       isPersonal: parsed.data.isPersonal,
       ownerId: user.id,
-      columns: {
-        create: [
-          ...DEFAULT_COLUMNS.map((title, i) => ({ title, order: i })),
-          {
-            title: "Завершённые задачи",
-            order: DEFAULT_COLUMNS.length,
-            isSystem: true,
-            systemKey: "COMPLETED",
-          },
-        ],
-      },
+      columns: { create: columnsCreate },
     },
   });
   revalidatePath("/boards");
   return { ok: true, message: board.id };
+}
+
+type NewColumn = {
+  title: string;
+  order: number;
+  isSystem: boolean;
+  systemKey: string | null;
+};
+
+/**
+ * Columns for a freshly created board: from a template if a valid id is given,
+ * otherwise the default set. Always guarantees the "Завершённые задачи" column.
+ */
+async function columnsForNewBoard(templateId: string): Promise<NewColumn[]> {
+  let cols: NewColumn[] | null = null;
+
+  if (templateId) {
+    const tpl = await prisma.boardTemplate.findUnique({
+      where: { id: templateId },
+      include: { columns: { orderBy: { order: "asc" } } },
+    });
+    if (tpl && tpl.columns.length) {
+      cols = tpl.columns.map((c, i) => ({
+        title: c.title,
+        order: i,
+        isSystem: c.isSystem,
+        systemKey: c.systemKey,
+      }));
+    }
+  }
+
+  if (!cols) {
+    cols = DEFAULT_COLUMNS.map((title, i) => ({
+      title,
+      order: i,
+      isSystem: false,
+      systemKey: null,
+    }));
+  }
+
+  if (!cols.some((c) => c.systemKey === "COMPLETED")) {
+    cols.push({
+      title: "Завершённые задачи",
+      order: cols.length,
+      isSystem: true,
+      systemKey: "COMPLETED",
+    });
+  }
+  return cols;
 }
 
 export async function updateBoard(
@@ -167,7 +210,8 @@ export async function updateBoard(
   color: string,
   isPersonal: boolean,
 ) {
-  await requireBoardOwner(boardId);
+  const { user } = await requireBoardOwner(boardId);
+  await requirePerm(user, PERMS.BOARD_EDIT);
   await prisma.board.update({
     where: { id: boardId },
     data: { title: title.trim(), color, isPersonal },
@@ -185,6 +229,7 @@ export async function deleteBoard(boardId: string) {
   if (!board || board.ownerId !== user.id) {
     throw new Error("Удалить доску может только владелец");
   }
+  await requirePerm(user, PERMS.BOARD_DELETE);
   await prisma.board.delete({ where: { id: boardId } });
   revalidatePath("/boards");
   redirect("/boards");
@@ -201,7 +246,7 @@ async function requireBoardOwner(boardId: string) {
   if (!board || board.ownerId !== user.id) {
     throw new Error("Только владелец управляет участниками");
   }
-  return board;
+  return { user, board };
 }
 
 export async function addMember(
@@ -209,7 +254,8 @@ export async function addMember(
   userId: string,
   role: "EDITOR" | "VIEWER",
 ) {
-  const board = await requireBoardOwner(boardId);
+  const { user, board } = await requireBoardOwner(boardId);
+  await requirePerm(user, PERMS.BOARD_MANAGE_MEMBERS);
   if (!board.isPersonal)
     throw new Error("Общая доска доступна всем — участники не нужны");
   await prisma.boardMember.upsert({
@@ -221,7 +267,8 @@ export async function addMember(
 }
 
 export async function removeMember(boardId: string, userId: string) {
-  await requireBoardOwner(boardId);
+  const { user } = await requireBoardOwner(boardId);
+  await requirePerm(user, PERMS.BOARD_MANAGE_MEMBERS);
   await prisma.boardMember
     .delete({ where: { boardId_userId: { boardId, userId } } })
     .catch(() => {});
@@ -524,7 +571,9 @@ export async function addComment(
     return { error: "Недостаточно прав" };
   }
 
-  await prisma.comment.create({ data: { taskId, userId: user.id, body } });
+  const comment = await prisma.comment.create({
+    data: { taskId, userId: user.id, body },
+  });
 
   // @-mentions
   const task = await prisma.task.findUnique({
@@ -532,7 +581,15 @@ export async function addComment(
     select: { title: true, boardId: true },
   });
   if (task) {
-    await notifyMentions(body, user.id, shortName(user), taskId, task.title, task.boardId);
+    await notifyMentions(
+      body,
+      user.id,
+      shortName(user),
+      taskId,
+      task.title,
+      task.boardId,
+      comment.id,
+    );
   }
 
   bump(boardId);
@@ -707,17 +764,88 @@ export async function toggleSubtaskDone(subtaskId: string) {
 }
 
 export async function deleteSubtask(subtaskId: string) {
-  const user = await requireUser();
+  // Only a real subtask (has a parent) may be deleted here…
   const sub = await prisma.task.findUnique({
     where: { id: subtaskId },
-    select: { boardId: true, parentId: true, createdById: true },
+    select: { parentId: true },
   });
   if (!sub || !sub.parentId) return;
-  if (user.role !== "ADMIN" && sub.createdById !== user.id) {
-    throw new Error("Удалить может только создатель или администратор");
-  }
+  // …and only with the proper delete permission (own/any), like deleteTask.
+  const ctx = await requireTaskDeleter(subtaskId);
+  if (!ctx) return;
   await prisma.task.delete({ where: { id: subtaskId } });
-  bump(sub.boardId);
+  bump(ctx.task.boardId);
+}
+
+// ── labels ───────────────────────────────────────────────────────
+
+export async function createLabel(
+  boardId: string,
+  name: string,
+  color: string,
+): Promise<{ id: string } | null> {
+  const user = await requireBoardEditor(boardId);
+  await requirePerm(user, PERMS.LABEL_CREATE);
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  const label = await prisma.label.create({
+    data: { boardId, name: trimmed.slice(0, 40), color: color || "#888888" },
+    select: { id: true },
+  });
+  bump(boardId);
+  return { id: label.id };
+}
+
+export async function editLabel(labelId: string, name: string, color: string) {
+  const label = await prisma.label.findUnique({
+    where: { id: labelId },
+    select: { boardId: true },
+  });
+  if (!label) return;
+  const user = await requireBoardEditor(label.boardId);
+  await requirePerm(user, PERMS.LABEL_EDIT);
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  await prisma.label.update({
+    where: { id: labelId },
+    data: { name: trimmed.slice(0, 40), color: color || "#888888" },
+  });
+  bump(label.boardId);
+}
+
+export async function deleteLabel(labelId: string) {
+  const label = await prisma.label.findUnique({
+    where: { id: labelId },
+    select: { boardId: true },
+  });
+  if (!label) return;
+  const user = await requireBoardEditor(label.boardId);
+  await requirePerm(user, PERMS.LABEL_DELETE);
+  await prisma.label.delete({ where: { id: labelId } });
+  bump(label.boardId);
+}
+
+/** Assign / unassign a board label to a task (a task-edit operation). */
+export async function toggleTaskLabel(taskId: string, labelId: string) {
+  const ctx = await requireTaskEditor(taskId);
+  if (!ctx) return;
+  const label = await prisma.label.findUnique({
+    where: { id: labelId },
+    select: { boardId: true },
+  });
+  if (!label || label.boardId !== ctx.task.boardId) return;
+
+  const existing = await prisma.taskLabel.findUnique({
+    where: { taskId_labelId: { taskId, labelId } },
+  });
+  if (existing) {
+    await prisma.taskLabel.delete({ where: { taskId_labelId: { taskId, labelId } } });
+    await logHistory(taskId, ctx.user.id, "label_remove", { name: labelId });
+  } else {
+    await prisma.taskLabel.create({ data: { taskId, labelId } });
+    await logHistory(taskId, ctx.user.id, "label_add", { name: labelId });
+  }
+  bump(ctx.task.boardId);
 }
 
 // ── time tracking ─────────────────────────────────────────────────
@@ -744,6 +872,33 @@ export async function logTime(
   });
   await logHistory(taskId, user.id, "time_logged", { minutes, note: note.trim() || null });
   bump(boardId);
+  return { ok: true };
+}
+
+export async function editTimeEntry(
+  entryId: string,
+  minutes: number,
+  note: string,
+): Promise<ActionState> {
+  if (!minutes || minutes < 1) return { error: "Укажите время" };
+  const user = await requireUser();
+  const entry = await prisma.timeEntry.findUnique({
+    where: { id: entryId },
+    select: { userId: true, task: { select: { boardId: true } } },
+  });
+  if (!entry) return { error: "Не найдено" };
+  // Only the author may edit, and only with the TIME_EDIT_OWN permission.
+  if (
+    entry.userId !== user.id ||
+    !(await hasPerm(user.id, user.role, PERMS.TIME_EDIT_OWN))
+  ) {
+    return { error: "Нет прав на изменение записи" };
+  }
+  await prisma.timeEntry.update({
+    where: { id: entryId },
+    data: { minutes, note: note.trim() || null },
+  });
+  bump(entry.task.boardId);
   return { ok: true };
 }
 

@@ -30,14 +30,17 @@ export function CommentsSection({
   currentUserId,
   canModerate,
   mentionUsers = [],
+  highlightCommentId = null,
 }: {
   taskId: string;
   comments: BoardTask["comments"];
   currentUserId: string;
   canModerate: boolean;
   mentionUsers?: DirectoryUser[];
+  highlightCommentId?: string | null;
 }) {
   const [body, setBody] = useState("");
+  const [flashId, setFlashId] = useState<string | null>(null);
   const [state, action, pending] = useActionState<ActionState, FormData>(
     addComment,
     {},
@@ -50,6 +53,17 @@ export function CommentsSection({
   useEffect(() => {
     if (state.ok) setBody("");
   }, [state]);
+
+  // Deep-link from a @-mention notification: scroll to the comment and flash it.
+  useEffect(() => {
+    if (!highlightCommentId) return;
+    const el = document.getElementById(`comment-${highlightCommentId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlashId(highlightCommentId);
+    const t = setTimeout(() => setFlashId(null), 2200);
+    return () => clearTimeout(t);
+  }, [highlightCommentId, comments]);
 
   function saveEdit(id: string) {
     const text = editValue.trim();
@@ -74,11 +88,14 @@ export function CommentsSection({
           {comments.map((c) => (
             <motion.div
               key={c.id}
+              id={`comment-${c.id}`}
               layout
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="flex gap-2.5"
+              className={`flex scroll-mt-4 gap-2.5 rounded-lg p-1 transition-shadow ${
+                flashId === c.id ? "bg-sky-500/[0.06] ring-2 ring-sky-400/70" : ""
+              }`}
             >
               <Avatar
                 image={c.authorAvatar}
