@@ -92,6 +92,8 @@ export default async function BoardPage({
     timeLog: pmap[PERMS.TIME_LOG],
     timeEditOwn: pmap[PERMS.TIME_EDIT_OWN],
     timeDeleteOwn: pmap[PERMS.TIME_DELETE_OWN],
+    fileUpload: pmap[PERMS.FILE_UPLOAD],
+    fileView: pmap[PERMS.FILE_VIEW],
     labelManage:
       pmap[PERMS.LABEL_CREATE] || pmap[PERMS.LABEL_EDIT] || pmap[PERMS.LABEL_DELETE],
   };
@@ -166,6 +168,8 @@ export default async function BoardPage({
       startDate: toDateInput(t.startDate),
       dueDate: toDateInput(t.dueDate),
       done: c.systemKey === "COMPLETED",
+      subtaskTotal: t.subtasks.length,
+      subtaskDone: t.subtasks.filter((s) => s.column.systemKey === "COMPLETED").length,
       createdById: t.createdById,
       createdByName: shortName(t.createdBy),
       assigneeIds: t.assignees.map((a) => a.userId),

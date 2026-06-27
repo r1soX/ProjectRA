@@ -3,6 +3,7 @@
 import { MessageCircle, LayoutGrid, MessagesSquare } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Avatar } from "@/components/ui/avatar";
+import { EmptyState } from "@/components/ui/empty-state";
 import { usePresence, onlineFromState } from "@/components/presence-provider";
 import { openDm, openBoardChannel } from "./actions";
 import { ConversationView } from "./conversation-view";
@@ -160,9 +161,12 @@ export function MessagesClient({
         {active ? (
           <ConversationView active={active} users={users} />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-neutral-600">
-            <MessagesSquare className="h-10 w-10" />
-            <p className="text-sm">Выберите диалог или доску слева</p>
+          <div className="flex h-full items-center justify-center">
+            <EmptyState
+              icon={MessagesSquare}
+              title="Выберите диалог"
+              description="Слева — личные сообщения и чаты досок. Откройте любой, чтобы начать общение."
+            />
           </div>
         )}
       </section>

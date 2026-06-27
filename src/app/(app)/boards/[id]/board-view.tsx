@@ -56,6 +56,7 @@ import {
   renameColumn,
   deleteColumn,
   createTask,
+  deleteTask,
   deleteBoard,
   moveTask,
   reorderColumns,
@@ -64,7 +65,16 @@ import {
   useConfirm,
   usePrompt,
 } from "@/components/ui/dialog-provider";
+import { useToast } from "@/components/ui/toast-provider";
 import { AccessDenied } from "@/components/ui/access-denied";
+import { normalizePriority } from "@/lib/priority";
+import {
+  BoardFilters,
+  EMPTY_FILTERS,
+  isFilterActive,
+  type BoardFilterState,
+  type SavedView,
+} from "./board-filters";
 import { TaskModal } from "./task-modal";
 import { MembersModal } from "./members-modal";
 import { BoardSettingsModal } from "./board-settings-modal";
@@ -102,6 +112,8 @@ export type BoardTask = {
   startDate: string | null;
   dueDate: string | null;
   done: boolean;
+  subtaskTotal: number;
+  subtaskDone: number;
   createdById: string;
   createdByName: string;
   assigneeIds: string[];
@@ -149,10 +161,39 @@ export type BoardPerms = {
   timeLog: boolean;
   timeEditOwn: boolean;
   timeDeleteOwn: boolean;
+  fileUpload: boolean;
+  fileView: boolean;
   labelManage: boolean;
 };
 
 const DROP_PREFIX = "dropzone-";
+
+/** Does a task pass the active board filters? */
+function matchesFilters(t: BoardTask, f: BoardFilterState, meId: string): boolean {
+  if (f.mine && !t.assigneeIds.includes(meId)) return false;
+  if (f.assignees.length && !f.assignees.some((id) => t.assigneeIds.includes(id)))
+    return false;
+  if (f.labels.length && !f.labels.some((id) => t.labels.some((l) => l.id === id)))
+    return false;
+  if (f.priorities.length && !f.priorities.includes(normalizePriority(t.priority)))
+    return false;
+  const text = f.text.trim().toLowerCase();
+  if (text && !t.title.toLowerCase().includes(text)) return false;
+  if (f.due !== "any") {
+    if (!t.dueDate) return f.due === "none";
+    if (f.due === "none") return false;
+    const todayStr = new Date().toLocaleDateString("en-CA");
+    if (f.due === "today") return t.dueDate === todayStr;
+    if (f.due === "overdue") return t.dueDate < todayStr && !t.done;
+    if (f.due === "week") {
+      const wk = new Date();
+      wk.setHours(0, 0, 0, 0);
+      wk.setDate(wk.getDate() + 7);
+      return t.dueDate >= todayStr && t.dueDate < wk.toLocaleDateString("en-CA");
+    }
+  }
+  return true;
+}
 
 export function BoardView({
   boardId,
@@ -205,6 +246,10 @@ export function BoardView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const confirm = useConfirm();
+  const toast = useToast();
+  // Tasks pending a deferred (undoable) delete — hidden from the board until the
+  // grace period elapses, then actually removed on the server.
+  const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const draggingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
 
@@ -268,6 +313,78 @@ export function BoardView({
     () => cols.flatMap((c) => c.tasks).find((t) => t.id === selectedTaskId) ?? null,
     [cols, selectedTaskId],
   );
+
+  // Columns with pending-deleted tasks hidden (for rendering).
+  const displayCols = useMemo(
+    () =>
+      pendingDeletes.size === 0
+        ? cols
+        : cols.map((c) => ({
+            ...c,
+            tasks: c.tasks.filter((t) => !pendingDeletes.has(t.id)),
+          })),
+    [cols, pendingDeletes],
+  );
+
+  // ── Filters + saved views (per-board, persisted in localStorage) ──
+  const [filters, setFilters] = useState<BoardFilterState>(EMPTY_FILTERS);
+  const [views, setViews] = useState<SavedView[]>([]);
+  const viewsKey = `projectra:views:${boardId}`;
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(viewsKey);
+      if (raw) setViews(JSON.parse(raw));
+    } catch {
+      /* ignore */
+    }
+  }, [viewsKey]);
+  function persistViews(next: SavedView[]) {
+    setViews(next);
+    try {
+      localStorage.setItem(viewsKey, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const filteredCols = useMemo(() => {
+    if (!isFilterActive(filters)) return displayCols;
+    return displayCols.map((c) => ({
+      ...c,
+      tasks: c.tasks.filter((t) => matchesFilters(t, filters, currentUserId)),
+    }));
+  }, [displayCols, filters, currentUserId]);
+
+  // Optimistic, undoable task delete: hide now, commit on the server after a
+  // short grace period unless the user hits "Отменить".
+  function requestDeleteTask(task: BoardTask) {
+    setSelectedTaskId(null);
+    setPendingDeletes((prev) => new Set(prev).add(task.id));
+    const timer = setTimeout(() => {
+      setPendingDeletes((prev) => {
+        const n = new Set(prev);
+        n.delete(task.id);
+        return n;
+      });
+      deleteTask(task.id);
+    }, 5000);
+    toast({
+      type: "info",
+      message: `Задача «${task.title}» удалена`,
+      duration: 5000,
+      action: {
+        label: "Отменить",
+        onClick: () => {
+          clearTimeout(timer);
+          setPendingDeletes((prev) => {
+            const n = new Set(prev);
+            n.delete(task.id);
+            return n;
+          });
+        },
+      },
+    });
+  }
 
   function findTaskColumn(taskId: string): string | null {
     return cols.find((c) => c.tasks.some((t) => t.id === taskId))?.id ?? null;
@@ -523,6 +640,19 @@ export function BoardView({
           backHref={null}
         />
       ) : (
+      <>
+      <BoardFilters
+        filters={filters}
+        onChange={setFilters}
+        members={assignable}
+        labels={boardLabels}
+        views={views}
+        onSaveView={(name) =>
+          persistViews([...views.filter((v) => v.name !== name), { name, filters }])
+        }
+        onApplyView={(v) => setFilters(v.filters)}
+        onDeleteView={(name) => persistViews(views.filter((v) => v.name !== name))}
+      />
       <DndContext
         id="board-dnd"
         sensors={sensors}
@@ -539,10 +669,10 @@ export function BoardView({
       >
         <div className="flex flex-1 gap-4 overflow-x-auto overflow-y-hidden p-4 sm:p-6">
           <SortableContext
-            items={cols.map((c) => c.id)}
+            items={filteredCols.map((c) => c.id)}
             strategy={horizontalListSortingStrategy}
           >
-            {cols.map((col) => (
+            {filteredCols.map((col) => (
               <SortableColumn
                 key={col.id}
                 column={col}
@@ -579,6 +709,7 @@ export function BoardView({
           ) : null}
         </DragOverlay>
       </DndContext>
+      </>
       )}
 
       <TaskModal
@@ -605,6 +736,7 @@ export function BoardView({
               (perms.taskDeleteOwn && selectedTask.createdById === currentUserId)
             : false
         }
+        onRequestDelete={requestDeleteTask}
         onClose={closeTask}
       />
       <MembersModal
@@ -894,7 +1026,7 @@ function SortableTask({
       {...listeners}
       onClick={() => onOpen(task.id)}
       className={cn(
-        "block w-full cursor-grab select-none overflow-hidden rounded-xl border text-left shadow-sm transition-colors active:cursor-grabbing",
+        "block w-full cursor-grab select-none overflow-hidden rounded-xl border text-left shadow-sm transition active:cursor-grabbing hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30",
         isTaskOverdue(task)
           ? "border-red-500/50 bg-red-500/[0.07] shadow-red-500/20 ring-1 ring-red-500/40 hover:border-red-500/70"
           : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.07]",

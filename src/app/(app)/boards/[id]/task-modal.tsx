@@ -23,11 +23,15 @@ import {
   Plus,
   Pencil,
   Tag,
+  Paperclip,
+  FileText,
+  Upload,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/cn";
 import { PRIORITIES, PRIORITY_META, normalizePriority } from "@/lib/priority";
 import {
@@ -37,7 +41,6 @@ import {
 } from "@/lib/recurrence";
 import {
   updateTask,
-  deleteTask,
   toggleAssignee,
   toggleAssigneeConfirm,
   completeRecurring,
@@ -51,8 +54,11 @@ import {
   editLabel,
   deleteLabel,
   toggleTaskLabel,
+  addTaskAttachment,
+  deleteTaskAttachment,
 } from "../actions";
 import { useConfirm } from "@/components/ui/dialog-provider";
+import { MediaLightbox } from "@/components/ui/media-lightbox";
 import { CommentsSection } from "./comments-section";
 import type {
   BoardTask,
@@ -99,6 +105,7 @@ export function TaskModal({
   canDelete,
   canViewComments = true,
   highlightCommentId = null,
+  onRequestDelete,
   onClose,
 }: {
   task: BoardTask | null;
@@ -114,6 +121,7 @@ export function TaskModal({
   canDelete: boolean;
   canViewComments?: boolean;
   highlightCommentId?: string | null;
+  onRequestDelete: (task: BoardTask) => void;
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -124,16 +132,15 @@ export function TaskModal({
     {},
   );
   const [assignPending, startAssign] = useTransition();
-  const [delPending, startDel] = useTransition();
   const [completePending, startComplete] = useTransition();
   const [confirmPending, startConfirm] = useTransition();
-  const confirm = useConfirm();
   const openedAt = useRef(0);
 
   // Detail data (subtasks, history, time entries) loaded lazily
   const [subtasks, setSubtasks] = useState<SubtaskItem[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeItem[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [detailLoaded, setDetailLoaded] = useState(false);
 
   useEffect(() => {
@@ -146,6 +153,7 @@ export function TaskModal({
         setSubtasks(d.subtasks ?? []);
         setHistory(d.history ?? []);
         setTimeEntries(d.timeEntries ?? []);
+        setAttachments(d.attachments ?? []);
         setDetailLoaded(true);
       })
       .catch(() => setDetailLoaded(true));
@@ -222,6 +230,7 @@ export function TaskModal({
               </span>
               <button
                 onClick={onClose}
+                aria-label="Закрыть"
                 className="rounded-md p-1.5 text-neutral-400 transition hover:bg-neutral-800 hover:text-neutral-200"
               >
                 <X className="h-5 w-5" />
@@ -240,17 +249,33 @@ export function TaskModal({
                 />
 
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-                  {/* Main column: description */}
-                  <div className="min-w-0 space-y-2">
-                    <SectionTitle icon={UserCircle2}>Описание</SectionTitle>
-                    <textarea
-                      name="description"
-                      defaultValue={task.description ?? ""}
-                      disabled={!canEdit}
-                      rows={8}
-                      className="w-full resize-y rounded-xl border border-neutral-800 bg-neutral-950/40 px-3.5 py-3 text-base sm:text-sm leading-relaxed text-neutral-100 placeholder:text-neutral-600 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 disabled:opacity-60"
-                      placeholder="Опишите задачу, шаги, критерии готовности…"
-                    />
+                  {/* Main column: description + files */}
+                  <div className="min-w-0 space-y-5">
+                    <div className="space-y-2">
+                      <SectionTitle icon={UserCircle2}>Описание</SectionTitle>
+                      <textarea
+                        name="description"
+                        defaultValue={task.description ?? ""}
+                        disabled={!canEdit}
+                        rows={8}
+                        className="w-full resize-y rounded-xl border border-neutral-800 bg-neutral-950/40 px-3.5 py-3 text-base sm:text-sm leading-relaxed text-neutral-100 placeholder:text-neutral-600 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 disabled:opacity-60"
+                        placeholder="Опишите задачу, шаги, критерии готовности…"
+                      />
+                    </div>
+
+                    {perms.fileView && (
+                      <AttachmentsSection
+                        taskId={task.id}
+                        items={attachments}
+                        loaded={detailLoaded}
+                        canUpload={perms.fileUpload}
+                        onAdded={(a) => setAttachments((s) => [a, ...s])}
+                        onDelete={async (id) => {
+                          await deleteTaskAttachment(id);
+                          setAttachments((s) => s.filter((x) => x.id !== id));
+                        }}
+                      />
+                    )}
                   </div>
 
                   {/* Sidebar: properties */}
@@ -540,21 +565,7 @@ export function TaskModal({
                         type="button"
                         variant="danger"
                         size="sm"
-                        loading={delPending}
-                        onClick={async () => {
-                          const ok = await confirm({
-                            title: "Удалить задачу?",
-                            message: `«${task.title}» будет удалена.`,
-                            confirmLabel: "Удалить",
-                            danger: true,
-                          });
-                          if (ok) {
-                            startDel(async () => {
-                              await deleteTask(task.id);
-                              onClose();
-                            });
-                          }
-                        }}
+                        onClick={() => onRequestDelete(task)}
                       >
                         <Trash2 className="h-4 w-4" />
                         Удалить
@@ -662,7 +673,12 @@ function SubtasksSection({
         </div>
       )}
 
-      {!loaded && <p className="text-xs text-neutral-600">Загрузка…</p>}
+      {!loaded && (
+        <div className="space-y-1.5">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+      )}
 
       <div className="space-y-1">
         {subtasks.map((s) => (
@@ -741,6 +757,194 @@ function SubtasksSection({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Attachments section ───────────────────────────────────────────────────
+
+type AttachmentItem = {
+  id: string;
+  url: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  isMe: boolean;
+  createdAt: string;
+};
+
+function fmtFileSize(n: number) {
+  if (n < 1024) return `${n} Б`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} КБ`;
+  return `${(n / (1024 * 1024)).toFixed(1)} МБ`;
+}
+
+function AttachmentsSection({
+  taskId,
+  items,
+  loaded,
+  canUpload,
+  onAdded,
+  onDelete,
+}: {
+  taskId: string;
+  items: AttachmentItem[];
+  loaded: boolean;
+  canUpload: boolean;
+  onAdded: (a: AttachmentItem) => void;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+  const [lightbox, setLightbox] = useState<{
+    kind: "image" | "video";
+    src: string;
+    name?: string;
+  } | null>(null);
+  const [delPending, startDel] = useTransition();
+
+  async function handleFile(file: File) {
+    setErr("");
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setErr(j.error ?? "Не удалось загрузить файл");
+        return;
+      }
+      const u = await res.json();
+      const mime = u.type || file.type || "application/octet-stream";
+      const added = await addTaskAttachment(taskId, u.url, u.name, u.size, mime);
+      if (added) {
+        onAdded({
+          id: added.id,
+          url: u.url,
+          name: u.name,
+          size: u.size,
+          mimeType: mime,
+          isMe: true,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } catch {
+      setErr("Не удалось загрузить файл");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const kindOf = (m: string) =>
+    m.startsWith("image/") ? "image" : m.startsWith("video/") ? "video" : "file";
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <SectionTitle icon={Paperclip}>Файлы</SectionTitle>
+        {canUpload && (
+          <>
+            <input
+              ref={fileRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFile(f);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs text-neutral-200 transition hover:bg-neutral-700 disabled:opacity-50"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {uploading ? "Загрузка…" : "Прикрепить"}
+            </button>
+          </>
+        )}
+      </div>
+
+      {!loaded && <Skeleton className="h-16 w-full" />}
+      {loaded && items.length === 0 && (
+        <p className="text-xs text-neutral-600">Файлов пока нет.</p>
+      )}
+
+      {items.length > 0 && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {items.map((a) => {
+            const kind = kindOf(a.mimeType);
+            return (
+              <div
+                key={a.id}
+                className="group relative overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900/40"
+              >
+                {kind === "image" ? (
+                  <button
+                    type="button"
+                    onClick={() => setLightbox({ kind: "image", src: a.url, name: a.name })}
+                    className="block aspect-video w-full"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={a.url}
+                      alt={a.name}
+                      className="h-full w-full object-cover transition group-hover:brightness-90"
+                    />
+                  </button>
+                ) : kind === "video" ? (
+                  <button
+                    type="button"
+                    onClick={() => setLightbox({ kind: "video", src: a.url, name: a.name })}
+                    className="relative block aspect-video w-full bg-black/40"
+                  >
+                    <video src={a.url} className="h-full w-full object-cover" muted preload="metadata" />
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 backdrop-blur">
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 translate-x-0.5 text-white">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </span>
+                    </span>
+                  </button>
+                ) : (
+                  <a
+                    href={a.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    download={a.name}
+                    className="flex aspect-video w-full flex-col items-center justify-center gap-1 p-2 text-center"
+                  >
+                    <FileText className="h-6 w-6 text-sky-400/70" />
+                    <span className="line-clamp-2 break-all text-[11px] text-neutral-300">{a.name}</span>
+                  </a>
+                )}
+                <div className="flex items-center justify-between gap-1 px-2 py-1">
+                  <span className="truncate text-[10px] text-neutral-500">{fmtFileSize(a.size)}</span>
+                  {a.isMe && (
+                    <button
+                      type="button"
+                      disabled={delPending}
+                      onClick={() => startDel(() => onDelete(a.id))}
+                      aria-label="Удалить файл"
+                      className="rounded p-0.5 text-neutral-600 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {err && <p className="text-xs text-red-400">{err}</p>}
+      <MediaLightbox item={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
 }
@@ -1067,7 +1271,12 @@ function TimeTrackingSection({
         </div>
       </div>
 
-      {!loaded && <p className="text-xs text-neutral-600">Загрузка…</p>}
+      {!loaded && (
+        <div className="space-y-1.5">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+      )}
 
       {showForm && (
         <div className="mb-2 space-y-1.5">

@@ -2,12 +2,12 @@
 
 import {
   CalendarClock,
-  UserCircle2,
   MessageSquare,
   Share2,
   Lock,
   AlertTriangle,
   Repeat,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Avatar } from "@/components/ui/avatar";
@@ -116,6 +116,20 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
               <span />
             )}
             <div className="flex shrink-0 items-center gap-2.5">
+              {task.subtaskTotal > 0 && (
+                <span
+                  className={cn(
+                    "flex items-center gap-1 text-xs",
+                    task.subtaskDone === task.subtaskTotal
+                      ? "text-emerald-400"
+                      : "text-neutral-400",
+                  )}
+                  title="Подзадачи"
+                >
+                  <ListChecks className="h-3.5 w-3.5" />
+                  {task.subtaskDone}/{task.subtaskTotal}
+                </span>
+              )}
               {task.links.length > 0 && (
                 <span className="flex items-center gap-1 text-xs text-neutral-400">
                   <Share2 className="h-3.5 w-3.5" />
@@ -143,11 +157,6 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
             </div>
           </div>
         )}
-        <div className="mt-2.5 flex min-w-0 items-center gap-1 border-t border-neutral-700/50 pt-2 text-[11px] text-neutral-500">
-          <UserCircle2 className="h-3.5 w-3.5 shrink-0" />
-          <span className="shrink-0">Создал:</span>
-          <span className="truncate text-neutral-400">{task.createdByName}</span>
-        </div>
       </div>
     </>
   );

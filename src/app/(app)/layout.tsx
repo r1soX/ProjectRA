@@ -1,8 +1,10 @@
 import { requireUser } from "@/lib/auth";
 import { getUnreadTotal } from "@/lib/chat";
+import { prisma } from "@/lib/prisma";
 import { hasPerm, PERMS } from "@/lib/permissions";
 import { AppShell, type NavCaps } from "@/components/app-shell";
 import { DialogProvider } from "@/components/ui/dialog-provider";
+import { ToastProvider } from "@/components/ui/toast-provider";
 import { PresenceProvider } from "@/components/presence-provider";
 
 export default async function AppLayout({
@@ -11,7 +13,10 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  const unreadTotal = await getUnreadTotal(user.id);
+  const [unreadTotal, notifUnread] = await Promise.all([
+    getUnreadTotal(user.id),
+    prisma.notification.count({ where: { userId: user.id, isRead: false } }),
+  ]);
 
   // Capabilities that decide which nav sections are shown — no dead links.
   const isAdmin = user.role === "ADMIN";
@@ -41,11 +46,18 @@ export default async function AppLayout({
 
   return (
     <DialogProvider>
-      <PresenceProvider>
-        <AppShell user={user} unreadTotal={unreadTotal} caps={caps}>
-          {children}
-        </AppShell>
-      </PresenceProvider>
+      <ToastProvider>
+        <PresenceProvider>
+          <AppShell
+            user={user}
+            unreadTotal={unreadTotal}
+            notifUnread={notifUnread}
+            caps={caps}
+          >
+            {children}
+          </AppShell>
+        </PresenceProvider>
+      </ToastProvider>
     </DialogProvider>
   );
 }

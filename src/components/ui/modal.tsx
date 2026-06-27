@@ -51,6 +51,7 @@ export function Modal({
               <h2 className="text-lg font-semibold text-neutral-100">{title}</h2>
               <button
                 onClick={onClose}
+                aria-label="Закрыть"
                 className="rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-neutral-200"
               >
                 <X className="h-5 w-5" />

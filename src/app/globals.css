@@ -21,6 +21,14 @@ html {
   color-scheme: dark;
 }
 
+/* A11y: a visible keyboard focus ring on every interactive element. Mouse
+   clicks don't trigger :focus-visible, so it never shows on plain clicks. */
+:where(a, button, [role="button"], input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.75);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, MotionConfig } from "motion/react";
 import {
   LayoutDashboard,
   LayoutGrid,
@@ -18,6 +18,7 @@ import {
   Shield,
   BarChart2,
   LayoutTemplate,
+  Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { logout } from "@/app/actions/session";
@@ -25,6 +26,11 @@ import type { SessionUser } from "@/lib/auth";
 import { shortName, initials } from "@/lib/names";
 import { Avatar } from "@/components/ui/avatar";
 import { NotificationCenter } from "@/components/notification-center";
+import { CommandPalette } from "@/components/command-palette";
+
+function openCommand() {
+  window.dispatchEvent(new Event("projectra:command"));
+}
 
 export type NavCaps = {
   boards: boolean;
@@ -45,6 +51,7 @@ type NavItem = {
 
 const baseNav: NavItem[] = [
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
+  { href: "/inbox", label: "Входящие", icon: Inbox },
   { href: "/boards", label: "Доски", icon: LayoutGrid, cap: "boards" },
   { href: "/search", label: "Поиск", icon: Search, cap: "boards" },
   { href: "/messages", label: "Сообщения", icon: MessageCircle, cap: "messages" },
@@ -63,18 +70,21 @@ function NavLinks({
   items,
   pathname,
   unreadTotal,
+  notifUnread,
   onNavigate,
 }: {
   items: NavItem[];
   pathname: string;
   unreadTotal: number;
+  notifUnread: number;
   onNavigate?: () => void;
 }) {
   return (
     <nav className="space-y-1">
       {items.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
-        const badge = href === "/messages" && unreadTotal > 0 ? unreadTotal : 0;
+        const badge =
+          href === "/messages" ? unreadTotal : href === "/inbox" ? notifUnread : 0;
         return (
           <Link
             key={href}
@@ -140,11 +150,13 @@ function UserCard({ user }: { user: SessionUser }) {
 export function AppShell({
   user,
   unreadTotal,
+  notifUnread,
   caps,
   children,
 }: {
   user: SessionUser;
   unreadTotal: number;
+  notifUnread: number;
   caps: NavCaps;
   children: React.ReactNode;
 }) {
@@ -156,6 +168,7 @@ export function AppShell({
   );
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="relative flex h-dvh overflow-hidden">
       <div className="app-ambient" />
 
@@ -169,8 +182,25 @@ export function AppShell({
             Projectra
           </span>
         </div>
+        <div className="px-3 pt-1">
+          <button
+            onClick={openCommand}
+            className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-500 transition hover:bg-white/5 hover:text-neutral-300"
+          >
+            <Search className="h-4 w-4" />
+            <span>Поиск…</span>
+            <kbd className="ml-auto rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px]">
+              ⌘K
+            </kbd>
+          </button>
+        </div>
         <div className="flex-1 overflow-y-auto px-3 py-2">
-          <NavLinks items={items} pathname={pathname} unreadTotal={unreadTotal} />
+          <NavLinks
+            items={items}
+            pathname={pathname}
+            unreadTotal={unreadTotal}
+            notifUnread={notifUnread}
+          />
         </div>
         <div className="flex items-center justify-end border-t border-white/10 px-3 py-2">
           <NotificationCenter variant="desktop" />
@@ -217,6 +247,7 @@ export function AppShell({
                   items={items}
                   pathname={pathname}
                   unreadTotal={unreadTotal}
+                  notifUnread={notifUnread}
                   onNavigate={() => setMobileOpen(false)}
                 />
               </div>
@@ -246,12 +277,22 @@ export function AppShell({
               Projectra
             </span>
           </span>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              onClick={openCommand}
+              aria-label="Поиск"
+              className="rounded-lg p-2 text-neutral-300 transition hover:bg-white/5"
+            >
+              <Search className="h-5 w-5" />
+            </button>
             <NotificationCenter variant="mobile" />
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>
+
+      <CommandPalette caps={caps} />
     </div>
+    </MotionConfig>
   );
 }

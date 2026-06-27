@@ -58,6 +58,18 @@ export async function GET(
           },
         },
       },
+      attachments: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          url: true,
+          name: true,
+          size: true,
+          mimeType: true,
+          userId: true,
+          createdAt: true,
+        },
+      },
     },
   });
 
@@ -86,6 +98,8 @@ export async function GET(
     canViewAllTime ? true : canViewOwnTime ? e.user.id === user.id : false,
   );
 
+  const canViewFiles = await hasPerm(user.id, user.role, PERMS.FILE_VIEW);
+
   return NextResponse.json({
     subtasks: task.subtasks.map((s) => ({
       id: s.id,
@@ -108,5 +122,16 @@ export async function GET(
       userName: shortName(e.user),
       isMe: e.user.id === user.id,
     })),
+    attachments: canViewFiles
+      ? task.attachments.map((a) => ({
+          id: a.id,
+          url: a.url,
+          name: a.name,
+          size: a.size,
+          mimeType: a.mimeType,
+          isMe: a.userId === user.id,
+          createdAt: a.createdAt.toISOString(),
+        }))
+      : [],
   });
 }

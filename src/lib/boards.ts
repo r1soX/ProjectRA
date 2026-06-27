@@ -76,6 +76,9 @@ export async function getBoardWithData(
                 orderBy: { createdAt: "asc" },
                 include: { user: userPick },
               },
+              subtasks: {
+                select: { column: { select: { systemKey: true } } },
+              },
             },
           },
         },

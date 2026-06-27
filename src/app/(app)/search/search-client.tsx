@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search as SearchIcon, LayoutGrid } from "lucide-react";
+import { Search as SearchIcon, SearchX, LayoutGrid } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
 import type { TaskHit, BoardHit } from "@/lib/search";
@@ -89,7 +90,7 @@ export function SearchClient({
               return (
                 <Link
                   key={t.id}
-                  href={`/boards/${t.boardId}`}
+                  href={`/boards/${t.boardId}?task=${t.id}`}
                   className="flex items-center gap-3 rounded-lg glass glass-hover p-3 transition hover:border-neutral-700 hover:bg-neutral-900/70"
                 >
                   <span className={cn("h-2 w-2 shrink-0 rounded-full", pr.dot)} />
@@ -113,9 +114,19 @@ export function SearchClient({
       )}
 
       {nothing && (
-        <p className="py-10 text-center text-sm text-neutral-500">
-          Ничего не найдено по запросу «{query}».
-        </p>
+        <EmptyState
+          icon={SearchX}
+          title="Ничего не найдено"
+          description={`По запросу «${query}» ничего нет. Попробуйте другие слова или проверьте опечатки.`}
+        />
+      )}
+
+      {query.trim().length === 0 && (
+        <EmptyState
+          icon={SearchIcon}
+          title="Найдите что угодно"
+          description="Ищите задачи и доски по названию — результаты появятся здесь."
+        />
       )}
     </div>
   );

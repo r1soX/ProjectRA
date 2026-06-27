@@ -4,29 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  Bell,
-  MessageCircle,
-  Hash,
-  AtSign,
-  CalendarClock,
-  UserPlus,
-  CheckCheck,
-  X,
-  Check,
-  Trash2,
-} from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Bell, MessageCircle, Hash, X, Check, Trash2 } from "lucide-react";
+import { notifMeta, formatRelative, type NotifType } from "@/lib/notif-format";
 
 // ── Types ─────────────────────────────────────────────────────────────────
-
-type NotifType =
-  | "message"
-  | "mention_comment"
-  | "mention_message"
-  | "deadline"
-  | "task_assigned"
-  | "task_completed"
-  | "task_moved";
 
 interface RawEvent {
   type: "message" | "notification";
@@ -85,80 +67,6 @@ function playPing() {
     });
     setTimeout(() => ctx.close(), 700);
   } catch { /* audio blocked */ }
-}
-
-function notifMeta(type: NotifType, payload: Record<string, unknown>): {
-  icon: React.ElementType;
-  color: string;
-  title: string;
-  body: string;
-} {
-  const from = String(payload.fromName ?? "");
-  const task = String(payload.taskTitle ?? "");
-  const board = String(payload.boardTitle ?? "");
-  const days = Number(payload.daysLeft ?? 0);
-
-  switch (type) {
-    case "mention_comment":
-      return {
-        icon: AtSign,
-        color: "text-sky-400",
-        title: "Упоминание в комментарии",
-        body: `${from} упомянул вас в задаче «${task}»`,
-      };
-    case "mention_message":
-      return {
-        icon: AtSign,
-        color: "text-sky-400",
-        title: "Упоминание в сообщении",
-        body: `${from} упомянул вас в чате`,
-      };
-    case "task_assigned":
-      return {
-        icon: UserPlus,
-        color: "text-emerald-400",
-        title: "Вас назначили исполнителем",
-        body: `${from} назначил вас на «${task}»`,
-      };
-    case "task_completed":
-      return {
-        icon: CheckCheck,
-        color: "text-emerald-400",
-        title: "Задача завершена",
-        body: `«${task}» завершена`,
-      };
-    case "deadline":
-      return {
-        icon: CalendarClock,
-        color: "text-amber-400",
-        title: days <= 0 ? "Просрочено!" : `Дедлайн ${days === 1 ? "завтра" : `через ${days} дн.`}`,
-        body: `«${task}»${board ? ` · ${board}` : ""}`,
-      };
-    case "message":
-      return {
-        icon: MessageCircle,
-        color: "text-indigo-400",
-        title: "Новое сообщение",
-        body: String(payload.preview ?? ""),
-      };
-    default:
-      return {
-        icon: Bell,
-        color: "text-neutral-400",
-        title: "Уведомление",
-        body: task,
-      };
-  }
-}
-
-function formatRelative(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "только что";
-  if (mins < 60) return `${mins} мин назад`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} ч назад`;
-  return new Date(iso).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
 }
 
 // ── Main component ────────────────────────────────────────────────────────
@@ -352,6 +260,7 @@ export function NotificationCenter({
           onClick={handleBellClick}
           className="relative flex h-9 w-9 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-white/5 hover:text-neutral-200"
           title="Уведомления"
+          aria-label={unread > 0 ? `Уведомления, непрочитанных: ${unread}` : "Уведомления"}
         >
           <Bell className="h-5 w-5" />
           {unread > 0 && (
@@ -403,6 +312,7 @@ export function NotificationCenter({
                   )}
                   <button
                     onClick={() => setPanelOpen(false)}
+                    aria-label="Закрыть"
                     className="rounded-lg p-1 text-neutral-500 transition hover:bg-white/5 hover:text-neutral-300"
                   >
                     <X className="h-4 w-4" />
@@ -413,7 +323,17 @@ export function NotificationCenter({
               {/* List */}
               <div className="flex-1 overflow-y-auto">
                 {loading ? (
-                  <p className="py-10 text-center text-sm text-neutral-500">Загрузка…</p>
+                  <div className="space-y-2 p-4">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="flex items-start gap-3">
+                        <Skeleton className="h-4 w-4 rounded-full" />
+                        <div className="flex-1 space-y-1.5">
+                          <Skeleton className="h-3.5 w-1/2" />
+                          <Skeleton className="h-3 w-3/4" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : notifs.length === 0 ? (
                   <p className="py-10 text-center text-sm text-neutral-500">Нет уведомлений</p>
                 ) : (
@@ -501,6 +421,7 @@ export function NotificationCenter({
                 </button>
                 <button
                   onClick={() => dismissToast(t.id)}
+                  aria-label="Закрыть уведомление"
                   className="rounded p-1 text-neutral-500 transition hover:bg-neutral-800 hover:text-neutral-300"
                 >
                   <X className="h-4 w-4" />

@@ -336,6 +336,35 @@ export async function createTask(columnId: string, title: string) {
   bump(boardId);
 }
 
+/** Create a task in a board's first non-system column (used by ⌘K quick-add). */
+export async function quickCreateTask(
+  boardId: string,
+  title: string,
+): Promise<{ taskId: string } | null> {
+  const user = await requireBoardEditor(boardId);
+  await requirePerm(user, PERMS.TASK_CREATE);
+  const trimmed = title.trim();
+  if (!trimmed) return null;
+  const col = await prisma.column.findFirst({
+    where: { boardId, systemKey: null },
+    orderBy: { order: "asc" },
+  });
+  if (!col) return null;
+  const count = await prisma.task.count({ where: { columnId: col.id } });
+  const task = await prisma.task.create({
+    data: {
+      boardId,
+      columnId: col.id,
+      title: trimmed,
+      order: count,
+      createdById: user.id,
+    },
+  });
+  await logHistory(task.id, user.id, "created", { after: task.title });
+  bump(boardId);
+  return { taskId: task.id };
+}
+
 export async function updateTask(taskId: string, formData: FormData) {
   const ctx = await requireTaskEditor(taskId);
   if (!ctx) return { error: "Задача не найдена" } as ActionState;
@@ -901,6 +930,48 @@ export async function editTimeEntry(
   bump(entry.task.boardId);
   return { ok: true };
 }
+
+// ── attachments ───────────────────────────────────────────────────
+
+export async function addTaskAttachment(
+  taskId: string,
+  url: string,
+  name: string,
+  size: number,
+  mimeType: string,
+): Promise<{ id: string } | null> {
+  const boardId = await boardIdOfTask(taskId);
+  if (!boardId) return null;
+  const user = await requireUser();
+  const role = await getBoardRole(boardId, user.id);
+  if (!role) throw new Error("Нет доступа");
+  if (!(await hasPerm(user.id, user.role, PERMS.FILE_UPLOAD))) {
+    throw new Error("Недостаточно прав");
+  }
+  const att = await prisma.taskAttachment.create({
+    data: { taskId, userId: user.id, url, name: name.slice(0, 200), size, mimeType },
+    select: { id: true },
+  });
+  await logHistory(taskId, user.id, "attachment_add", { after: name });
+  bump(boardId);
+  return { id: att.id };
+}
+
+export async function deleteTaskAttachment(attachmentId: string) {
+  const user = await requireUser();
+  const att = await prisma.taskAttachment.findUnique({
+    where: { id: attachmentId },
+    select: { userId: true, task: { select: { boardId: true } } },
+  });
+  if (!att) return;
+  if (att.userId !== user.id && user.role !== "ADMIN") {
+    throw new Error("Удалить вложение может только автор или администратор");
+  }
+  await prisma.taskAttachment.delete({ where: { id: attachmentId } });
+  bump(att.task.boardId);
+}
+
+// ── time tracking ─────────────────────────────────────────────────
 
 export async function deleteTimeEntry(entryId: string): Promise<ActionState> {
   const user = await requireUser();
