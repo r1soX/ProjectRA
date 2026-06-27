@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "./prisma";
 import { publishUser } from "./realtime";
+import { canAccessChannel } from "./chat";
 
 export type NotifType =
   | "mention_comment"
@@ -71,20 +72,42 @@ export async function notifyMentions(
     where: { username: { in: usernames }, id: { not: authorId } },
     select: { id: true },
   });
+  if (!users.length) return;
+
+  // Only notify people who can actually see this task — a personal task is
+  // private to its creator, and a personal board only to its owner/members.
+  const [board, task] = await Promise.all([
+    prisma.board.findUnique({
+      where: { id: boardId },
+      select: { isPersonal: true, ownerId: true, members: { select: { userId: true } } },
+    }),
+    prisma.task.findUnique({
+      where: { id: taskId },
+      select: { isPersonal: true, createdById: true },
+    }),
+  ]);
+  if (!board || !task) return;
+  const memberIds = new Set(board.members.map((m) => m.userId));
+  const canSee = (userId: string) =>
+    task.isPersonal
+      ? userId === task.createdById
+      : !board.isPersonal || userId === board.ownerId || memberIds.has(userId);
 
   const link = `/boards/${boardId}?task=${taskId}${
     commentId ? `&comment=${commentId}` : ""
   }`;
 
   await Promise.all(
-    users.map((u) =>
-      createNotification(
-        u.id,
-        "mention_comment",
-        { taskId, taskTitle, boardId, fromName: authorName },
-        link,
+    users
+      .filter((u) => canSee(u.id))
+      .map((u) =>
+        createNotification(
+          u.id,
+          "mention_comment",
+          { taskId, taskTitle, boardId, fromName: authorName },
+          link,
+        ),
       ),
-    ),
   );
 }
 
@@ -103,16 +126,28 @@ export async function notifyMentionsInMessage(
     where: { username: { in: usernames }, id: { not: authorId } },
     select: { id: true },
   });
+  if (!users.length) return;
+
+  // Only notify people who are part of this channel (a DM has just its two
+  // participants; a board channel only the board's members).
+  const access = await Promise.all(
+    users.map(async (u) => ({
+      id: u.id,
+      ok: await canAccessChannel(channelId, u.id),
+    })),
+  );
 
   await Promise.all(
-    users.map((u) =>
-      createNotification(
-        u.id,
-        "mention_message",
-        { channelId, fromName: authorName, taskTitle: channelTitle },
-        `/messages?c=${channelId}`,
+    access
+      .filter((a) => a.ok)
+      .map((a) =>
+        createNotification(
+          a.id,
+          "mention_message",
+          { channelId, fromName: authorName, taskTitle: channelTitle },
+          `/messages?c=${channelId}`,
+        ),
       ),
-    ),
   );
 }
 

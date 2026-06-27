@@ -14,6 +14,7 @@ import {
   CheckCheck,
   X,
   Check,
+  Trash2,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -220,6 +221,12 @@ export function NotificationCenter({
     );
   }
 
+  // Delete all notifications for the current user.
+  async function clearAll() {
+    setNotifs([]);
+    await fetch("/api/notifications/clear", { method: "POST" });
+  }
+
   // SSE — real-time events (only the active-breakpoint instance subscribes)
   useEffect(() => {
     if (!active) return;
@@ -383,6 +390,15 @@ export function NotificationCenter({
                     >
                       <Check className="h-3 w-3" />
                       Прочитать все
+                    </button>
+                  )}
+                  {notifs.length > 0 && (
+                    <button
+                      onClick={clearAll}
+                      className="rounded-lg p-1 text-neutral-500 transition hover:bg-white/5 hover:text-red-400"
+                      title="Удалить все уведомления"
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   )}
                   <button
