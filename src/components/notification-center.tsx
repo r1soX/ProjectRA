@@ -286,9 +286,23 @@ export function NotificationCenter() {
   function handleBellClick() {
     if (!panelOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const right = Math.max(8, window.innerWidth - rect.right);
-      const top = rect.bottom + 8;
-      setPanelStyle({ top, right, maxHeight: "70dvh" });
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const panelWidth = vw >= 640 ? 384 : 320; // sm:w-96 / w-80
+      const maxH = Math.floor(vh * 0.7);
+
+      // Horizontal: align panel's right edge to button's right, clamp to viewport
+      const preferredLeft = rect.right - panelWidth;
+      const left = Math.max(8, Math.min(preferredLeft, vw - panelWidth - 8));
+
+      // Vertical: open downward if ≥200px below button, otherwise open upward
+      const style: React.CSSProperties = { left, maxHeight: maxH };
+      if (vh - rect.bottom - 8 >= 200) {
+        style.top = rect.bottom + 8;
+      } else {
+        style.bottom = vh - rect.top + 8;
+      }
+      setPanelStyle(style);
     }
     setPanelOpen((v) => !v);
   }
