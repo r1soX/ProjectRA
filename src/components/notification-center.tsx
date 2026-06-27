@@ -168,6 +168,8 @@ export function NotificationCenter() {
   const [notifs, setNotifs] = useState<StoredNotif[]>([]);
   const [loading, setLoading] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
 
   const unread = notifs.filter((n) => !n.isRead).length;
 
@@ -265,7 +267,11 @@ export function NotificationCenter() {
   useEffect(() => {
     if (!panelOpen) return;
     function onDown(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      const t = e.target as Node;
+      if (
+        panelRef.current && !panelRef.current.contains(t) &&
+        buttonRef.current && !buttonRef.current.contains(t)
+      ) {
         setPanelOpen(false);
       }
     }
@@ -277,12 +283,23 @@ export function NotificationCenter() {
     setToasts((t) => t.filter((x) => x.id !== id));
   }
 
+  function handleBellClick() {
+    if (!panelOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const right = Math.max(8, window.innerWidth - rect.right);
+      const top = rect.bottom + 8;
+      setPanelStyle({ top, right, maxHeight: "70dvh" });
+    }
+    setPanelOpen((v) => !v);
+  }
+
   return (
     <>
       {/* ── Bell button ── */}
-      <div ref={panelRef} className="relative">
+      <div className="relative">
         <button
-          onClick={() => setPanelOpen((v) => !v)}
+          ref={buttonRef}
+          onClick={handleBellClick}
           className="relative flex h-9 w-9 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-white/5 hover:text-neutral-200"
           title="Уведомления"
         >
@@ -294,16 +311,17 @@ export function NotificationCenter() {
           )}
         </button>
 
-        {/* ── Notification panel ── */}
+        {/* ── Notification panel (fixed to viewport) ── */}
         <AnimatePresence>
           {panelOpen && (
             <motion.div
+              ref={panelRef}
               initial={{ opacity: 0, scale: 0.96, y: -6 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: -6 }}
               transition={{ type: "spring", stiffness: 380, damping: 32 }}
-              className="glass-strong absolute right-0 top-12 z-50 flex w-80 flex-col rounded-2xl shadow-2xl sm:w-96"
-              style={{ maxHeight: "70dvh" }}
+              className="glass-strong fixed z-[200] flex w-80 flex-col rounded-2xl shadow-2xl sm:w-96"
+              style={panelStyle}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">

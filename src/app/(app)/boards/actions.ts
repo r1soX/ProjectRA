@@ -334,7 +334,8 @@ export async function deleteTask(taskId: string) {
 export async function completeRecurring(taskId: string) {
   const boardId = await boardIdOfTask(taskId);
   if (!boardId) return;
-  await requireBoardEditor(boardId);
+  const user = await requireBoardEditor(boardId);
+  await requirePerm(user, PERMS.TASK_COMPLETE);
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -493,7 +494,8 @@ export async function moveTask(
 
 /** Persist a new column order for the board. */
 export async function reorderColumns(boardId: string, orderedIds: string[]) {
-  await requireBoardEditor(boardId);
+  const user = await requireBoardEditor(boardId);
+  await requirePerm(user, PERMS.COLUMN_EDIT);
   await prisma.$transaction(
     orderedIds.map((id, i) =>
       prisma.column.update({ where: { id }, data: { order: i } }),
@@ -671,6 +673,9 @@ export async function toggleSubtaskDone(subtaskId: string) {
 
   const role = await getBoardRole(sub.boardId, user.id);
   if (!role) throw new Error("Нет доступа");
+  if (!(await hasPerm(user.id, user.role, PERMS.TASK_COMPLETE))) {
+    throw new Error("Недостаточно прав");
+  }
 
   const isDone = sub.column.systemKey === "COMPLETED";
 

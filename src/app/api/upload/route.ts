@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { saveUpload } from "@/lib/upload";
+import { hasPerm, PERMS } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 
@@ -9,6 +10,9 @@ const MB = 1024 * 1024;
 export async function POST(req: NextRequest) {
   const user = await getSession();
   if (!user) return new Response("Unauthorized", { status: 401 });
+  if (!(await hasPerm(user.id, user.role, PERMS.FILE_UPLOAD))) {
+    return new Response("Forbidden", { status: 403 });
+  }
 
   const form = await req.formData();
   const file = form.get("file");
