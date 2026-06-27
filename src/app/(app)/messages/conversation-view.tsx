@@ -31,6 +31,7 @@ import {
   type ChatState,
 } from "./actions";
 import type { ActiveChannel, ChatMessage, ChatUser } from "./messages-client";
+import { renderWithMentions } from "@/lib/render-mentions";
 
 const EMOJIS = "😀 😁 😂 🤣 😊 😍 😘 😎 🤔 😴 😢 😭 😡 👍 👎 👏 🙏 🔥 🎉 ✅ ❌ ❤️ 💯 🚀 👀 💪 🤝 😅 😉 🙌 ✨ ⭐ 💡 📌 ⚡ 🥳".split(" ");
 const MB = 1024 * 1024;
@@ -292,7 +293,7 @@ export function ConversationView({ active, users = [] }: { active: ActiveChannel
                       <Attachment m={m} onOpen={setLightbox} />
                       {m.body && (
                         <p className="whitespace-pre-wrap break-words text-sm">
-                          {m.body}
+                          {renderWithMentions(m.body)}
                         </p>
                       )}
                       <p

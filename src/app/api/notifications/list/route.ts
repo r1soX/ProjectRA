@@ -13,5 +13,16 @@ export async function GET() {
     take: 50,
   });
 
-  return Response.json(notifications);
+  return Response.json(
+    notifications.map((n) => ({
+      ...n,
+      payload: (() => {
+        try {
+          return typeof n.payload === "string" ? JSON.parse(n.payload) : n.payload;
+        } catch {
+          return {};
+        }
+      })(),
+    })),
+  );
 }

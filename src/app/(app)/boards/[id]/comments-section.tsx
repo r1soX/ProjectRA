@@ -12,6 +12,7 @@ import {
   editComment,
   type ActionState,
 } from "../actions";
+import { renderWithMentions } from "@/lib/render-mentions";
 import type { BoardTask, DirectoryUser } from "./board-view";
 
 function formatTime(iso: string) {
@@ -157,7 +158,7 @@ export function CommentsSection({
                   </div>
                 ) : (
                   <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-neutral-200">
-                    {c.body}
+                    {renderWithMentions(c.body)}
                   </p>
                 )}
               </div>

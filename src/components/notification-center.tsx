@@ -258,7 +258,11 @@ export function NotificationCenter() {
     return () => es.close();
   }, [router]);
 
-  // Load list when panel opens
+  // Load on mount (to populate badge count) and whenever panel opens
+  useEffect(() => {
+    loadNotifs();
+  }, []);
+
   useEffect(() => {
     if (panelOpen) loadNotifs();
   }, [panelOpen]);
@@ -390,6 +394,13 @@ export function NotificationCenter() {
                             {meta.title}
                           </p>
                           <p className="line-clamp-2 text-xs text-neutral-400">{meta.body}</p>
+                          {!!(n.payload.boardTitle || n.payload.channelId) && (
+                            <p className="mt-0.5 truncate text-[11px] text-neutral-600">
+                              {n.payload.boardTitle
+                                ? `Доска: ${n.payload.boardTitle as string}`
+                                : "В чате"}
+                            </p>
+                          )}
                           <p className="mt-0.5 text-[10px] text-neutral-600">
                             {formatRelative(n.createdAt)}
                           </p>
@@ -408,7 +419,7 @@ export function NotificationCenter() {
       </div>
 
       {/* ── Toasts ── */}
-      <div className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex flex-col items-center gap-2 px-4 sm:items-end sm:px-6">
+      <div className="pointer-events-none fixed inset-x-0 top-4 z-[300] flex flex-col items-center gap-2 px-4 sm:items-end sm:px-6">
         <AnimatePresence>
           {toasts.map((t) => {
             const meta = notifMeta(t.type, {});
