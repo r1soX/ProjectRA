@@ -1,7 +1,7 @@
-import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getConversationList, getChannelView, getUnread } from "@/lib/chat";
 import { hasPerm, PERMS } from "@/lib/permissions";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { fullName, shortName, initials } from "@/lib/names";
 import {
   MessagesClient,
@@ -16,7 +16,11 @@ export default async function MessagesPage({
   searchParams: Promise<{ c?: string }>;
 }) {
   const me = await requireUser();
-  if (!(await hasPerm(me.id, me.role, PERMS.MESSAGE_VIEW))) redirect("/dashboard");
+  if (!(await hasPerm(me.id, me.role, PERMS.MESSAGE_VIEW))) {
+    return (
+      <AccessDenied message="У вас нет прав на просмотр сообщений. Если это ошибка — обратитесь к администратору." />
+    );
+  }
   const { c } = await searchParams;
 
   const [{ users, boards }, unread] = await Promise.all([

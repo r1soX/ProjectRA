@@ -48,9 +48,9 @@ export async function updateTemplate(
   await requireTemplateAdmin();
   const tpl = await prisma.boardTemplate.findUnique({
     where: { id },
-    select: { id: true },
+    select: { isSystem: true },
   });
-  if (!tpl) return;
+  if (!tpl || tpl.isSystem) return; // built-in templates are read-only
   const trimmed = name.trim();
   if (!trimmed) return;
   const cols = cleanColumns(columns);
@@ -70,6 +70,11 @@ export async function updateTemplate(
 
 export async function deleteTemplate(id: string) {
   await requireTemplateAdmin();
+  const tpl = await prisma.boardTemplate.findUnique({
+    where: { id },
+    select: { isSystem: true },
+  });
+  if (!tpl || tpl.isSystem) return; // built-in templates can't be deleted
   await prisma.boardTemplate.delete({ where: { id } });
   revalidatePath("/admin/templates");
 }

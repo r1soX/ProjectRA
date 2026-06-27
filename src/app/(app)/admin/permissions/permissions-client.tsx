@@ -4,8 +4,58 @@ import { useEffect, useState, useTransition } from "react";
 import { cn } from "@/lib/cn";
 import { Avatar } from "@/components/ui/avatar";
 import { Shield, Users, ChevronDown, ChevronUp, Check, X } from "lucide-react";
-import { updateRolePerm, updateUserPerm, applyPermTemplate } from "./actions";
+import {
+  updateRolePerm,
+  updateUserPerm,
+  applyPermTemplate,
+  applyRoleTemplate,
+} from "./actions";
 import { PERM_TEMPLATES, type PermTemplateKey } from "@/lib/perm-templates";
+
+// ── Shared template bar ─────────────────────────────────────────────────────
+
+function TemplateBar({
+  onApply,
+  pending,
+  active,
+}: {
+  onApply: (key: PermTemplateKey) => void;
+  pending: boolean;
+  active: PermTemplateKey | null;
+}) {
+  const keys = Object.keys(PERM_TEMPLATES) as PermTemplateKey[];
+  return (
+    <div className="mb-4">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+        Применить шаблон прав
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {keys.map((key) => {
+          const tpl = PERM_TEMPLATES[key];
+          const isLoading = pending && active === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              disabled={pending}
+              onClick={() => onApply(key)}
+              className={cn(
+                "flex flex-col rounded-lg border px-3 py-2 text-left transition disabled:opacity-50 hover:brightness-125",
+                tpl.bg,
+                tpl.border,
+              )}
+            >
+              <span className={cn("text-xs font-semibold", tpl.color)}>
+                {isLoading ? "Применяю…" : tpl.label}
+              </span>
+              <span className="text-[11px] text-neutral-500">{tpl.description}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 type PermKey = string;
 type PermGroup = { group: string; items: { perm: PermKey; label: string }[] };
@@ -66,14 +116,30 @@ function RolePermPanel({
 }) {
   const [map, setMap] = useState<PermMap>(permMap);
   const [pending, start] = useTransition();
+  const [tplPending, startTpl] = useTransition();
+  const [activeTpl, setActiveTpl] = useState<PermTemplateKey | null>(null);
   const [openGroups, setOpenGroups] = useState<Set<string>>(
     new Set(groups.map((g) => g.group)),
   );
+
+  // Keep in sync after the server revalidates (e.g. template applied).
+  useEffect(() => {
+    setMap(permMap);
+  }, [permMap]);
 
   function toggle(perm: PermKey) {
     const newVal = !map[perm];
     setMap((m) => ({ ...m, [perm]: newVal }));
     start(() => updateRolePerm(role, perm, newVal));
+  }
+
+  function handleTemplate(key: PermTemplateKey) {
+    setActiveTpl(key);
+    startTpl(async () => {
+      const res = await applyRoleTemplate(role, key);
+      setMap(res.permMap);
+      setActiveTpl(null);
+    });
   }
 
   function toggleGroup(group: string) {
@@ -94,6 +160,7 @@ function RolePermPanel({
           роль
         </span>
       </div>
+      <TemplateBar onApply={handleTemplate} pending={tplPending} active={activeTpl} />
       <div className="space-y-3">
         {groups.map((g) => {
           const open = openGroups.has(g.group);
@@ -125,7 +192,7 @@ function RolePermPanel({
                       <PermToggle
                         value={!!map[perm]}
                         onToggle={() => toggle(perm)}
-                        disabled={pending}
+                        disabled={pending || tplPending}
                       />
                     </div>
                   ))}
@@ -174,8 +241,6 @@ function UserPermRow({
     });
   }
 
-  const templateKeys = Object.keys(PERM_TEMPLATES) as PermTemplateKey[];
-
   return (
     <div className="overflow-hidden rounded-xl border border-white/[0.07]">
       <button
@@ -214,39 +279,11 @@ function UserPermRow({
 
       {open && (
         <div className="border-t border-white/[0.07] px-4 py-4">
-          {/* Templates */}
-          <div className="mb-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-              Применить шаблон прав
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {templateKeys.map((key) => {
-                const tpl = PERM_TEMPLATES[key];
-                const isLoading = templatePending && activeTemplate === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    disabled={templatePending || pending}
-                    onClick={() => handleTemplate(key)}
-                    className={cn(
-                      "flex flex-col rounded-lg border px-3 py-2 text-left transition disabled:opacity-50",
-                      tpl.bg,
-                      tpl.border,
-                      "hover:brightness-125",
-                    )}
-                  >
-                    <span className={cn("text-xs font-semibold", tpl.color)}>
-                      {isLoading ? "Применяю…" : tpl.label}
-                    </span>
-                    <span className="text-[11px] text-neutral-500">
-                      {tpl.description}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <TemplateBar
+            onApply={handleTemplate}
+            pending={templatePending}
+            active={activeTemplate}
+          />
 
           {/* Individual toggles */}
           <p className="mb-3 text-xs text-neutral-600">

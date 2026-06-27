@@ -58,6 +58,7 @@ import type {
   BoardTask,
   BoardMemberView,
   BoardLabel,
+  BoardPerms,
   DirectoryUser,
 } from "./board-view";
 
@@ -90,11 +91,13 @@ export function TaskModal({
   directory = [],
   boardId,
   boardLabels = [],
+  perms,
   canEdit,
   boardCanEdit,
   currentUserId,
   canModerate,
   canDelete,
+  canViewComments = true,
   highlightCommentId = null,
   onClose,
 }: {
@@ -103,11 +106,13 @@ export function TaskModal({
   directory?: DirectoryUser[];
   boardId: string;
   boardLabels?: BoardLabel[];
+  perms: BoardPerms;
   canEdit: boolean;
   boardCanEdit: boolean;
   currentUserId: string;
   canModerate: boolean;
   canDelete: boolean;
+  canViewComments?: boolean;
   highlightCommentId?: string | null;
   onClose: () => void;
 }) {
@@ -303,7 +308,7 @@ export function TaskModal({
                               <button
                                 key={m.userId}
                                 type="button"
-                                disabled={!canEdit || assignPending}
+                                disabled={!canEdit || !perms.taskAssign || assignPending}
                                 onClick={() =>
                                   startAssign(() =>
                                     toggleAssignee(task.id, m.userId),
@@ -416,6 +421,9 @@ export function TaskModal({
                       taskId={task.id}
                       entries={timeEntries}
                       loaded={detailLoaded}
+                      canLog={perms.timeLog}
+                      canEditOwn={perms.timeEditOwn}
+                      canDeleteOwn={perms.timeDeleteOwn}
                       onLogged={(entry) => setTimeEntries((es) => [entry, ...es])}
                       onEdit={async (id, minutes, note) => {
                         await editTimeEntry(id, minutes, note);
@@ -439,7 +447,7 @@ export function TaskModal({
                       assignedIds={task.labels.map((l) => l.id)}
                       labels={boardLabels}
                       canAssign={canEdit}
-                      canManage={boardCanEdit}
+                      canManage={boardCanEdit && perms.labelManage}
                     />
 
                     <div>
@@ -478,7 +486,7 @@ export function TaskModal({
                       />
                     </div>
 
-                    {task.recurFreq && boardCanEdit && (
+                    {task.recurFreq && boardCanEdit && perms.taskComplete && (
                       <Button
                         type="button"
                         variant="secondary"
@@ -575,6 +583,8 @@ export function TaskModal({
                   comments={task.comments}
                   currentUserId={currentUserId}
                   canModerate={canModerate}
+                  canView={canViewComments}
+                  canCreate={perms.commentCreate}
                   mentionUsers={directory}
                   highlightCommentId={highlightCommentId}
                 />
@@ -942,6 +952,9 @@ function TimeTrackingSection({
   taskId,
   entries,
   loaded,
+  canLog,
+  canEditOwn,
+  canDeleteOwn,
   onLogged,
   onEdit,
   onDelete,
@@ -949,6 +962,9 @@ function TimeTrackingSection({
   taskId: string;
   entries: TimeItem[];
   loaded: boolean;
+  canLog: boolean;
+  canEditOwn: boolean;
+  canDeleteOwn: boolean;
   onLogged: (entry: TimeItem) => void;
   onEdit: (id: string, minutes: number, note: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -1029,14 +1045,16 @@ function TimeTrackingSection({
           )}
         </p>
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setShowForm((v) => !v)}
-            className="rounded p-0.5 text-neutral-600 hover:text-neutral-300"
-            title="Записать время"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
+          {canLog && (
+            <button
+              type="button"
+              onClick={() => setShowForm((v) => !v)}
+              className="rounded p-0.5 text-neutral-600 hover:text-neutral-300"
+              title="Записать время"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          )}
           {entries.length > 0 && (
             <button
               type="button"
@@ -1127,22 +1145,26 @@ function TimeTrackingSection({
                 <span className="shrink-0 text-[10px] text-neutral-600">{e.userName}</span>
                 {e.isMe && (
                   <>
-                    <button
-                      type="button"
-                      disabled={editPending}
-                      onClick={() => beginEdit(e)}
-                      className="hidden rounded p-0.5 text-neutral-700 hover:text-sky-400 group-hover:block"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={delPending}
-                      onClick={() => startDel(() => onDelete(e.id))}
-                      className="hidden rounded p-0.5 text-neutral-700 hover:text-red-400 group-hover:block"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                    {canEditOwn && (
+                      <button
+                        type="button"
+                        disabled={editPending}
+                        onClick={() => beginEdit(e)}
+                        className="hidden rounded p-0.5 text-neutral-700 hover:text-sky-400 group-hover:block"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    )}
+                    {canDeleteOwn && (
+                      <button
+                        type="button"
+                        disabled={delPending}
+                        onClick={() => startDel(() => onDelete(e.id))}
+                        className="hidden rounded p-0.5 text-neutral-700 hover:text-red-400 group-hover:block"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
                   </>
                 )}
               </div>

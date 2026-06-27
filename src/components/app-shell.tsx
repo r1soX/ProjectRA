@@ -26,22 +26,37 @@ import { shortName, initials } from "@/lib/names";
 import { Avatar } from "@/components/ui/avatar";
 import { NotificationCenter } from "@/components/notification-center";
 
-type NavItem = { href: string; label: string; icon: React.ElementType };
+export type NavCaps = {
+  boards: boolean;
+  messages: boolean;
+  tasks: boolean;
+  adminUsers: boolean;
+  adminPerms: boolean;
+  adminTemplates: boolean;
+};
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  // Capability required to show this item; omitted = always visible.
+  cap?: keyof NavCaps;
+};
 
 const baseNav: NavItem[] = [
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
-  { href: "/boards", label: "Доски", icon: LayoutGrid },
-  { href: "/search", label: "Поиск", icon: Search },
-  { href: "/messages", label: "Сообщения", icon: MessageCircle },
-  { href: "/calendar", label: "Календарь", icon: CalendarDays },
-  { href: "/workload", label: "Нагрузка", icon: BarChart2 },
+  { href: "/boards", label: "Доски", icon: LayoutGrid, cap: "boards" },
+  { href: "/search", label: "Поиск", icon: Search, cap: "boards" },
+  { href: "/messages", label: "Сообщения", icon: MessageCircle, cap: "messages" },
+  { href: "/calendar", label: "Календарь", icon: CalendarDays, cap: "tasks" },
+  { href: "/workload", label: "Нагрузка", icon: BarChart2, cap: "tasks" },
   { href: "/profile", label: "Профиль", icon: UserIcon },
 ];
 
 const adminNav: NavItem[] = [
-  { href: "/admin/users", label: "Пользователи", icon: Users },
-  { href: "/admin/permissions", label: "Права доступа", icon: Shield },
-  { href: "/admin/templates", label: "Шаблоны", icon: LayoutTemplate },
+  { href: "/admin/users", label: "Пользователи", icon: Users, cap: "adminUsers" },
+  { href: "/admin/permissions", label: "Права доступа", icon: Shield, cap: "adminPerms" },
+  { href: "/admin/templates", label: "Шаблоны", icon: LayoutTemplate, cap: "adminTemplates" },
 ];
 
 function NavLinks({
@@ -125,16 +140,20 @@ function UserCard({ user }: { user: SessionUser }) {
 export function AppShell({
   user,
   unreadTotal,
+  caps,
   children,
 }: {
   user: SessionUser;
   unreadTotal: number;
+  caps: NavCaps;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const items = [...baseNav, ...(user.role === "ADMIN" ? adminNav : [])];
+  const items = [...baseNav, ...(user.role === "ADMIN" ? adminNav : [])].filter(
+    (i) => !i.cap || caps[i.cap],
+  );
 
   return (
     <div className="relative flex h-dvh overflow-hidden">

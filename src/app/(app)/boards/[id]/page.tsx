@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getBoardWithData, ensureCompletedColumn } from "@/lib/boards";
-import { hasPerm, PERMS } from "@/lib/permissions";
+import { hasPerm, getUserPermMap, PERMS } from "@/lib/permissions";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { shortName, initials, fullName } from "@/lib/names";
 import {
   BoardView,
@@ -54,7 +55,15 @@ export default async function BoardPage({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  if (!(await hasPerm(user.id, user.role, PERMS.BOARD_VIEW))) notFound();
+  if (!(await hasPerm(user.id, user.role, PERMS.BOARD_VIEW))) {
+    return (
+      <AccessDenied
+        message="У вас нет прав на просмотр досок."
+        backHref="/boards"
+        backLabel="К доскам"
+      />
+    );
+  }
   await ensureCompletedColumn(id);
   const result = await getBoardWithData(id, user.id, user.role === "ADMIN");
   if (!result) notFound();
@@ -64,6 +73,28 @@ export default async function BoardPage({
   const canViewComments = await hasPerm(user.id, user.role, PERMS.COMMENT_VIEW);
   const canExportTasks = await hasPerm(user.id, user.role, PERMS.EXPORT_TASKS);
   const canExportBoard = await hasPerm(user.id, user.role, PERMS.EXPORT_BOARD);
+
+  // Granular action permissions → hide controls the user can't use.
+  const pmap = await getUserPermMap(user.id, user.role);
+  const perms = {
+    columnCreate: pmap[PERMS.COLUMN_CREATE],
+    columnEdit: pmap[PERMS.COLUMN_EDIT],
+    columnDelete: pmap[PERMS.COLUMN_DELETE],
+    taskCreate: pmap[PERMS.TASK_CREATE],
+    taskMove: pmap[PERMS.TASK_MOVE],
+    taskEditAny: pmap[PERMS.TASK_EDIT_ANY],
+    taskEditOwn: pmap[PERMS.TASK_EDIT_OWN],
+    taskDeleteAny: pmap[PERMS.TASK_DELETE_ANY],
+    taskDeleteOwn: pmap[PERMS.TASK_DELETE_OWN],
+    taskAssign: pmap[PERMS.TASK_ASSIGN],
+    taskComplete: pmap[PERMS.TASK_COMPLETE],
+    commentCreate: pmap[PERMS.COMMENT_CREATE],
+    timeLog: pmap[PERMS.TIME_LOG],
+    timeEditOwn: pmap[PERMS.TIME_EDIT_OWN],
+    timeDeleteOwn: pmap[PERMS.TIME_DELETE_OWN],
+    labelManage:
+      pmap[PERMS.LABEL_CREATE] || pmap[PERMS.LABEL_EDIT] || pmap[PERMS.LABEL_DELETE],
+  };
 
   const { board, role } = result;
   const isOwner = role === "OWNER";
@@ -134,6 +165,7 @@ export default async function BoardPage({
       recurUntil: toDateInput(t.recurUntil),
       startDate: toDateInput(t.startDate),
       dueDate: toDateInput(t.dueDate),
+      done: c.systemKey === "COMPLETED",
       createdById: t.createdById,
       createdByName: shortName(t.createdBy),
       assigneeIds: t.assignees.map((a) => a.userId),
@@ -202,8 +234,11 @@ export default async function BoardPage({
       assignable={assignable}
       directory={directory}
       boardLabels={boardLabels}
+      canViewTasks={canViewTasks}
+      canViewComments={canViewComments}
       canExportTasks={canExportTasks}
       canExportBoard={canExportBoard}
+      perms={perms}
     />
   );
 }

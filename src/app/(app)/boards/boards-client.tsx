@@ -145,9 +145,11 @@ function CreateBoardModal({
 export function BoardsClient({
   boards,
   templates = [],
+  canCreate = true,
 }: {
   boards: BoardCard[];
   templates?: BoardTemplateOption[];
+  canCreate?: boolean;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -160,20 +162,28 @@ export function BoardsClient({
             {boards.length === 0 ? "Пока нет досок" : `Всего: ${boards.length}`}
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Новая доска</span>
-        </Button>
+        {canCreate && (
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Новая доска</span>
+          </Button>
+        )}
       </div>
 
       {boards.length === 0 ? (
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-neutral-800 bg-neutral-900/30 py-20 text-neutral-500 transition hover:border-sky-500/40 hover:text-neutral-300"
-        >
-          <Plus className="h-8 w-8" />
-          Создайте первую доску
-        </button>
+        canCreate ? (
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-neutral-800 bg-neutral-900/30 py-20 text-neutral-500 transition hover:border-sky-500/40 hover:text-neutral-300"
+          >
+            <Plus className="h-8 w-8" />
+            Создайте первую доску
+          </button>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-neutral-800 bg-neutral-900/30 py-20 text-center text-neutral-500">
+            Пока нет досок
+          </div>
+        )
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {boards.map((b, i) => (

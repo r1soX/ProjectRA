@@ -1,13 +1,29 @@
 import { requireUser } from "@/lib/auth";
-import { notFound } from "next/navigation";
+import {
+  getRolePermMap,
+  getUserPermMap,
+  hasPerm,
+  PERM_GROUPS,
+  PERMS,
+} from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { getRolePermMap, getUserPermMap, PERM_GROUPS } from "@/lib/permissions";
+import { AccessDenied } from "@/components/ui/access-denied";
+import { PageContainer } from "@/components/ui/page-container";
 import { shortName, initials } from "@/lib/names";
 import { PermissionsClient } from "./permissions-client";
 
 export default async function PermissionsPage() {
   const user = await requireUser();
-  if (user.role !== "ADMIN") notFound();
+  if (
+    user.role !== "ADMIN" ||
+    !(await hasPerm(user.id, user.role, PERMS.ADMIN_PERMISSIONS_MANAGE))
+  ) {
+    return (
+      <PageContainer>
+        <AccessDenied message="У вас нет прав на управление правами доступа." />
+      </PageContainer>
+    );
+  }
 
   const [userRoleMap, adminRoleMap] = await Promise.all([
     getRolePermMap("USER"),

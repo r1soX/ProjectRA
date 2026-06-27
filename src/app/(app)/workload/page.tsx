@@ -1,10 +1,15 @@
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { hasPerm, PERMS } from "@/lib/permissions";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { shortName, initials } from "@/lib/names";
 import { WorkloadClient } from "./workload-client";
 
 export default async function WorkloadPage() {
   const currentUser = await requireUser();
+  if (!(await hasPerm(currentUser.id, currentUser.role, PERMS.TASK_VIEW))) {
+    return <AccessDenied message="У вас нет прав на просмотр задач." />;
+  }
 
   // Fetch all active users
   const users = await prisma.user.findMany({

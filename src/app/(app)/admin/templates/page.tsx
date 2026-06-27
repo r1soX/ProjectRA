@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPerm, PERMS } from "@/lib/permissions";
+import { ensureSystemBoardTemplates } from "@/lib/board-templates";
 import { PageContainer } from "@/components/ui/page-container";
 import { TemplatesClient, type TemplateView } from "./templates-client";
 
@@ -11,6 +12,7 @@ export default async function AdminTemplatesPage() {
     redirect("/dashboard");
   }
 
+  await ensureSystemBoardTemplates();
   const templates = await prisma.boardTemplate.findMany({
     orderBy: { createdAt: "asc" },
     include: { columns: { orderBy: { order: "asc" }, select: { title: true } } },

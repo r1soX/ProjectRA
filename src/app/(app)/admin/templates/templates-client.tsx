@@ -148,31 +148,40 @@ export function TemplatesClient({ templates }: { templates: TemplateView[] }) {
               className="glass group flex flex-col rounded-2xl p-5"
             >
               <div className="flex items-start justify-between gap-2">
-                <h2 className="font-semibold text-neutral-100">{t.name}</h2>
-                <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
-                  <button
-                    onClick={() => openEdit(t)}
-                    title="Изменить"
-                    className="rounded-lg p-1.5 text-neutral-500 transition hover:bg-white/5 hover:text-sky-400"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={async () => {
-                      const ok = await confirm({
-                        title: "Удалить шаблон?",
-                        message: `«${t.name}» будет удалён.`,
-                        confirmLabel: "Удалить",
-                        danger: true,
-                      });
-                      if (ok) start(() => deleteTemplate(t.id));
-                    }}
-                    title="Удалить"
-                    className="rounded-lg p-1.5 text-neutral-500 transition hover:bg-white/5 hover:text-red-400"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+                <h2 className="flex items-center gap-2 font-semibold text-neutral-100">
+                  {t.name}
+                  {t.isSystem && (
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+                      встроенный
+                    </span>
+                  )}
+                </h2>
+                {!t.isSystem && (
+                  <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                    <button
+                      onClick={() => openEdit(t)}
+                      title="Изменить"
+                      className="rounded-lg p-1.5 text-neutral-500 transition hover:bg-white/5 hover:text-sky-400"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: "Удалить шаблон?",
+                          message: `«${t.name}» будет удалён.`,
+                          confirmLabel: "Удалить",
+                          danger: true,
+                        });
+                        if (ok) start(() => deleteTemplate(t.id));
+                      }}
+                      title="Удалить"
+                      className="rounded-lg p-1.5 text-neutral-500 transition hover:bg-white/5 hover:text-red-400"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
               {t.description && (
                 <p className="mt-1 text-sm text-neutral-500">{t.description}</p>

@@ -22,9 +22,13 @@ function isOverdue(s: string) {
   return d < today;
 }
 
-/** True when the task has a due date in the past. */
-export function isTaskOverdue(task: { dueDate: string | null }) {
-  return task.dueDate ? isOverdue(task.dueDate) : false;
+/**
+ * True when the task has a past due date AND isn't completed — a finished task
+ * in the "Завершённые задачи" column is never shown as overdue.
+ */
+export function isTaskOverdue(task: { dueDate: string | null; done?: boolean }) {
+  if (task.done || !task.dueDate) return false;
+  return isOverdue(task.dueDate);
 }
 
 export function formatDue(s: string) {
@@ -98,9 +102,7 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
               <span
                 className={cn(
                   "flex min-w-0 items-center gap-1 truncate text-xs",
-                  task.dueDate && isOverdue(task.dueDate)
-                    ? "text-red-400"
-                    : "text-neutral-400",
+                  isTaskOverdue(task) ? "text-red-400" : "text-neutral-400",
                 )}
               >
                 <CalendarClock className="h-3.5 w-3.5 shrink-0" />

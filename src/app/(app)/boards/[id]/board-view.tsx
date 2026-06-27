@@ -64,6 +64,7 @@ import {
   useConfirm,
   usePrompt,
 } from "@/components/ui/dialog-provider";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { TaskModal } from "./task-modal";
 import { MembersModal } from "./members-modal";
 import { BoardSettingsModal } from "./board-settings-modal";
@@ -100,6 +101,7 @@ export type BoardTask = {
   recurUntil: string | null;
   startDate: string | null;
   dueDate: string | null;
+  done: boolean;
   createdById: string;
   createdByName: string;
   assigneeIds: string[];
@@ -131,6 +133,24 @@ export type BoardColumn = {
   tasks: BoardTask[];
 };
 export type BoardLabel = { id: string; name: string; color: string };
+export type BoardPerms = {
+  columnCreate: boolean;
+  columnEdit: boolean;
+  columnDelete: boolean;
+  taskCreate: boolean;
+  taskMove: boolean;
+  taskEditAny: boolean;
+  taskEditOwn: boolean;
+  taskDeleteAny: boolean;
+  taskDeleteOwn: boolean;
+  taskAssign: boolean;
+  taskComplete: boolean;
+  commentCreate: boolean;
+  timeLog: boolean;
+  timeEditOwn: boolean;
+  timeDeleteOwn: boolean;
+  labelManage: boolean;
+};
 
 const DROP_PREFIX = "dropzone-";
 
@@ -147,8 +167,11 @@ export function BoardView({
   assignable,
   directory,
   boardLabels,
+  canViewTasks,
+  canViewComments,
   canExportTasks,
   canExportBoard,
+  perms,
 }: {
   boardId: string;
   title: string;
@@ -162,8 +185,11 @@ export function BoardView({
   assignable: BoardMemberView[];
   directory: DirectoryUser[];
   boardLabels: BoardLabel[];
+  canViewTasks: boolean;
+  canViewComments: boolean;
   canExportTasks: boolean;
   canExportBoard: boolean;
+  perms: BoardPerms;
 }) {
   const canEdit = role === "OWNER" || role === "EDITOR";
   const isOwner = role === "OWNER";
@@ -490,6 +516,13 @@ export function BoardView({
       </div>
 
       {/* Columns */}
+      {!canViewTasks ? (
+        <AccessDenied
+          title="Нет доступа к задачам"
+          message="У вас нет прав на просмотр задач этой доски."
+          backHref={null}
+        />
+      ) : (
       <DndContext
         id="board-dnd"
         sensors={sensors}
@@ -514,11 +547,12 @@ export function BoardView({
                 key={col.id}
                 column={col}
                 canEdit={canEdit}
+                perms={perms}
                 onOpenTask={setSelectedTaskId}
               />
             ))}
           </SortableContext>
-          {canEdit && <AddColumn boardId={boardId} />}
+          {canEdit && perms.columnCreate && <AddColumn boardId={boardId} />}
         </div>
 
         <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
@@ -545,6 +579,7 @@ export function BoardView({
           ) : null}
         </DragOverlay>
       </DndContext>
+      )}
 
       <TaskModal
         task={selectedTask}
@@ -552,9 +587,12 @@ export function BoardView({
         directory={directory}
         boardId={boardId}
         boardLabels={boardLabels}
+        canViewComments={canViewComments}
+        perms={perms}
         canEdit={
           selectedTask
-            ? isAdmin || selectedTask.createdById === currentUserId
+            ? perms.taskEditAny ||
+              (perms.taskEditOwn && selectedTask.createdById === currentUserId)
             : false
         }
         boardCanEdit={canEdit}
@@ -563,7 +601,8 @@ export function BoardView({
         canModerate={isOwner}
         canDelete={
           selectedTask
-            ? isAdmin || selectedTask.createdById === currentUserId
+            ? perms.taskDeleteAny ||
+              (perms.taskDeleteOwn && selectedTask.createdById === currentUserId)
             : false
         }
         onClose={closeTask}
@@ -666,17 +705,21 @@ function DanglingCard({ task }: { task: BoardTask }) {
 function SortableColumn({
   column,
   canEdit,
+  perms,
   onOpenTask,
 }: {
   column: BoardColumn;
   canEdit: boolean;
+  perms: BoardPerms;
   onOpenTask: (id: string) => void;
 }) {
   const isCompleted = column.systemKey === "COMPLETED";
+  // Reordering columns is a COLUMN_EDIT action; cards moving needs TASK_MOVE.
+  const canReorder = canEdit && perms.columnEdit;
   const sortable = useSortable({
     id: column.id,
     data: { type: "column" },
-    disabled: !canEdit || isCompleted,
+    disabled: !canReorder || isCompleted,
   });
   const droppable = useDroppable({
     id: DROP_PREFIX + column.id,
@@ -705,7 +748,7 @@ function SortableColumn({
     >
       <div className="flex items-center justify-between gap-2 px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-1.5">
-          {canEdit && !isCompleted && (
+          {canReorder && !isCompleted && (
             <button
               {...sortable.listeners}
               className="cursor-grab select-none rounded p-0.5 text-neutral-600 hover:text-neutral-400 active:cursor-grabbing"
@@ -729,7 +772,7 @@ function SortableColumn({
             {column.tasks.length}
           </span>
         </div>
-        {canEdit && !isCompleted && (
+        {canEdit && !isCompleted && (perms.columnEdit || perms.columnDelete) && (
           <div className="relative">
             <button
               onClick={() => setMenuOpen((v) => !v)}
@@ -747,36 +790,40 @@ function SortableColumn({
                     exit={{ opacity: 0, scale: 0.95 }}
                     className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-lg border border-neutral-700 bg-neutral-800 py-1 shadow-xl"
                   >
-                    <button
-                      onClick={async () => {
-                        setMenuOpen(false);
-                        const next = await promptText({
-                          title: "Переименовать колонку",
-                          label: "Название колонки",
-                          defaultValue: column.title,
-                          confirmLabel: "Сохранить",
-                        });
-                        if (next) start(() => renameColumn(column.id, next));
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-700"
-                    >
-                      <Pencil className="h-3.5 w-3.5" /> Переименовать
-                    </button>
-                    <button
-                      onClick={async () => {
-                        setMenuOpen(false);
-                        const ok = await confirm({
-                          title: "Удалить колонку?",
-                          message: "Колонка и все её задачи будут удалены.",
-                          confirmLabel: "Удалить",
-                          danger: true,
-                        });
-                        if (ok) start(() => deleteColumn(column.id));
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-red-300 hover:bg-neutral-700"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" /> Удалить
-                    </button>
+                    {perms.columnEdit && (
+                      <button
+                        onClick={async () => {
+                          setMenuOpen(false);
+                          const next = await promptText({
+                            title: "Переименовать колонку",
+                            label: "Название колонки",
+                            defaultValue: column.title,
+                            confirmLabel: "Сохранить",
+                          });
+                          if (next) start(() => renameColumn(column.id, next));
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-700"
+                      >
+                        <Pencil className="h-3.5 w-3.5" /> Переименовать
+                      </button>
+                    )}
+                    {perms.columnDelete && (
+                      <button
+                        onClick={async () => {
+                          setMenuOpen(false);
+                          const ok = await confirm({
+                            title: "Удалить колонку?",
+                            message: "Колонка и все её задачи будут удалены.",
+                            confirmLabel: "Удалить",
+                            danger: true,
+                          });
+                          if (ok) start(() => deleteColumn(column.id));
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-red-300 hover:bg-neutral-700"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Удалить
+                      </button>
+                    )}
                   </motion.div>
                 </>
               )}
@@ -797,7 +844,7 @@ function SortableColumn({
             <SortableTask
               key={task.id}
               task={task}
-              canDrag={canEdit}
+              canDrag={canEdit && perms.taskMove}
               onOpen={onOpenTask}
             />
           ))}
@@ -809,7 +856,9 @@ function SortableColumn({
         )}
       </div>
 
-      {canEdit && !isCompleted && <AddTask columnId={column.id} />}
+      {canEdit && !isCompleted && perms.taskCreate && (
+        <AddTask columnId={column.id} />
+      )}
     </div>
   );
 }

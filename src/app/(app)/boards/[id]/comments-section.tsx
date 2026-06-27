@@ -29,6 +29,8 @@ export function CommentsSection({
   comments,
   currentUserId,
   canModerate,
+  canView = true,
+  canCreate = true,
   mentionUsers = [],
   highlightCommentId = null,
 }: {
@@ -36,6 +38,8 @@ export function CommentsSection({
   comments: BoardTask["comments"];
   currentUserId: string;
   canModerate: boolean;
+  canView?: boolean;
+  canCreate?: boolean;
   mentionUsers?: DirectoryUser[];
   highlightCommentId?: string | null;
 }) {
@@ -69,6 +73,20 @@ export function CommentsSection({
     const text = editValue.trim();
     if (text) startEdit(() => editComment(id, text));
     setEditingId(null);
+  }
+
+  if (!canView) {
+    return (
+      <div className="pt-1">
+        <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-neutral-300">
+          <MessageSquare className="h-4 w-4 text-neutral-500" />
+          Комментарии
+        </p>
+        <p className="rounded-lg border border-neutral-800 bg-neutral-900/40 px-3 py-2.5 text-xs text-neutral-500">
+          У вас нет прав на просмотр комментариев.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -187,6 +205,8 @@ export function CommentsSection({
         )}
       </div>
 
+      {canCreate ? (
+        <>
       <form action={action} className="flex items-end gap-2">
         <input type="hidden" name="taskId" value={taskId} />
         <MentionTextarea
@@ -211,6 +231,12 @@ export function CommentsSection({
       </form>
       {state.error && (
         <p className="mt-1 text-xs text-red-300">{state.error}</p>
+      )}
+        </>
+      ) : (
+        <p className="rounded-lg border border-neutral-800 bg-neutral-900/40 px-3 py-2.5 text-xs text-neutral-500">
+          У вас нет прав на добавление комментариев.
+        </p>
       )}
     </div>
   );
