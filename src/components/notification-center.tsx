@@ -419,7 +419,7 @@ export function NotificationCenter() {
       </div>
 
       {/* ── Toasts ── */}
-      <div className="pointer-events-none fixed inset-x-0 top-4 z-[300] flex flex-col items-center gap-2 px-4 sm:items-end sm:px-6">
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[300] flex w-[calc(100vw-2rem)] flex-col-reverse gap-2 sm:bottom-6 sm:right-6 sm:w-80">
         <AnimatePresence>
           {toasts.map((t) => {
             const meta = notifMeta(t.type, {});
@@ -430,11 +430,11 @@ export function NotificationCenter() {
               <motion.div
                 key={t.id}
                 layout
-                initial={{ opacity: 0, y: -16, scale: 0.96 }}
+                initial={{ opacity: 0, y: 16, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, x: 40 }}
                 transition={{ type: "spring", stiffness: 360, damping: 30 }}
-                className="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border border-neutral-700 bg-neutral-900/95 p-3 shadow-2xl backdrop-blur"
+                className="pointer-events-auto flex w-full items-start gap-3 rounded-xl border border-neutral-700 bg-neutral-900/95 p-3 shadow-2xl backdrop-blur"
               >
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 ${meta.color}`}>
                   <Icon className="h-4 w-4" />
