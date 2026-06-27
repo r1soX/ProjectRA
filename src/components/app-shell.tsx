@@ -15,6 +15,8 @@ import {
   LogOut,
   Menu,
   X,
+  Shield,
+  BarChart2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { logout } from "@/app/actions/session";
@@ -31,11 +33,13 @@ const baseNav: NavItem[] = [
   { href: "/search", label: "Поиск", icon: Search },
   { href: "/messages", label: "Сообщения", icon: MessageCircle },
   { href: "/calendar", label: "Календарь", icon: CalendarDays },
+  { href: "/workload", label: "Нагрузка", icon: BarChart2 },
   { href: "/profile", label: "Профиль", icon: UserIcon },
 ];
 
 const adminNav: NavItem[] = [
   { href: "/admin/users", label: "Пользователи", icon: Users },
+  { href: "/admin/permissions", label: "Права доступа", icon: Shield },
 ];
 
 function NavLinks({

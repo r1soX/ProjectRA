@@ -183,7 +183,8 @@ export function CommentsSection({
           rows={3}
           placeholder="Написать комментарий… (Ctrl/⌘+Enter — отправить, @ — упомянуть)"
           users={mentionUsers}
-          className="flex-1 resize-none rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-base sm:text-sm text-neutral-100 outline-none backdrop-blur focus:border-sky-500/70 focus:ring-2 focus:ring-sky-500/25"
+          wrapperClassName="flex-1"
+          className="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-base sm:text-sm text-neutral-100 outline-none backdrop-blur focus:border-sky-500/70 focus:ring-2 focus:ring-sky-500/25"
         />
         <Button type="submit" loading={pending} disabled={!body.trim()} className="self-end">
           <Send className="h-4 w-4" />

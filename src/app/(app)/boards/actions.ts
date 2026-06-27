@@ -568,3 +568,139 @@ export async function toggleAssignee(taskId: string, userId: string) {
   }
   bump(boardId);
 }
+
+// ── subtasks ──────────────────────────────────────────────────────
+
+export async function createSubtask(parentTaskId: string, title: string) {
+  const trimmed = title.trim();
+  if (!trimmed) return;
+
+  const parent = await prisma.task.findUnique({
+    where: { id: parentTaskId },
+    select: { boardId: true, columnId: true },
+  });
+  if (!parent) return;
+
+  const user = await requireUser();
+  const role = await getBoardRole(parent.boardId, user.id);
+  if (!canEdit(role)) throw new Error("Нет прав");
+
+  // Place in same column as parent (not COMPLETED)
+  const firstCol = await prisma.column.findFirst({
+    where: { boardId: parent.boardId, systemKey: null },
+    orderBy: { order: "asc" },
+  });
+  const colId = firstCol?.id ?? parent.columnId;
+  const count = await prisma.task.count({ where: { columnId: colId } });
+
+  const sub = await prisma.task.create({
+    data: {
+      boardId: parent.boardId,
+      columnId: colId,
+      parentId: parentTaskId,
+      title: trimmed,
+      order: count,
+      createdById: user.id,
+    },
+  });
+  await logHistory(parentTaskId, user.id, "subtask_add", { after: trimmed });
+  bump(parent.boardId);
+  return sub.id;
+}
+
+export async function toggleSubtaskDone(subtaskId: string) {
+  const user = await requireUser();
+  const sub = await prisma.task.findUnique({
+    where: { id: subtaskId },
+    select: {
+      boardId: true,
+      parentId: true,
+      column: { select: { systemKey: true } },
+    },
+  });
+  if (!sub) return;
+
+  const role = await getBoardRole(sub.boardId, user.id);
+  if (!role) throw new Error("Нет доступа");
+
+  const isDone = sub.column.systemKey === "COMPLETED";
+
+  if (isDone) {
+    // Un-done: move back to first non-system column
+    const firstCol = await prisma.column.findFirst({
+      where: { boardId: sub.boardId, systemKey: null },
+      orderBy: { order: "asc" },
+    });
+    if (firstCol) {
+      await prisma.task.update({
+        where: { id: subtaskId },
+        data: { columnId: firstCol.id },
+      });
+    }
+  } else {
+    // Done: move to COMPLETED column
+    const completed = await prisma.column.findFirst({
+      where: { boardId: sub.boardId, systemKey: "COMPLETED" },
+    });
+    if (completed) {
+      await prisma.task.update({
+        where: { id: subtaskId },
+        data: { columnId: completed.id },
+      });
+    }
+  }
+  bump(sub.boardId);
+}
+
+export async function deleteSubtask(subtaskId: string) {
+  const user = await requireUser();
+  const sub = await prisma.task.findUnique({
+    where: { id: subtaskId },
+    select: { boardId: true, parentId: true, createdById: true },
+  });
+  if (!sub || !sub.parentId) return;
+  if (user.role !== "ADMIN" && sub.createdById !== user.id) {
+    throw new Error("Удалить может только создатель или администратор");
+  }
+  await prisma.task.delete({ where: { id: subtaskId } });
+  bump(sub.boardId);
+}
+
+// ── time tracking ─────────────────────────────────────────────────
+
+export async function logTime(
+  taskId: string,
+  minutes: number,
+  note: string,
+): Promise<ActionState> {
+  if (!minutes || minutes < 1) return { error: "Укажите время" };
+
+  const boardId = await boardIdOfTask(taskId);
+  if (!boardId) return { error: "Задача не найдена" };
+
+  const user = await requireUser();
+  const role = await getBoardRole(boardId, user.id);
+  if (!role) return { error: "Нет доступа" };
+
+  await prisma.timeEntry.create({
+    data: { taskId, userId: user.id, minutes, note: note.trim() || null },
+  });
+  await logHistory(taskId, user.id, "time_logged", { minutes, note: note.trim() || null });
+  bump(boardId);
+  return { ok: true };
+}
+
+export async function deleteTimeEntry(entryId: string): Promise<ActionState> {
+  const user = await requireUser();
+  const entry = await prisma.timeEntry.findUnique({
+    where: { id: entryId },
+    select: { userId: true, task: { select: { boardId: true } } },
+  });
+  if (!entry) return { error: "Не найдено" };
+  if (user.role !== "ADMIN" && entry.userId !== user.id) {
+    return { error: "Удалить можно только своё время" };
+  }
+  await prisma.timeEntry.delete({ where: { id: entryId } });
+  bump(entry.task.boardId);
+  return { ok: true };
+}

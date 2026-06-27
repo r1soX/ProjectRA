@@ -25,6 +25,8 @@ interface Props {
   onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => void;
   placeholder?: string;
   className?: string;
+  /** Extra CSS classes applied to the outer wrapper div (e.g. flex-1) */
+  wrapperClassName?: string;
   rows?: number;
   boardId?: string; // used to fetch board members for suggestions
   users?: MentionUser[]; // pre-loaded list (preferred over boardId fetch)
@@ -38,6 +40,7 @@ export function MentionTextarea({
   onKeyDown,
   placeholder,
   className,
+  wrapperClassName,
   rows = 3,
   users = [],
   autoFocus,
@@ -133,7 +136,7 @@ export function MentionTextarea({
   void query; // used implicitly via users filter
 
   return (
-    <div className="relative">
+    <div className={`relative ${wrapperClassName ?? ""}`}>
       <textarea
         ref={textareaRef}
         name={name}

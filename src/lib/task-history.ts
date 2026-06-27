@@ -23,6 +23,8 @@ interface HistoryMeta {
   before?: string | null;
   after?: string | null;
   name?: string;
+  minutes?: number | null;
+  note?: string | null;
 }
 
 export async function logHistory(

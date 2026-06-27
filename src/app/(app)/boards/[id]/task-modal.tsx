@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import React, { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Trash2,
@@ -17,6 +17,12 @@ import {
   X,
   Repeat,
   CheckCheck,
+  ListTodo,
+  Clock,
+  History,
+  Plus,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
@@ -33,6 +39,11 @@ import {
   toggleAssignee,
   toggleAssigneeConfirm,
   completeRecurring,
+  createSubtask,
+  toggleSubtaskDone,
+  deleteSubtask,
+  logTime,
+  deleteTimeEntry,
 } from "../actions";
 import { useConfirm } from "@/components/ui/dialog-provider";
 import { CommentsSection } from "./comments-section";
@@ -95,6 +106,27 @@ export function TaskModal({
   const [confirmPending, startConfirm] = useTransition();
   const confirm = useConfirm();
   const openedAt = useRef(0);
+
+  // Detail data (subtasks, history, time entries) loaded lazily
+  const [subtasks, setSubtasks] = useState<SubtaskItem[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [timeEntries, setTimeEntries] = useState<TimeItem[]>([]);
+  const [detailLoaded, setDetailLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!task) { setDetailLoaded(false); return; }
+    setDetailLoaded(false);
+    fetch(`/api/tasks/${task.id}/detail`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (!d) return;
+        setSubtasks(d.subtasks ?? []);
+        setHistory(d.history ?? []);
+        setTimeEntries(d.timeEntries ?? []);
+        setDetailLoaded(true);
+      })
+      .catch(() => setDetailLoaded(true));
+  }, [task?.id]);
 
   useEffect(() => {
     if (task) openedAt.current = Date.now();
@@ -340,6 +372,39 @@ export function TaskModal({
                       </div>
                     )}
 
+                    {/* Subtasks */}
+                    <SubtasksSection
+                      subtasks={subtasks}
+                      canEdit={canEdit}
+                      loaded={detailLoaded}
+                      onAdd={async (title) => {
+                        const id = await createSubtask(task.id, title);
+                        if (id) setSubtasks((s) => [...s, { id, title, done: false }]);
+                      }}
+                      onToggle={async (subtaskId) => {
+                        await toggleSubtaskDone(subtaskId);
+                        setSubtasks((s) =>
+                          s.map((x) => x.id === subtaskId ? { ...x, done: !x.done } : x),
+                        );
+                      }}
+                      onDelete={async (subtaskId) => {
+                        await deleteSubtask(subtaskId);
+                        setSubtasks((s) => s.filter((x) => x.id !== subtaskId));
+                      }}
+                    />
+
+                    {/* Time tracking */}
+                    <TimeTrackingSection
+                      taskId={task.id}
+                      entries={timeEntries}
+                      loaded={detailLoaded}
+                      onLogged={(entry) => setTimeEntries((es) => [entry, ...es])}
+                      onDelete={async (id) => {
+                        await deleteTimeEntry(id);
+                        setTimeEntries((es) => es.filter((e) => e.id !== id));
+                      }}
+                    />
+
                     <div>
                       <SectionTitle icon={Palette}>Цвет</SectionTitle>
                       <input
@@ -476,11 +541,368 @@ export function TaskModal({
                   mentionUsers={directory}
                 />
               </div>
+
+              {/* Task history */}
+              {history.length > 0 && (
+                <div className="border-t border-neutral-800 px-4 pb-5 pt-4 sm:px-6">
+                  <HistorySection history={history} />
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
       )}
     </AnimatePresence>
+  );
+}
+
+// ── Subtasks section ───────────────────────────────────────────────────────
+
+type SubtaskItem = { id: string; title: string; done: boolean };
+
+function SubtasksSection({
+  subtasks,
+  canEdit,
+  loaded,
+  onAdd,
+  onToggle,
+  onDelete,
+}: {
+  subtasks: SubtaskItem[];
+  canEdit: boolean;
+  loaded: boolean;
+  onAdd: (title: string) => Promise<unknown>;
+  onToggle: (id: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const [newTitle, setNewTitle] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [showInput, setShowInput] = useState(false);
+  const [pending, start] = useTransition();
+  const done = subtasks.filter((s) => s.done).length;
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+          <ListTodo className="h-3.5 w-3.5" />
+          Подзадачи
+          {subtasks.length > 0 && (
+            <span className="rounded-full bg-white/10 px-1.5 text-[10px] text-neutral-400">
+              {done}/{subtasks.length}
+            </span>
+          )}
+        </p>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => setShowInput((v) => !v)}
+            className="rounded p-0.5 text-neutral-600 hover:text-neutral-300"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Progress bar */}
+      {subtasks.length > 0 && (
+        <div className="mb-2 h-1 w-full overflow-hidden rounded-full bg-neutral-800">
+          <div
+            className="h-full rounded-full bg-emerald-500 transition-all"
+            style={{ width: `${(done / subtasks.length) * 100}%` }}
+          />
+        </div>
+      )}
+
+      {!loaded && <p className="text-xs text-neutral-600">Загрузка…</p>}
+
+      <div className="space-y-1">
+        {subtasks.map((s) => (
+          <div key={s.id} className="group flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-white/[0.03]">
+            <button
+              type="button"
+              onClick={() => start(() => onToggle(s.id))}
+              disabled={pending}
+              className={cn(
+                "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition",
+                s.done
+                  ? "border-emerald-500 bg-emerald-500/20 text-emerald-400"
+                  : "border-neutral-600 hover:border-neutral-400",
+              )}
+            >
+              {s.done && <Check className="h-2.5 w-2.5" />}
+            </button>
+            <span className={cn("flex-1 text-xs", s.done ? "text-neutral-500 line-through" : "text-neutral-200")}>
+              {s.title}
+            </span>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => start(() => onDelete(s.id))}
+                className="hidden rounded p-0.5 text-neutral-700 hover:text-red-400 group-hover:block"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {showInput && canEdit && (
+        <form
+          className="mt-1.5 flex gap-1.5"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const t = newTitle.trim();
+            if (!t) return;
+            setAdding(true);
+            await onAdd(t);
+            setNewTitle("");
+            setAdding(false);
+          }}
+        >
+          <input
+            autoFocus
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && setShowInput(false)}
+            placeholder="Подзадача…"
+            className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2.5 py-1.5 text-xs text-neutral-100 outline-none focus:border-sky-500"
+          />
+          <button
+            type="submit"
+            disabled={!newTitle.trim() || adding}
+            className="rounded-lg border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-xs text-neutral-300 transition hover:bg-neutral-700 disabled:opacity-40"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// ── Time tracking section ─────────────────────────────────────────────────
+
+type TimeItem = { id: string; minutes: number; note: string | null; loggedAt: string; userName: string; isMe: boolean };
+
+function TimeTrackingSection({
+  taskId,
+  entries,
+  loaded,
+  onLogged,
+  onDelete,
+}: {
+  taskId: string;
+  entries: TimeItem[];
+  loaded: boolean;
+  onLogged: (entry: TimeItem) => void;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [minutes, setMinutes] = useState("");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState("");
+  const [delPending, startDel] = useTransition();
+
+  const totalMins = entries.reduce((s, e) => s + e.minutes, 0);
+  const totalLabel = totalMins >= 60
+    ? `${Math.floor(totalMins / 60)}ч ${totalMins % 60}м`
+    : `${totalMins}м`;
+
+  function fmtMins(m: number) {
+    return m >= 60 ? `${Math.floor(m / 60)}ч ${m % 60}м` : `${m}м`;
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr("");
+    const mins = parseInt(minutes, 10);
+    if (!mins || mins < 1) { setErr("Введите минуты"); return; }
+    setSubmitting(true);
+    const res = await logTime(taskId, mins, note);
+    setSubmitting(false);
+    if (res?.error) { setErr(res.error); return; }
+    onLogged({
+      id: crypto.randomUUID(),
+      minutes: mins,
+      note: note.trim() || null,
+      loggedAt: new Date().toISOString(),
+      userName: "Вы",
+      isMe: true,
+    });
+    setMinutes("");
+    setNote("");
+    setShowForm(false);
+  }
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+          <Clock className="h-3.5 w-3.5" />
+          Время
+          {totalMins > 0 && (
+            <span className="rounded-full bg-white/10 px-1.5 text-[10px] text-sky-400">
+              {totalLabel}
+            </span>
+          )}
+        </p>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setShowForm((v) => !v)}
+            className="rounded p-0.5 text-neutral-600 hover:text-neutral-300"
+            title="Записать время"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          {entries.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="rounded p-0.5 text-neutral-600 hover:text-neutral-300"
+            >
+              {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {!loaded && <p className="text-xs text-neutral-600">Загрузка…</p>}
+
+      {showForm && (
+        <form onSubmit={submit} className="mb-2 space-y-1.5">
+          <div className="flex gap-1.5">
+            <input
+              autoFocus
+              type="number"
+              min={1}
+              value={minutes}
+              onChange={(e) => setMinutes(e.target.value)}
+              placeholder="мин."
+              className="h-8 w-20 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 outline-none focus:border-sky-500"
+            />
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Заметка (необязательно)"
+              className="h-8 flex-1 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 outline-none focus:border-sky-500"
+            />
+            <button
+              type="submit"
+              disabled={submitting}
+              className="h-8 rounded-lg border border-neutral-700 bg-neutral-800 px-2 text-xs text-neutral-300 transition hover:bg-neutral-700 disabled:opacity-40"
+            >
+              <Check className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {err && <p className="text-xs text-red-400">{err}</p>}
+        </form>
+      )}
+
+      {open && entries.length > 0 && (
+        <div className="space-y-1">
+          {entries.map((e) => (
+            <div key={e.id} className="group flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-white/[0.03]">
+              <Clock className="h-3 w-3 shrink-0 text-sky-400/60" />
+              <span className="font-medium text-sky-300 text-xs">{fmtMins(e.minutes)}</span>
+              {e.note && <span className="min-w-0 flex-1 truncate text-[11px] text-neutral-500">{e.note}</span>}
+              {!e.note && <span className="flex-1" />}
+              <span className="shrink-0 text-[10px] text-neutral-600">{e.userName}</span>
+              {e.isMe && (
+                <button
+                  type="button"
+                  disabled={delPending}
+                  onClick={() => startDel(() => onDelete(e.id))}
+                  className="hidden rounded p-0.5 text-neutral-700 hover:text-red-400 group-hover:block"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Task history section ──────────────────────────────────────────────────
+
+type HistoryItem = { id: string; action: string; meta: Record<string, unknown> | null; createdAt: string; userName: string; isMe: boolean };
+
+const ACTION_LABELS: Record<string, string> = {
+  created: "создал задачу",
+  title: "изменил название",
+  description: "изменил описание",
+  column: "перенёс задачу",
+  priority: "изменил приоритет",
+  assignee_add: "добавил исполнителя",
+  assignee_remove: "снял исполнителя",
+  due: "изменил срок",
+  start: "изменил начало",
+  label_add: "добавил метку",
+  label_remove: "убрал метку",
+  completed: "завершил задачу",
+  subtask_add: "добавил подзадачу",
+  time_logged: "записал время",
+  attachment_add: "прикрепил файл",
+};
+
+function HistorySection({ history }: { history: HistoryItem[] }) {
+  const [collapsed, setCollapsed] = useState(true);
+  const shown = collapsed ? history.slice(0, 5) : history;
+
+  function formatRelative(iso: string) {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "только что";
+    if (mins < 60) return `${mins} мин`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} ч`;
+    return new Date(iso).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
+  }
+
+  return (
+    <div>
+      <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-neutral-300">
+        <History className="h-4 w-4 text-neutral-500" />
+        История
+        <span className="rounded-full bg-white/10 px-1.5 text-xs text-neutral-400">
+          {history.length}
+        </span>
+      </p>
+      <div className="space-y-2">
+        {shown.map((h) => (
+          <div key={h.id} className="flex items-start gap-2 text-xs">
+            <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-600" />
+            <span className={cn("shrink-0 font-medium", h.isMe ? "text-sky-300" : "text-neutral-300")}>
+              {h.userName}
+            </span>
+            <span className="text-neutral-500">
+              {ACTION_LABELS[h.action] ?? h.action}
+              {h.meta?.after != null && ` «${String(h.meta.after).slice(0, 40)}»`}
+              {h.action === "time_logged" && h.meta?.minutes != null && ` ${String(h.meta.minutes)} мин`}
+            </span>
+            <span className="ml-auto shrink-0 text-[10px] text-neutral-600">
+              {formatRelative(h.createdAt)}
+            </span>
+          </div>
+        ))}
+      </div>
+      {history.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setCollapsed((v) => !v)}
+          className="mt-2 text-xs text-neutral-500 hover:text-neutral-300"
+        >
+          {collapsed ? `Ещё ${history.length - 5} записей` : "Свернуть"}
+        </button>
+      )}
+    </div>
   );
 }
 
