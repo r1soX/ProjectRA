@@ -198,7 +198,7 @@ export function TaskModal({
   return (
     <AnimatePresence>
       {task && pr && (
-        <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -207,12 +207,19 @@ export function TaskModal({
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
           <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.98 }}
+            initial={{ opacity: 0, y: 32, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 24, scale: 0.98 }}
+            exit={{ opacity: 0, y: 32, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 320, damping: 30 }}
-            className="glass-strong relative z-10 flex h-dvh w-full flex-col overflow-hidden shadow-2xl sm:h-auto sm:max-h-[92dvh] sm:max-w-4xl sm:rounded-2xl"
+            className="glass-strong relative z-10 flex h-[94dvh] w-full flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:h-auto sm:max-h-[92dvh] sm:max-w-4xl sm:rounded-2xl"
           >
+            {/* Grab handle (mobile bottom-sheet) */}
+            <button
+              onClick={onClose}
+              aria-label="Закрыть"
+              className="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-neutral-700 transition hover:bg-neutral-600 sm:hidden"
+            />
+
             {/* Header */}
             <div className="flex shrink-0 items-center gap-3 border-b border-neutral-800 px-4 py-3 sm:px-6">
               <span
@@ -318,7 +325,7 @@ export function TaskModal({
 
                     <div>
                       <SectionTitle icon={CalendarRange}>Сроки</SectionTitle>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <label className="block">
                           <span className="mb-1 block text-[11px] text-neutral-500">
                             Начало
@@ -328,7 +335,7 @@ export function TaskModal({
                             name="startDate"
                             defaultValue={task.startDate ?? ""}
                             disabled={!canEdit}
-                            className="h-9 w-full rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 [color-scheme:dark] outline-none focus:border-sky-500"
+                            className="h-9 w-full max-w-[13rem] rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 [color-scheme:dark] outline-none focus:border-sky-500 sm:max-w-none"
                           />
                         </label>
                         <label className="block">
@@ -340,7 +347,7 @@ export function TaskModal({
                             name="dueDate"
                             defaultValue={task.dueDate ?? ""}
                             disabled={!canEdit}
-                            className="h-9 w-full rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 [color-scheme:dark] outline-none focus:border-sky-500"
+                            className="h-9 w-full max-w-[13rem] rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 [color-scheme:dark] outline-none focus:border-sky-500 sm:max-w-none"
                           />
                         </label>
                       </div>

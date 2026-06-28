@@ -22,6 +22,9 @@ import {
   BarChart3,
   ScrollText,
   Star,
+  PanelLeftClose,
+  PanelLeftOpen,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { logout } from "@/app/actions/session";
@@ -71,23 +74,32 @@ const adminNav: NavItem[] = [
   { href: "/admin/templates", label: "Шаблоны", icon: LayoutTemplate, cap: "adminTemplates" },
 ];
 
+// Primary destinations surfaced in the mobile bottom bar (in priority order).
+const MOBILE_PRIMARY = ["/dashboard", "/boards", "/messages", "/inbox"];
+
+function isActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(href + "/");
+}
+
 function NavLinks({
   items,
   pathname,
   unreadTotal,
   notifUnread,
+  collapsed,
   onNavigate,
 }: {
   items: NavItem[];
   pathname: string;
   unreadTotal: number;
   notifUnread: number;
+  collapsed?: boolean;
   onNavigate?: () => void;
 }) {
   return (
     <nav className="space-y-1">
       {items.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href || pathname.startsWith(href + "/");
+        const active = isActive(pathname, href);
         const badge =
           href === "/messages" ? unreadTotal : href === "/inbox" ? notifUnread : 0;
         return (
@@ -95,8 +107,11 @@ function NavLinks({
             key={href}
             href={href}
             onClick={onNavigate}
+            title={collapsed ? label : undefined}
+            aria-label={collapsed ? label : undefined}
             className={cn(
-              "relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+              "relative flex items-center rounded-xl text-sm font-medium transition-colors",
+              collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2",
               active
                 ? "text-white"
                 : "text-neutral-400 hover:bg-white/5 hover:text-neutral-100",
@@ -109,9 +124,14 @@ function NavLinks({
                 transition={{ type: "spring", stiffness: 400, damping: 32 }}
               />
             )}
-            <Icon className="relative h-4 w-4 shrink-0" />
-            <span className="relative">{label}</span>
-            {badge > 0 && (
+            <span className="relative">
+              <Icon className="h-4 w-4 shrink-0" />
+              {collapsed && badge > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 h-2 w-2 rounded-full bg-sky-400 ring-2 ring-neutral-950" />
+              )}
+            </span>
+            {!collapsed && <span className="relative">{label}</span>}
+            {!collapsed && badge > 0 && (
               <span className="relative ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-500 px-1.5 text-xs font-semibold text-white">
                 {badge > 99 ? "99+" : badge}
               </span>
@@ -130,10 +150,12 @@ const PIN_KEY = "projectra:pinned-boards";
 function BoardsNav({
   boards,
   pathname,
+  collapsed,
   onNavigate,
 }: {
   boards: SidebarBoard[];
   pathname: string;
+  collapsed?: boolean;
   onNavigate?: () => void;
 }) {
   const [pins, setPins] = useState<string[]>([]);
@@ -162,6 +184,34 @@ function BoardsNav({
   const pinned = boards.filter((b) => pins.includes(b.id));
   const rest = boards.filter((b) => !pins.includes(b.id));
   const ordered = [...pinned, ...rest].slice(0, 14);
+
+  if (collapsed) {
+    return (
+      <div className="mt-3 space-y-0.5 border-t border-white/5 pt-3">
+        {ordered.map((b) => {
+          const active = pathname === `/boards/${b.id}`;
+          return (
+            <Link
+              key={b.id}
+              href={`/boards/${b.id}`}
+              onClick={onNavigate}
+              title={b.title}
+              aria-label={b.title}
+              className={cn(
+                "flex items-center justify-center rounded-lg py-2 transition",
+                active ? "bg-white/10" : "hover:bg-white/5",
+              )}
+            >
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: b.color }}
+              />
+            </Link>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="mt-3 space-y-0.5">
@@ -204,7 +254,29 @@ function BoardsNav({
   );
 }
 
-function UserCard({ user }: { user: SessionUser }) {
+function UserCard({ user, collapsed }: { user: SessionUser; collapsed?: boolean }) {
+  if (collapsed) {
+    return (
+      <div className="flex flex-col items-center gap-2 border-t border-white/10 p-2">
+        <Avatar
+          image={user.avatar}
+          emoji={user.avatarEmoji}
+          initials={initials(user)}
+          size={32}
+          ring
+        />
+        <form action={logout}>
+          <button
+            type="submit"
+            title="Выйти"
+            className="rounded-lg p-2 text-neutral-500 transition hover:bg-white/5 hover:text-red-400"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </form>
+      </div>
+    );
+  }
   return (
     <div className="flex items-center gap-3 border-t border-white/10 p-3">
       <Avatar
@@ -233,6 +305,75 @@ function UserCard({ user }: { user: SessionUser }) {
   );
 }
 
+const COLLAPSE_KEY = "projectra:sidebar-collapsed";
+
+function BottomNav({
+  items,
+  pathname,
+  unreadTotal,
+  notifUnread,
+  onMore,
+}: {
+  items: NavItem[];
+  pathname: string;
+  unreadTotal: number;
+  notifUnread: number;
+  onMore: () => void;
+}) {
+  const primary = MOBILE_PRIMARY.map((h) => items.find((i) => i.href === h)).filter(
+    (i): i is NavItem => Boolean(i),
+  );
+  return (
+    <nav className="glass-strong relative z-10 flex shrink-0 items-stretch border-t border-white/10 pb-[env(safe-area-inset-bottom)] md:hidden">
+      {primary.map(({ href, label, icon: Icon }) => {
+        const active = isActive(pathname, href);
+        const badge =
+          href === "/messages" ? unreadTotal : href === "/inbox" ? notifUnread : 0;
+        return (
+          <Link
+            key={href}
+            href={href}
+            className="relative flex flex-1 flex-col items-center gap-0.5 py-2"
+          >
+            {active && (
+              <span className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-sky-400" />
+            )}
+            <span className="relative">
+              <Icon
+                className={cn(
+                  "h-5 w-5 transition-colors",
+                  active ? "text-sky-300" : "text-neutral-400",
+                )}
+              />
+              {badge > 0 && (
+                <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-500 px-1 text-[10px] font-semibold text-white">
+                  {badge > 9 ? "9+" : badge}
+                </span>
+              )}
+            </span>
+            <span
+              className={cn(
+                "text-[10px] font-medium transition-colors",
+                active ? "text-sky-300" : "text-neutral-500",
+              )}
+            >
+              {label}
+            </span>
+          </Link>
+        );
+      })}
+      <button
+        onClick={onMore}
+        aria-label="Ещё"
+        className="relative flex flex-1 flex-col items-center gap-0.5 py-2"
+      >
+        <MoreHorizontal className="h-5 w-5 text-neutral-400" />
+        <span className="text-[10px] font-medium text-neutral-500">Ещё</span>
+      </button>
+    </nav>
+  );
+}
+
 export function AppShell({
   user,
   unreadTotal,
@@ -250,6 +391,27 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   const items = [...baseNav, ...(user.role === "ADMIN" ? adminNav : [])].filter(
     (i) => !i.cap || caps[i.cap],
@@ -261,40 +423,78 @@ export function AppShell({
       <div className="app-ambient" />
 
       {/* Desktop sidebar */}
-      <aside className="glass-strong relative z-10 hidden w-60 shrink-0 flex-col border-r border-white/10 md:flex">
-        <div className="flex h-16 items-center gap-2 px-5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 to-indigo-500 text-sm font-black text-white shadow-lg shadow-sky-500/25">
+      <aside
+        className={cn(
+          "glass-strong relative z-10 hidden shrink-0 flex-col border-r border-white/10 transition-[width] duration-200 md:flex",
+          collapsed ? "w-16" : "w-60",
+        )}
+      >
+        <div
+          className={cn(
+            "flex h-16 items-center",
+            collapsed ? "justify-center px-2" : "gap-2 px-5",
+          )}
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 to-indigo-500 text-sm font-black text-white shadow-lg shadow-sky-500/25">
             P
           </span>
-          <span className="bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-lg font-bold text-transparent">
-            Projectra
-          </span>
+          {!collapsed && (
+            <span className="bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-lg font-bold text-transparent">
+              Projectra
+            </span>
+          )}
+          {!collapsed && (
+            <button
+              onClick={toggleCollapsed}
+              title="Свернуть меню"
+              aria-label="Свернуть меню"
+              className="ml-auto rounded-lg p-1.5 text-neutral-500 transition hover:bg-white/5 hover:text-neutral-300"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          )}
         </div>
-        <div className="px-3 pt-1">
-          <button
-            onClick={openCommand}
-            className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-500 transition hover:bg-white/5 hover:text-neutral-300"
-          >
-            <Search className="h-4 w-4" />
-            <span>Поиск…</span>
-            <kbd className="ml-auto rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px]">
-              ⌘K
-            </kbd>
-          </button>
-        </div>
+        {collapsed ? (
+          <div className="flex justify-center px-2 pt-1">
+            <button
+              onClick={toggleCollapsed}
+              title="Развернуть меню"
+              aria-label="Развернуть меню"
+              className="rounded-lg p-2 text-neutral-500 transition hover:bg-white/5 hover:text-neutral-300"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="px-3 pt-1">
+            <button
+              onClick={openCommand}
+              className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-500 transition hover:bg-white/5 hover:text-neutral-300"
+            >
+              <Search className="h-4 w-4" />
+              <span>Поиск…</span>
+              <kbd className="ml-auto rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px]">
+                ⌘K
+              </kbd>
+            </button>
+          </div>
+        )}
         <div className="flex-1 overflow-y-auto px-3 py-2">
           <NavLinks
             items={items}
             pathname={pathname}
             unreadTotal={unreadTotal}
             notifUnread={notifUnread}
+            collapsed={collapsed}
           />
-          <BoardsNav boards={boards} pathname={pathname} />
+          <BoardsNav boards={boards} pathname={pathname} collapsed={collapsed} />
         </div>
-        <div className="flex items-center justify-end border-t border-white/10 px-3 py-2">
-          <NotificationCenter variant="desktop" />
-        </div>
-        <UserCard user={user} />
+        {!collapsed && (
+          <div className="flex items-center justify-end border-t border-white/10 px-3 py-2">
+            <NotificationCenter variant="desktop" />
+          </div>
+        )}
+        <UserCard user={user} collapsed={collapsed} />
       </aside>
 
       {/* Mobile drawer */}
@@ -354,15 +554,6 @@ export function AppShell({
       {/* Main */}
       <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="glass flex h-14 items-center gap-3 border-b border-white/10 px-4 md:hidden">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="relative rounded-lg p-2 text-neutral-300 hover:bg-white/5"
-          >
-            <Menu className="h-5 w-5" />
-            {unreadTotal > 0 && (
-              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.8)]" />
-            )}
-          </button>
           <span className="flex items-center gap-2">
             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-sky-400 to-indigo-500 text-xs font-black text-white">
               P
@@ -383,6 +574,13 @@ export function AppShell({
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+        <BottomNav
+          items={items}
+          pathname={pathname}
+          unreadTotal={unreadTotal}
+          notifUnread={notifUnread}
+          onMore={() => setMobileOpen(true)}
+        />
       </div>
 
       <CommandPalette caps={caps} />

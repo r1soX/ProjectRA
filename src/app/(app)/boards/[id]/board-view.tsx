@@ -726,7 +726,7 @@ export function BoardView({
           flushRefresh();
         }}
       >
-        <div className="flex flex-1 gap-4 overflow-x-auto overflow-y-hidden p-4 sm:p-6">
+        <div className="flex flex-1 gap-4 overflow-x-auto overflow-y-hidden p-4 max-sm:snap-x max-sm:snap-proximity sm:p-6">
           <SortableContext
             items={filteredCols.map((c) => c.id)}
             strategy={horizontalListSortingStrategy}
@@ -939,7 +939,7 @@ function SortableColumn({
       style={style}
       {...sortable.attributes}
       className={cn(
-        "glass flex w-[82vw] max-w-[19rem] shrink-0 flex-col rounded-2xl sm:w-72",
+        "glass flex w-[82vw] max-w-[19rem] shrink-0 flex-col rounded-2xl max-sm:snap-center sm:w-72",
         isCompleted && "border-emerald-500/30 bg-emerald-500/[0.05]",
         sortable.isDragging && "opacity-40",
       )}
