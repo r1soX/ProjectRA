@@ -110,3 +110,11 @@ nginx -t && systemctl reload nginx
 - **502 Bad Gateway** — приложение не слушает :3000 (`pm2 logs projectra`).
 - **Дубли напоминаний** — запущено больше одной ноды (cluster mode). Держи
   `exec_mode: fork`, `instances: 1`.
+- **В логах npm usage / `errored` после смены конфига** — `pm2 reload` НЕ применяет
+  смену `script`/`args`/`interpreter`, только мягко рестартит старое определение.
+  После правки `ecosystem.config.cjs` нужно пересоздать процесс:
+  `pm2 delete projectra && pm2 start ecosystem.config.cjs`. `reload` годится только
+  для обновления кода при неизменном конфиге.
+- **`Failed to find Server Action "x"`** — это не падение сервера, а старая вкладка
+  браузера с прошлой сборки дёргает action, которого в новой сборке нет. Лечится
+  жёстким обновлением страницы (Ctrl+Shift+R) после стабильного запуска.

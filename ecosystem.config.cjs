@@ -19,8 +19,11 @@ module.exports = {
       cwd: __dirname,
       // Run the Next.js production server directly (no extra npm wrapper process),
       // so pm2 manages a single clean child and signals propagate properly.
+      // interpreter:"node" makes this independent of the next binary's
+      // execute bit / shebang on the server.
       script: "node_modules/next/dist/bin/next",
       args: "start -H 0.0.0.0 -p 3000",
+      interpreter: "node",
       instances: 1,
       exec_mode: "fork",
       watch: false,
