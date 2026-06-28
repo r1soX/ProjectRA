@@ -118,6 +118,7 @@ export type BoardTask = {
   recurUntil: string | null;
   startDate: string | null;
   dueDate: string | null;
+  dueTime: string | null;
   done: boolean;
   subtaskTotal: number;
   subtaskDone: number;

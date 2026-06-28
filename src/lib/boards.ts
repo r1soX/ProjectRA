@@ -12,6 +12,7 @@ export type BoardRole = "OWNER" | "EDITOR" | "COMMENTER" | "VIEWER";
 export async function getUserBoards(userId: string) {
   return prisma.board.findMany({
     where: {
+      archivedAt: null,
       OR: [
         { isPersonal: false },
         { ownerId: userId },
@@ -19,6 +20,18 @@ export async function getUserBoards(userId: string) {
       ],
     },
     orderBy: { createdAt: "asc" },
+    include: {
+      _count: { select: { tasks: true, columns: true } },
+      owner: { select: { id: true, lastName: true, firstName: true } },
+    },
+  });
+}
+
+/** Archived boards the user owns (only a board's owner manages its archive). */
+export async function getArchivedBoards(userId: string) {
+  return prisma.board.findMany({
+    where: { archivedAt: { not: null }, ownerId: userId },
+    orderBy: { archivedAt: "desc" },
     include: {
       _count: { select: { tasks: true, columns: true } },
       owner: { select: { id: true, lastName: true, firstName: true } },

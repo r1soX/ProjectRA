@@ -9,9 +9,9 @@ import {
 } from "lucide-react";
 
 const features = [
-  { icon: LayoutDashboard, title: "Доски с перетягиванием", text: "Канбан, задачи, исполнители и сроки" },
+  { icon: LayoutDashboard, title: "Доски со статусами", text: "Канбан, исполнители, приоритеты и подзадачи" },
   { icon: MessageSquare, title: "Встроенный мессенджер", text: "Чат по доскам и личные сообщения" },
-  { icon: CalendarDays, title: "Календарь", text: "Все дедлайны команды в одном виде" },
+  { icon: CalendarDays, title: "Календарь и напоминания", text: "Сроки команды и автонапоминания о дедлайнах" },
   { icon: Share2, title: "Связи задач", text: "Визуальная карта зависимостей" },
 ];
 
@@ -31,8 +31,11 @@ export function BrandPanel() {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="flex items-center gap-2"
+        className="flex items-center gap-2.5"
       >
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 text-lg font-black text-white shadow-lg shadow-sky-500/30">
+          P
+        </span>
         <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-2xl font-bold text-transparent">
           Projectra
         </span>

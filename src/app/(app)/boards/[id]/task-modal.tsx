@@ -134,6 +134,7 @@ function PropertyChips({ task }: { task: BoardTask }) {
           {task.startDate && fmtChipDate(task.startDate)}
           {task.startDate && task.dueDate && " → "}
           {task.dueDate && fmtChipDate(task.dueDate)}
+          {task.dueDate && task.dueTime && ` ${task.dueTime}`}
         </span>
       )}
       {rule && (
@@ -410,7 +411,7 @@ export function TaskModal({
 
                     <div>
                       <SectionTitle icon={CalendarRange}>Сроки</SectionTitle>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="space-y-2.5">
                         <label className="block">
                           <span className="mb-1 block text-[11px] text-neutral-500">
                             Начало
@@ -420,20 +421,31 @@ export function TaskModal({
                             name="startDate"
                             defaultValue={task.startDate ?? ""}
                             disabled={!canEdit}
-                            className="h-9 w-full max-w-[13rem] rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 [color-scheme:dark] outline-none focus:border-sky-500 sm:max-w-none"
+                            className="h-9 w-full max-w-[13rem] rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 [color-scheme:dark] outline-none focus:border-sky-500"
                           />
                         </label>
                         <label className="block">
                           <span className="mb-1 block text-[11px] text-neutral-500">
-                            Срок
+                            Срок и время
                           </span>
-                          <input
-                            type="date"
-                            name="dueDate"
-                            defaultValue={task.dueDate ?? ""}
-                            disabled={!canEdit}
-                            className="h-9 w-full max-w-[13rem] rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 [color-scheme:dark] outline-none focus:border-sky-500 sm:max-w-none"
-                          />
+                          <div className="flex max-w-[15rem] gap-2">
+                            <input
+                              type="date"
+                              name="dueDate"
+                              defaultValue={task.dueDate ?? ""}
+                              disabled={!canEdit}
+                              className="h-9 min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 [color-scheme:dark] outline-none focus:border-sky-500"
+                            />
+                            <input
+                              type="time"
+                              name="dueTime"
+                              defaultValue={task.dueTime ?? ""}
+                              disabled={!canEdit}
+                              aria-label="Время срока"
+                              title="Время (необязательно)"
+                              className="h-9 w-[5.25rem] shrink-0 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-xs text-neutral-100 [color-scheme:dark] outline-none focus:border-sky-500"
+                            />
+                          </div>
                         </label>
                       </div>
                     </div>

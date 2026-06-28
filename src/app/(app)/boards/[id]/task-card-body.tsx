@@ -30,11 +30,16 @@ function isOverdue(s: string) {
  */
 export function isTaskOverdue(task: {
   dueDate: string | null;
+  dueTime?: string | null;
   done?: boolean;
   status?: string;
 }) {
   if (task.done || task.status === "done" || task.status === "canceled") return false;
   if (!task.dueDate) return false;
+  // With a time, compare the exact instant; otherwise compare whole days.
+  if (task.dueTime) {
+    return new Date(`${task.dueDate}T${task.dueTime}:00Z`) < new Date();
+  }
   return isOverdue(task.dueDate);
 }
 
@@ -136,7 +141,12 @@ export const TaskCardBody = memo(function TaskCardBody({
                 {task.startDate && task.dueDate && (
                   <span className="text-neutral-600">→</span>
                 )}
-                {task.dueDate && <span>{formatDue(task.dueDate)}</span>}
+                {task.dueDate && (
+                  <span>
+                    {formatDue(task.dueDate)}
+                    {task.dueTime && `, ${task.dueTime}`}
+                  </span>
+                )}
               </span>
             ) : (
               <span />

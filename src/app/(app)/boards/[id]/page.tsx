@@ -48,6 +48,15 @@ function toDateInput(d: Date | null): string | null {
   return d ? d.toISOString().slice(0, 10) : null;
 }
 
+/** Extract HH:mm (UTC) from a due date, or null if it's a date-only (midnight). */
+function toTimeInput(d: Date | null): string | null {
+  if (!d) return null;
+  const h = d.getUTCHours();
+  const m = d.getUTCMinutes();
+  if (h === 0 && m === 0 && d.getUTCSeconds() === 0) return null;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 export default async function BoardPage({
   params,
 }: {
@@ -169,6 +178,7 @@ export default async function BoardPage({
       recurUntil: toDateInput(t.recurUntil),
       startDate: toDateInput(t.startDate),
       dueDate: toDateInput(t.dueDate),
+      dueTime: toTimeInput(t.dueDate),
       done: c.systemKey === "COMPLETED",
       subtaskTotal: t.subtasks.length,
       subtaskDone: t.subtasks.filter((s) => s.column.systemKey === "COMPLETED").length,

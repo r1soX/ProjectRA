@@ -21,7 +21,10 @@ export function LoginForm() {
       transition={{ duration: 0.4, ease: "easeOut" }}
       className="w-full max-w-sm"
     >
-      <div className="mb-8 text-center">
+      <div className="mb-8 flex flex-col items-center text-center">
+        <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-indigo-500 text-2xl font-black text-white shadow-lg shadow-sky-500/30">
+          P
+        </span>
         <h1 className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-4xl font-bold tracking-tight text-transparent">
           Projectra
         </h1>
@@ -35,7 +38,7 @@ export function LoginForm() {
             name="username"
             autoComplete="username"
             autoFocus
-            placeholder="например, v.smolin"
+            placeholder="Имя пользователя"
           />
         </Field>
 

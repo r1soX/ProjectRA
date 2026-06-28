@@ -100,6 +100,7 @@ export function BoardListView({
                             )}
                           >
                             {formatDue(t.dueDate)}
+                            {t.dueTime && `, ${t.dueTime}`}
                           </span>
                         )}
                         <Assignees task={t} />

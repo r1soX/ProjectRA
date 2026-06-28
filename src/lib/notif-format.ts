@@ -24,6 +24,7 @@ export function notifMeta(
   const task = String(payload.taskTitle ?? "");
   const board = String(payload.boardTitle ?? "");
   const days = Number(payload.daysLeft ?? 0);
+  const dueTime = payload.dueTime ? String(payload.dueTime) : "";
 
   switch (type) {
     case "mention_comment":
@@ -59,11 +60,12 @@ export function notifMeta(
         icon: CalendarClock,
         color: "text-amber-400",
         title:
-          days < 0
+          (days < 0
             ? "Просрочено!"
             : days === 0
               ? "Дедлайн сегодня"
-              : `Дедлайн ${days === 1 ? "завтра" : `через ${days} дн.`}`,
+              : `Дедлайн ${days === 1 ? "завтра" : `через ${days} дн.`}`) +
+          (dueTime ? ` · ${dueTime}` : ""),
         body: `«${task}»${board ? ` · ${board}` : ""}`,
       };
     case "message":

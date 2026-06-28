@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth";
-import { getUserBoards } from "@/lib/boards";
+import { getUserBoards, getArchivedBoards } from "@/lib/boards";
 import { hasPerm, PERMS } from "@/lib/permissions";
 import { ensureSystemBoardTemplates } from "@/lib/board-templates";
 import { prisma } from "@/lib/prisma";
@@ -19,16 +19,24 @@ export default async function BoardsPage() {
   }
   const canCreate = await hasPerm(user.id, user.role, PERMS.BOARD_CREATE);
   await ensureSystemBoardTemplates();
-  const boards = await getUserBoards(user.id);
+  const [boards, archived] = await Promise.all([
+    getUserBoards(user.id),
+    getArchivedBoards(user.id),
+  ]);
 
-  const data: BoardCard[] = boards.map((b) => ({
+  const toCard = (b: (typeof boards)[number]): BoardCard => ({
     id: b.id,
     title: b.title,
     color: b.color ?? "#0ea5e9",
     isPersonal: b.isPersonal,
     ownerName: shortName(b.owner),
     taskCount: b._count.tasks,
-  }));
+    // Only the owner (or an admin) manages a board's archive state.
+    canArchive: b.ownerId === user.id || user.role === "ADMIN",
+  });
+
+  const data = boards.map(toCard);
+  const archivedData = archived.map(toCard);
 
   const templates = await prisma.boardTemplate.findMany({
     orderBy: { createdAt: "asc" },
@@ -37,7 +45,12 @@ export default async function BoardsPage() {
 
   return (
     <PageContainer>
-      <BoardsClient boards={data} templates={templates} canCreate={canCreate} />
+      <BoardsClient
+        boards={data}
+        archived={archivedData}
+        templates={templates}
+        canCreate={canCreate}
+      />
     </PageContainer>
   );
 }

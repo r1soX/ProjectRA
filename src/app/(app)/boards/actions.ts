@@ -120,6 +120,22 @@ function parseDate(v: FormDataEntryValue | null): Date | null {
   return s ? new Date(s) : null;
 }
 
+/**
+ * Combine a date (yyyy-mm-dd) with an optional time (HH:mm) into an instant.
+ * Interpreted as UTC wall-clock to match the app's date-only convention
+ * (`new Date("yyyy-mm-dd")` is already UTC midnight). No time → UTC midnight,
+ * which downstream code treats as "date only".
+ */
+function parseDateTime(
+  dateVal: FormDataEntryValue | null,
+  timeVal: FormDataEntryValue | null,
+): Date | null {
+  const d = typeof dateVal === "string" ? dateVal.trim() : "";
+  if (!d) return null;
+  const t = typeof timeVal === "string" ? timeVal.trim() : "";
+  return t ? new Date(`${d}T${t}:00Z`) : new Date(`${d}T00:00:00Z`);
+}
+
 // ── boards ───────────────────────────────────────────────────────
 
 const boardSchema = z.object({
@@ -249,6 +265,30 @@ export async function deleteBoard(boardId: string) {
   await prisma.board.delete({ where: { id: boardId } });
   revalidatePath("/boards");
   redirect("/boards");
+}
+
+/** Archive a board — hides it from lists/sidebar without deleting anything. */
+export async function archiveBoard(boardId: string) {
+  const { user } = await requireBoardOwner(boardId);
+  await requirePerm(user, PERMS.BOARD_EDIT);
+  await prisma.board.update({
+    where: { id: boardId },
+    data: { archivedAt: new Date() },
+  });
+  bump(boardId);
+  revalidatePath("/boards");
+}
+
+/** Restore an archived board back into active lists. */
+export async function unarchiveBoard(boardId: string) {
+  const { user } = await requireBoardOwner(boardId);
+  await requirePerm(user, PERMS.BOARD_EDIT);
+  await prisma.board.update({
+    where: { id: boardId },
+    data: { archivedAt: null },
+  });
+  bump(boardId);
+  revalidatePath("/boards");
 }
 
 /** Create a ready-to-explore starter board for onboarding. */
@@ -469,7 +509,7 @@ export async function updateTask(taskId: string, formData: FormData) {
       priority: normalizePriority(formData.get("priority")),
       isPersonal: formData.get("isPersonal") === "on",
       startDate: parseDate(formData.get("startDate")),
-      dueDate: parseDate(formData.get("dueDate")),
+      dueDate: parseDateTime(formData.get("dueDate"), formData.get("dueTime")),
       recurFreq: normalizeRecurFreq(formData.get("recurFreq")),
       recurInterval: Math.max(
         1,
@@ -528,6 +568,15 @@ export async function completeRecurring(taskId: string) {
   const due = task.dueDate ?? today;
   const base = due > today ? due : today;
   const next = nextOccurrence(rule, base);
+  // Keep the original time-of-day on the rolled occurrence.
+  if (next && task.dueDate) {
+    next.setUTCHours(
+      task.dueDate.getUTCHours(),
+      task.dueDate.getUTCMinutes(),
+      task.dueDate.getUTCSeconds(),
+      0,
+    );
+  }
 
   await prisma.task.update({
     where: { id: taskId },
@@ -675,6 +724,15 @@ export async function moveTask(
       const due = task.dueDate ?? today;
       const base = due > today ? due : today;
       const next = nextOccurrence(rule, base);
+      // Keep the original time-of-day on the rolled occurrence.
+      if (next && task.dueDate) {
+        next.setUTCHours(
+          task.dueDate.getUTCHours(),
+          task.dueDate.getUTCMinutes(),
+          task.dueDate.getUTCSeconds(),
+          0,
+        );
+      }
       await prisma.task.update({
         where: { id: taskId },
         // Roll to the next occurrence (or stop if exhausted); keep it active.

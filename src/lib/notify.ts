@@ -20,6 +20,7 @@ export interface NotifPayload {
   columnTitle?: string;
   channelId?: string;
   daysLeft?: number;
+  dueTime?: string; // HH:mm when the deadline has a specific time
 }
 
 export async function createNotification(
@@ -207,6 +208,14 @@ export async function checkDeadlines() {
     const dueMid = Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate());
     const nowMid = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
     const daysLeft = Math.round((dueMid - nowMid) / (1000 * 60 * 60 * 24));
+    // Include a specific time in the reminder when the deadline has one.
+    const hasTime =
+      due.getUTCHours() !== 0 ||
+      due.getUTCMinutes() !== 0 ||
+      due.getUTCSeconds() !== 0;
+    const dueTime = hasTime
+      ? `${String(due.getUTCHours()).padStart(2, "0")}:${String(due.getUTCMinutes()).padStart(2, "0")}`
+      : undefined;
 
     const recipients = [
       ...task.assignees.map((a) => a.userId),
@@ -224,6 +233,7 @@ export async function checkDeadlines() {
           boardId: task.board.id,
           boardTitle: task.board.title,
           daysLeft,
+          dueTime,
         },
         `/boards/${task.board.id}?task=${task.id}`,
       );
