@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { getBoardRole, canEdit, canComment } from "@/lib/boards";
 import { normalizePriority } from "@/lib/priority";
-import { normalizeStatus } from "@/lib/status";
+import { normalizeStatus, STATUSES } from "@/lib/status";
 import { ruleFromTask, nextOccurrence } from "@/lib/recurrence";
 import { publishBoard } from "@/lib/realtime";
 import { notifyMentions, notifyAssigned } from "@/lib/notify";
@@ -163,14 +163,32 @@ type NewColumn = {
   order: number;
   isSystem: boolean;
   systemKey: string | null;
+  statusKey: string | null;
 };
+
+/** Guess a column's task status from its position/title. */
+function statusForColumn(
+  title: string,
+  order: number,
+  isLast: boolean,
+  systemKey: string | null,
+): string {
+  if (systemKey === "COMPLETED") return "done";
+  const t = title.toLowerCase();
+  if (/готов|сделано|закрыт|опубликов|принят/.test(t)) return "done";
+  if (/бэклог|идеи|новые|отклик|когда/.test(t)) return "backlog";
+  if (order === 0) return "todo";
+  if (isLast) return "done";
+  return "in_progress";
+}
 
 /**
  * Columns for a freshly created board: from a template if a valid id is given,
- * otherwise the default set. Always guarantees the "Завершённые задачи" column.
+ * otherwise the default set. Always guarantees the "Завершённые задачи" column,
+ * and assigns each column a linked task status.
  */
 async function columnsForNewBoard(templateId: string): Promise<NewColumn[]> {
-  let cols: NewColumn[] | null = null;
+  let raw: { title: string; isSystem: boolean; systemKey: string | null }[] | null = null;
 
   if (templateId) {
     const tpl = await prisma.boardTemplate.findUnique({
@@ -178,33 +196,28 @@ async function columnsForNewBoard(templateId: string): Promise<NewColumn[]> {
       include: { columns: { orderBy: { order: "asc" } } },
     });
     if (tpl && tpl.columns.length) {
-      cols = tpl.columns.map((c, i) => ({
+      raw = tpl.columns.map((c) => ({
         title: c.title,
-        order: i,
         isSystem: c.isSystem,
         systemKey: c.systemKey,
       }));
     }
   }
 
-  if (!cols) {
-    cols = DEFAULT_COLUMNS.map((title, i) => ({
-      title,
-      order: i,
-      isSystem: false,
-      systemKey: null,
-    }));
+  if (!raw) {
+    raw = DEFAULT_COLUMNS.map((title) => ({ title, isSystem: false, systemKey: null }));
   }
 
-  if (!cols.some((c) => c.systemKey === "COMPLETED")) {
-    cols.push({
-      title: "Завершённые задачи",
-      order: cols.length,
-      isSystem: true,
-      systemKey: "COMPLETED",
-    });
+  if (!raw.some((c) => c.systemKey === "COMPLETED")) {
+    raw.push({ title: "Завершённые задачи", isSystem: true, systemKey: "COMPLETED" });
   }
-  return cols;
+
+  const lastActive = raw.filter((c) => c.systemKey !== "COMPLETED").length - 1;
+  return raw.map((c, i) => ({
+    ...c,
+    order: i,
+    statusKey: statusForColumn(c.title, i, i === lastActive, c.systemKey),
+  }));
 }
 
 export async function updateBoard(
@@ -332,10 +345,33 @@ export async function createColumn(boardId: string, title: string) {
   const user = await requireBoardEditor(boardId);
   await requirePerm(user, PERMS.COLUMN_CREATE);
   const count = await prisma.column.count({ where: { boardId } });
+  const name = title.trim() || "Новая колонка";
   await prisma.column.create({
-    data: { boardId, title: title.trim() || "Новая колонка", order: count },
+    data: {
+      boardId,
+      title: name,
+      order: count,
+      statusKey: statusForColumn(name, count, false, null),
+    },
   });
   bump(boardId);
+}
+
+/** Set a column's linked task status; re-syncs the status of tasks inside it. */
+export async function setColumnStatus(columnId: string, statusKey: string) {
+  const col = await prisma.column.findUnique({
+    where: { id: columnId },
+    select: { boardId: true },
+  });
+  if (!col) return;
+  const user = await requireBoardEditor(col.boardId);
+  await requirePerm(user, PERMS.COLUMN_EDIT);
+  if (!STATUSES.includes(statusKey as never)) return;
+  await prisma.$transaction([
+    prisma.column.update({ where: { id: columnId }, data: { statusKey } }),
+    prisma.task.updateMany({ where: { columnId }, data: { status: statusKey } }),
+  ]);
+  bump(col.boardId);
 }
 
 export async function renameColumn(columnId: string, title: string) {
@@ -431,7 +467,6 @@ export async function updateTask(taskId: string, formData: FormData) {
       description: String(formData.get("description") ?? "").trim() || null,
       color: String(formData.get("color") ?? "").trim() || null,
       priority: normalizePriority(formData.get("priority")),
-      status: normalizeStatus(formData.get("status")),
       isPersonal: formData.get("isPersonal") === "on",
       startDate: parseDate(formData.get("startDate")),
       dueDate: parseDate(formData.get("dueDate")),
@@ -499,7 +534,16 @@ export async function completeRecurring(taskId: string) {
     // No more occurrences → stop the recurrence but keep the task.
     data: next ? { dueDate: next } : { recurFreq: null },
   });
+  // Fresh round → drop previous confirmations.
+  await prisma.taskAssignee.updateMany({
+    where: { taskId },
+    data: { confirmed: false },
+  });
+  await logHistory(taskId, user.id, "recurred", {
+    after: next ? next.toISOString().slice(0, 10) : null,
+  });
   bump(boardId);
+  return { next: next ? next.toISOString().slice(0, 10) : null };
 }
 
 /** Reschedule a task's due date (used by the calendar). */
@@ -584,7 +628,7 @@ export async function moveTask(
 
   const col = await prisma.column.findUnique({
     where: { id: toColumnId },
-    select: { boardId: true, systemKey: true },
+    select: { boardId: true, systemKey: true, statusKey: true },
   });
   if (!col || col.boardId !== boardId) return;
 
@@ -596,6 +640,11 @@ export async function moveTask(
       select: {
         createdById: true,
         assignees: { select: { confirmed: true } },
+        recurFreq: true,
+        recurInterval: true,
+        recurDays: true,
+        recurUntil: true,
+        dueDate: true,
       },
     });
     if (!task) return;
@@ -609,10 +658,50 @@ export async function moveTask(
     if (!allConfirmed) {
       throw new Error("Не все исполнители подтвердили выполнение задачи");
     }
+
+    // Recurring task: don't archive — reschedule to the next occurrence and
+    // reset confirmations, leaving it active for the next round.
+    const rule = ruleFromTask({
+      recurFreq: task.recurFreq,
+      recurInterval: task.recurInterval,
+      recurDays: task.recurDays,
+      recurUntil: task.recurUntil ? task.recurUntil.toISOString().slice(0, 10) : null,
+    });
+    if (rule) {
+      const now = new Date();
+      const today = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+      );
+      const due = task.dueDate ?? today;
+      const base = due > today ? due : today;
+      const next = nextOccurrence(rule, base);
+      await prisma.task.update({
+        where: { id: taskId },
+        // Roll to the next occurrence (or stop if exhausted); keep it active.
+        data: next ? { dueDate: next } : { recurFreq: null },
+      });
+      // Reset confirmations so the next round starts fresh.
+      await prisma.taskAssignee.updateMany({
+        where: { taskId },
+        data: { confirmed: false },
+      });
+      await logHistory(taskId, user.id, "recurred", {
+        after: next ? next.toISOString().slice(0, 10) : null,
+      });
+      bump(boardId);
+      return;
+    }
   }
 
   await prisma.$transaction([
-    prisma.task.update({ where: { id: taskId }, data: { columnId: toColumnId } }),
+    prisma.task.update({
+      where: { id: taskId },
+      // Moving a card adopts the destination column's status (status ↔ columns).
+      data: {
+        columnId: toColumnId,
+        ...(col.statusKey ? { status: col.statusKey } : {}),
+      },
+    }),
     ...orderedIds.map((id, i) =>
       prisma.task.update({ where: { id }, data: { order: i } }),
     ),

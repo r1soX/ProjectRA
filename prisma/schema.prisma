@@ -89,6 +89,7 @@ model Column {
   order     Int     @default(0)
   isSystem  Boolean @default(false) // системная колонка (нельзя удалять/переименовывать)
   systemKey String? // напр. "COMPLETED"
+  statusKey String? // связанный статус задач: backlog|todo|in_progress|done|canceled
 
   board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
   tasks Task[]

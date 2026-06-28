@@ -27,8 +27,13 @@ function isOverdue(s: string) {
  * True when the task has a past due date AND isn't completed — a finished task
  * in the "Завершённые задачи" column is never shown as overdue.
  */
-export function isTaskOverdue(task: { dueDate: string | null; done?: boolean }) {
-  if (task.done || !task.dueDate) return false;
+export function isTaskOverdue(task: {
+  dueDate: string | null;
+  done?: boolean;
+  status?: string;
+}) {
+  if (task.done || task.status === "done" || task.status === "canceled") return false;
+  if (!task.dueDate) return false;
   return isOverdue(task.dueDate);
 }
 

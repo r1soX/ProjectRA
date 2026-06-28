@@ -33,9 +33,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast-provider";
 import { cn } from "@/lib/cn";
 import { PRIORITIES, PRIORITY_META, normalizePriority } from "@/lib/priority";
-import { STATUSES, STATUS_META, normalizeStatus } from "@/lib/status";
+import { STATUS_META, normalizeStatus } from "@/lib/status";
 import {
   WEEKDAY_LABELS,
   parseRecurDays,
@@ -138,6 +139,7 @@ export function TaskModal({
   const [assignPending, startAssign] = useTransition();
   const [completePending, startComplete] = useTransition();
   const [confirmPending, startConfirm] = useTransition();
+  const toast = useToast();
   const openedAt = useRef(0);
 
   // Detail data (subtasks, history, time entries) loaded lazily
@@ -286,11 +288,23 @@ export function TaskModal({
                   <aside className="space-y-5 lg:rounded-xl lg:border lg:border-neutral-800 lg:bg-neutral-950/30 lg:p-4">
                     <div>
                       <SectionTitle icon={Activity}>Статус</SectionTitle>
-                      <StatusSelector
-                        key={task.id}
-                        initial={task.status}
-                        disabled={!canEdit}
-                      />
+                      {(() => {
+                        const m = STATUS_META[normalizeStatus(task.status)];
+                        return (
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium",
+                              m.badge,
+                            )}
+                          >
+                            <span className={cn("h-2 w-2 rounded-full", m.dot)} />
+                            {m.label}
+                          </span>
+                        );
+                      })()}
+                      <p className="mt-1 text-[11px] text-neutral-600">
+                        Определяется колонкой задачи
+                      </p>
                     </div>
 
                     <div>
@@ -525,18 +539,43 @@ export function TaskModal({
                     </div>
 
                     {task.recurFreq && boardCanEdit && perms.taskComplete && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        loading={completePending}
-                        onClick={() =>
-                          startComplete(() => completeRecurring(task.id))
-                        }
-                        className="w-full"
-                      >
-                        <CheckCheck className="h-4 w-4" />
-                        Выполнить — следующая дата
-                      </Button>
+                      <div className="space-y-1.5">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          loading={completePending}
+                          onClick={() =>
+                            startComplete(async () => {
+                              const r = await completeRecurring(task.id);
+                              if (r?.next) {
+                                toast({
+                                  type: "success",
+                                  message: `Выполнено — следующее повторение ${new Date(
+                                    r.next,
+                                  ).toLocaleDateString("ru-RU", {
+                                    day: "2-digit",
+                                    month: "long",
+                                  })}`,
+                                });
+                              } else {
+                                toast({
+                                  type: "info",
+                                  message: "Повторений больше нет — задача завершена",
+                                });
+                              }
+                            })
+                          }
+                          className="w-full"
+                        >
+                          <CheckCheck className="h-4 w-4" />
+                          Выполнить — перенести на следующую дату
+                        </Button>
+                        <p className="px-0.5 text-[11px] leading-snug text-neutral-500">
+                          Отмечает текущий цикл выполненным и переносит срок на
+                          следующий. Перенос в «Завершённые задачи» делает то же
+                          самое автоматически.
+                        </p>
+                      </div>
                     )}
 
                     {task.links.length > 0 && (
@@ -1415,6 +1454,7 @@ const ACTION_LABELS: Record<string, string> = {
   label_add: "добавил метку",
   label_remove: "убрал метку",
   completed: "завершил задачу",
+  recurred: "перенёс повторение на",
   subtask_add: "добавил подзадачу",
   time_logged: "записал время",
   attachment_add: "прикрепил файл",
@@ -1611,44 +1651,6 @@ function RecurrenceEditor({
         </label>
       )}
     </div>
-  );
-}
-
-function StatusSelector({
-  initial,
-  disabled,
-}: {
-  initial: string;
-  disabled: boolean;
-}) {
-  const [value, setValue] = useState(normalizeStatus(initial));
-  return (
-    <>
-      <input type="hidden" name="status" value={value} />
-      <div className="grid grid-cols-3 gap-1.5">
-        {STATUSES.map((s) => {
-          const meta = STATUS_META[s];
-          const active = value === s;
-          return (
-            <button
-              key={s}
-              type="button"
-              disabled={disabled}
-              onClick={() => setValue(s)}
-              className={cn(
-                "flex items-center justify-center gap-1 rounded-lg border px-1 py-1.5 text-xs transition disabled:opacity-50",
-                active
-                  ? "border-transparent " + meta.badge
-                  : "border-neutral-700 bg-neutral-900/40 text-neutral-400 hover:bg-neutral-800/60",
-              )}
-            >
-              <span className={cn("h-2 w-2 rounded-full", meta.dot)} />
-              {meta.label}
-            </button>
-          );
-        })}
-      </div>
-    </>
   );
 }
 

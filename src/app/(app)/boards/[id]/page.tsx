@@ -153,6 +153,7 @@ export default async function BoardPage({
     id: c.id,
     title: c.title,
     systemKey: c.systemKey,
+    statusKey: c.statusKey,
     tasks: (canViewTasks ? c.tasks : []).map((t) => ({
       id: t.id,
       columnId: t.columnId,

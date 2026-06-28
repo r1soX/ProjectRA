@@ -14,6 +14,7 @@ export type HistoryAction =
   | "label_add"
   | "label_remove"
   | "completed"
+  | "recurred"
   | "subtask_add"
   | "time_logged"
   | "attachment_add"

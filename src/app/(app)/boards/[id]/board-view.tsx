@@ -63,6 +63,7 @@ import {
   deleteBoard,
   moveTask,
   reorderColumns,
+  setColumnStatus,
 } from "../actions";
 import {
   useConfirm,
@@ -71,7 +72,7 @@ import {
 import { useToast } from "@/components/ui/toast-provider";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { normalizePriority } from "@/lib/priority";
-import { normalizeStatus } from "@/lib/status";
+import { STATUS_META, STATUSES, normalizeStatus } from "@/lib/status";
 import {
   BoardFilters,
   EMPTY_FILTERS,
@@ -149,6 +150,7 @@ export type BoardColumn = {
   id: string;
   title: string;
   systemKey: string | null;
+  statusKey: string | null;
   tasks: BoardTask[];
 };
 export type BoardLabel = { id: string; name: string; color: string };
@@ -956,6 +958,15 @@ function SortableColumn({
           {isCompleted && (
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
           )}
+          {!isCompleted && column.statusKey && (
+            <span
+              className={cn(
+                "h-2 w-2 shrink-0 rounded-full",
+                STATUS_META[normalizeStatus(column.statusKey)].dot,
+              )}
+              title={`Статус: ${STATUS_META[normalizeStatus(column.statusKey)].label}`}
+            />
+          )}
           <h3
             className={cn(
               "truncate text-sm font-semibold",
@@ -1019,6 +1030,34 @@ function SortableColumn({
                       >
                         <Trash2 className="h-3.5 w-3.5" /> Удалить
                       </button>
+                    )}
+                    {perms.columnEdit && (
+                      <div className="mt-1 border-t border-white/5 pt-1">
+                        <p className="px-3 py-1 text-[10px] uppercase tracking-wide text-neutral-600">
+                          Статус колонки
+                        </p>
+                        {STATUSES.filter((s) => s !== "canceled").map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => {
+                              setMenuOpen(false);
+                              start(() => setColumnStatus(column.id, s));
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-neutral-700"
+                          >
+                            <span className={cn("h-2 w-2 rounded-full", STATUS_META[s].dot)} />
+                            <span
+                              className={cn(
+                                column.statusKey === s
+                                  ? "font-medium text-neutral-100"
+                                  : "text-neutral-400",
+                              )}
+                            >
+                              {STATUS_META[s].label}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </motion.div>
                 </>
