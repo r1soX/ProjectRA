@@ -40,6 +40,8 @@ import { STATUS_META, normalizeStatus } from "@/lib/status";
 import {
   WEEKDAY_LABELS,
   parseRecurDays,
+  ruleFromTask,
+  describeRecurrence,
   type RecurFreq,
 } from "@/lib/recurrence";
 import {
@@ -63,6 +65,7 @@ import {
 import { useConfirm } from "@/components/ui/dialog-provider";
 import { MediaLightbox } from "@/components/ui/media-lightbox";
 import { CommentsSection } from "./comments-section";
+import { isTaskOverdue } from "./task-card-body";
 import type {
   BoardTask,
   BoardMemberView,
@@ -91,6 +94,86 @@ function SectionTitle({
       <Icon className="h-3.5 w-3.5" />
       {children}
     </p>
+  );
+}
+
+function fmtChipDate(s: string) {
+  return new Date(s).toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "short",
+  });
+}
+
+/**
+ * Compact at-a-glance summary of the task's key properties, shown under the
+ * title. Especially useful on mobile where the editable property sidebar is
+ * below the fold. Read-only — editing still happens in the sections below.
+ */
+function PropertyChips({ task }: { task: BoardTask }) {
+  const status = STATUS_META[normalizeStatus(task.status)];
+  const priority = PRIORITY_META[normalizePriority(task.priority)];
+  const rule = ruleFromTask(task);
+  const overdue = isTaskOverdue(task);
+  const chip = "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium";
+  const neutral = "bg-white/[0.06] text-neutral-300";
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className={cn(chip, status.badge)}>
+        <span className={cn("h-1.5 w-1.5 rounded-full", status.dot)} />
+        {status.label}
+      </span>
+      <span className={cn(chip, priority.badge)}>
+        <span className={cn("h-1.5 w-1.5 rounded-full", priority.dot)} />
+        {priority.label}
+      </span>
+      {(task.startDate || task.dueDate) && (
+        <span
+          className={cn(chip, overdue ? "bg-red-500/15 text-red-300" : neutral)}
+        >
+          <CalendarRange className="h-3 w-3" />
+          {task.startDate && fmtChipDate(task.startDate)}
+          {task.startDate && task.dueDate && " → "}
+          {task.dueDate && fmtChipDate(task.dueDate)}
+        </span>
+      )}
+      {rule && (
+        <span className={cn(chip, "bg-violet-500/15 text-violet-300")}>
+          <Repeat className="h-3 w-3" />
+          {describeRecurrence(rule)}
+        </span>
+      )}
+      {task.assignees.length > 0 && (
+        <span className={cn(chip, neutral)}>
+          <UsersIcon className="h-3 w-3" />
+          {task.assignees.length}
+        </span>
+      )}
+      {task.subtaskTotal > 0 && (
+        <span
+          className={cn(
+            chip,
+            task.subtaskDone === task.subtaskTotal
+              ? "bg-emerald-500/15 text-emerald-300"
+              : neutral,
+          )}
+        >
+          <ListTodo className="h-3 w-3" />
+          {task.subtaskDone}/{task.subtaskTotal}
+        </span>
+      )}
+      {task.labels.length > 0 && (
+        <span className={cn(chip, neutral)}>
+          <Tag className="h-3 w-3" />
+          {task.labels.length}
+        </span>
+      )}
+      {task.isPersonal && (
+        <span className={cn(chip, neutral)}>
+          <Lock className="h-3 w-3" />
+          личная
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -260,6 +343,8 @@ export function TaskModal({
                   placeholder="Название задачи"
                   className="w-full rounded-lg border border-transparent bg-transparent text-xl font-bold text-neutral-100 outline-none transition placeholder:text-neutral-600 hover:border-neutral-800 focus:border-sky-500 focus:bg-neutral-900/60 focus:px-3 focus:py-1.5 disabled:opacity-70 sm:text-2xl"
                 />
+
+                <PropertyChips task={task} />
 
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
                   {/* Main column: description + files */}

@@ -1,5 +1,5 @@
-const CACHE = "projectra-v1";
-const PRECACHE = ["/", "/dashboard", "/boards", "/messages", "/calendar"];
+const CACHE = "projectra-v2";
+const PRECACHE = ["/", "/dashboard", "/boards", "/inbox", "/messages", "/calendar"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(

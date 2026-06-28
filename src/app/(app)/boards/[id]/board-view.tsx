@@ -266,10 +266,19 @@ export function BoardView({
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const draggingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Coalesce bursts of SSE "change" events into a single refetch.
   function requestRefresh() {
-    if (draggingRef.current) pendingRefreshRef.current = true;
-    else router.refresh();
+    if (draggingRef.current) {
+      pendingRefreshRef.current = true;
+      return;
+    }
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => {
+      refreshTimer.current = null;
+      router.refresh();
+    }, 200);
   }
   function flushRefresh() {
     draggingRef.current = false;
@@ -283,7 +292,10 @@ export function BoardView({
   useEffect(() => {
     const es = new EventSource(`/api/boards/${boardId}/stream`);
     es.addEventListener("change", () => requestRefresh());
-    return () => es.close();
+    return () => {
+      es.close();
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardId]);
 

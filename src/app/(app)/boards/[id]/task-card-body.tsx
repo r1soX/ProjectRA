@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import {
   CalendarClock,
   MessageSquare,
@@ -44,8 +45,17 @@ export function formatDue(s: string) {
   });
 }
 
-/** Inner content of a task card (without the outer border/bg wrapper). */
-export function TaskCardBody({ task }: { task: BoardTask }) {
+/**
+ * Inner content of a task card (without the outer border/bg wrapper).
+ * Memoized: re-renders only when its `task` reference changes, so unrelated
+ * board re-renders (opening a modal, drag state, filter toggles) don't recompute
+ * every card on large boards.
+ */
+export const TaskCardBody = memo(function TaskCardBody({
+  task,
+}: {
+  task: BoardTask;
+}) {
   const priority = PRIORITY_META[normalizePriority(task.priority)];
   const status = STATUS_META[normalizeStatus(task.status)];
   return (
@@ -176,4 +186,4 @@ export function TaskCardBody({ task }: { task: BoardTask }) {
       </div>
     </>
   );
-}
+});
