@@ -180,7 +180,12 @@ export async function checkDeadlines() {
   const tasks = await prisma.task.findMany({
     where: {
       dueDate: { lte: tomorrow },
-      column: { systemKey: { not: "COMPLETED" } },
+      // Exclude only the "Completed" system column. Working columns have a NULL
+      // systemKey, and Prisma's `{ not: "COMPLETED" }` would drop NULL rows too
+      // (SQL `<>` excludes NULL) — so spell out the NULL-safe condition.
+      column: {
+        OR: [{ systemKey: null }, { systemKey: { not: "COMPLETED" } }],
+      },
       OR: [
         { deadlineNotifiedAt: null },
         { deadlineNotifiedAt: { lt: new Date(todayStr) } },
@@ -195,9 +200,13 @@ export async function checkDeadlines() {
 
   for (const task of tasks) {
     if (!task.dueDate) continue;
+    // Due dates are date-only (stored at UTC midnight). Compare calendar days in
+    // UTC so a task due *today* reads as 0 (not a fractional negative), matching
+    // how the rest of the app reasons about dates.
     const due = new Date(task.dueDate);
-    const msLeft = due.getTime() - now.getTime();
-    const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+    const dueMid = Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate());
+    const nowMid = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const daysLeft = Math.round((dueMid - nowMid) / (1000 * 60 * 60 * 24));
 
     const recipients = [
       ...task.assignees.map((a) => a.userId),
