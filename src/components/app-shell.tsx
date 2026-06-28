@@ -25,6 +25,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   MoreHorizontal,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { logout } from "@/app/actions/session";
@@ -63,6 +64,7 @@ const baseNav: NavItem[] = [
   { href: "/messages", label: "Сообщения", icon: MessageCircle, cap: "messages" },
   { href: "/calendar", label: "Календарь", icon: CalendarDays, cap: "tasks" },
   { href: "/workload", label: "Нагрузка", icon: BarChart2, cap: "tasks" },
+  { href: "/docs", label: "Справка", icon: BookOpen },
   { href: "/profile", label: "Профиль", icon: UserIcon },
 ];
 

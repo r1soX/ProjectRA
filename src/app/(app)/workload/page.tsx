@@ -61,7 +61,10 @@ export default async function WorkloadPage() {
     }
   }
 
-  const now = new Date();
+  // Overdue means strictly before today (midnight) — a task due *today* is not
+  // overdue, matching the board, calendar and deadline-reminder logic.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   return (
     <WorkloadClient
@@ -69,7 +72,7 @@ export default async function WorkloadPage() {
       users={users.map((u) => {
         const userTasks = byUser.get(u.id) ?? [];
         const overdue = userTasks.filter(
-          (t) => t.dueDate && new Date(t.dueDate) < now,
+          (t) => t.dueDate && new Date(t.dueDate) < today,
         ).length;
         return {
           id: u.id,
@@ -88,7 +91,7 @@ export default async function WorkloadPage() {
             boardId: t.board.id,
             boardTitle: t.board.title,
             columnTitle: t.column.title,
-            isOverdue: !!(t.dueDate && new Date(t.dueDate) < now),
+            isOverdue: !!(t.dueDate && new Date(t.dueDate) < today),
           })),
         };
       })}
