@@ -51,12 +51,15 @@ export default async function WorkloadPage() {
     },
   });
 
-  // Build per-user task lists
-  const byUser = new Map<string, typeof tasks>();
+  // Build per-user task lists, keeping THIS user's own confirmation per task.
+  const byUser = new Map<
+    string,
+    { task: (typeof tasks)[number]; confirmed: boolean }[]
+  >();
   for (const t of tasks) {
     for (const a of t.assignees) {
       const arr = byUser.get(a.userId) ?? [];
-      arr.push(t);
+      arr.push({ task: t, confirmed: a.confirmed });
       byUser.set(a.userId, arr);
     }
   }
@@ -71,19 +74,9 @@ export default async function WorkloadPage() {
       currentUserId={currentUser.id}
       users={users.map((u) => {
         const userTasks = byUser.get(u.id) ?? [];
-        const overdue = userTasks.filter(
-          (t) => t.dueDate && new Date(t.dueDate) < today,
-        ).length;
-        return {
-          id: u.id,
-          fullName: shortName(u),
-          initials: initials(u),
-          avatar: u.avatar,
-          emoji: u.avatarEmoji,
-          role: u.role,
-          taskCount: userTasks.length,
-          overdueCount: overdue,
-          tasks: userTasks.map((t) => ({
+        const entries = userTasks.map(({ task: t, confirmed }) => {
+          const overdue = !!(t.dueDate && new Date(t.dueDate) < today);
+          return {
             id: t.id,
             title: t.title,
             priority: t.priority,
@@ -91,8 +84,32 @@ export default async function WorkloadPage() {
             boardId: t.board.id,
             boardTitle: t.board.title,
             columnTitle: t.column.title,
-            isOverdue: !!(t.dueDate && new Date(t.dueDate) < today),
-          })),
+            // This user has signed off their part → it isn't their load/overdue.
+            confirmed,
+            isOverdue: overdue && !confirmed,
+            confirmedCount: t.assignees.filter((a) => a.confirmed).length,
+            assigneeCount: t.assignees.length,
+          };
+        });
+        // Sort: own pending first, then done; overdue floats to the top.
+        entries.sort((a, b) => {
+          if (a.confirmed !== b.confirmed) return a.confirmed ? 1 : -1;
+          if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
+          return 0;
+        });
+        const pending = entries.filter((e) => !e.confirmed);
+        return {
+          id: u.id,
+          fullName: shortName(u),
+          initials: initials(u),
+          avatar: u.avatar,
+          emoji: u.avatarEmoji,
+          role: u.role,
+          // Active load = tasks the user hasn't signed off yet.
+          taskCount: pending.length,
+          doneCount: entries.length - pending.length,
+          overdueCount: pending.filter((e) => e.isOverdue).length,
+          tasks: entries,
         };
       })}
     />
