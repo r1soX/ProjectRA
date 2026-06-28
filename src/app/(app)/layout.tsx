@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { getUnreadTotal } from "@/lib/chat";
+import { getUserBoards } from "@/lib/boards";
 import { prisma } from "@/lib/prisma";
 import { hasPerm, PERMS } from "@/lib/permissions";
 import { AppShell, type NavCaps } from "@/components/app-shell";
@@ -44,6 +45,14 @@ export default async function AppLayout({
     adminTemplates,
   };
 
+  const sidebarBoards = boards
+    ? (await getUserBoards(user.id)).map((b) => ({
+        id: b.id,
+        title: b.title,
+        color: b.color ?? "#0ea5e9",
+      }))
+    : [];
+
   return (
     <DialogProvider>
       <ToastProvider>
@@ -53,6 +62,7 @@ export default async function AppLayout({
             unreadTotal={unreadTotal}
             notifUnread={notifUnread}
             caps={caps}
+            boards={sidebarBoards}
           >
             {children}
           </AppShell>

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { getBoardRole, canEdit } from "@/lib/boards";
+import { getBoardRole, canEdit, canComment } from "@/lib/boards";
 import { normalizePriority } from "@/lib/priority";
 import { normalizeStatus } from "@/lib/status";
 import { ruleFromTask, nextOccurrence } from "@/lib/recurrence";
@@ -78,6 +78,7 @@ async function requireTaskEditor(taskId: string) {
 
   const role = await getBoardRole(task.boardId, user.id);
   if (!role) throw new Error("Нет доступа к доске");
+  if (!canEdit(role)) throw new Error("Ваша роль на доске не позволяет редактировать");
 
   const editAny = await hasPerm(user.id, user.role, PERMS.TASK_EDIT_ANY);
   if (editAny) return { user, task };
@@ -103,6 +104,7 @@ async function requireTaskDeleter(taskId: string) {
 
   const role = await getBoardRole(task.boardId, user.id);
   if (!role) throw new Error("Нет доступа к доске");
+  if (!canEdit(role)) throw new Error("Ваша роль на доске не позволяет удалять");
 
   const delAny = await hasPerm(user.id, user.role, PERMS.TASK_DELETE_ANY);
   if (delAny) return { user, task };
@@ -301,12 +303,12 @@ async function requireBoardOwner(boardId: string) {
 export async function addMember(
   boardId: string,
   userId: string,
-  role: "EDITOR" | "VIEWER",
+  role: "EDITOR" | "COMMENTER" | "VIEWER",
 ) {
-  const { user, board } = await requireBoardOwner(boardId);
+  const { user } = await requireBoardOwner(boardId);
   await requirePerm(user, PERMS.BOARD_MANAGE_MEMBERS);
-  if (!board.isPersonal)
-    throw new Error("Общая доска доступна всем — участники не нужны");
+  // On a personal board this invites the user; on a shared board it overrides
+  // their default Editor role (e.g. to Commenter/Viewer).
   await prisma.boardMember.upsert({
     where: { boardId_userId: { boardId, userId } },
     create: { boardId, userId, role },
@@ -646,6 +648,7 @@ export async function addComment(
   const user = await requireUser();
   const role = await getBoardRole(boardId, user.id);
   if (!role) return { error: "Нет доступа к доске" };
+  if (!canComment(role)) return { error: "Наблюдатель не может комментировать" };
   if (!(await hasPerm(user.id, user.role, PERMS.COMMENT_CREATE))) {
     return { error: "Недостаточно прав" };
   }
@@ -718,7 +721,7 @@ export async function toggleCommentReaction(commentId: string, emoji: string) {
     select: { task: { select: { boardId: true } } },
   });
   if (!comment) return;
-  if (!(await getBoardRole(comment.task.boardId, user.id))) return;
+  if (!canComment(await getBoardRole(comment.task.boardId, user.id))) return;
 
   const key = { commentId_userId_emoji: { commentId, userId: user.id, emoji } };
   const existing = await prisma.commentReaction.findUnique({ where: key });

@@ -106,6 +106,7 @@ export function TaskModal({
   canModerate,
   canDelete,
   canViewComments = true,
+  canComment = true,
   highlightCommentId = null,
   onRequestDelete,
   onClose,
@@ -122,6 +123,7 @@ export function TaskModal({
   canModerate: boolean;
   canDelete: boolean;
   canViewComments?: boolean;
+  canComment?: boolean;
   highlightCommentId?: string | null;
   onRequestDelete: (task: BoardTask) => void;
   onClose: () => void;
@@ -606,7 +608,7 @@ export function TaskModal({
                   currentUserId={currentUserId}
                   canModerate={canModerate}
                   canView={canViewComments}
-                  canCreate={perms.commentCreate}
+                  canCreate={canComment && perms.commentCreate}
                   mentionUsers={directory}
                   highlightCommentId={highlightCommentId}
                 />

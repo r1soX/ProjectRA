@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence, MotionConfig } from "motion/react";
@@ -21,6 +21,7 @@ import {
   Inbox,
   BarChart3,
   ScrollText,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { logout } from "@/app/actions/session";
@@ -122,6 +123,87 @@ function NavLinks({
   );
 }
 
+export type SidebarBoard = { id: string; title: string; color: string };
+
+const PIN_KEY = "projectra:pinned-boards";
+
+function BoardsNav({
+  boards,
+  pathname,
+  onNavigate,
+}: {
+  boards: SidebarBoard[];
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const [pins, setPins] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const r = localStorage.getItem(PIN_KEY);
+      if (r) setPins(JSON.parse(r));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  function togglePin(id: string, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setPins((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      try {
+        localStorage.setItem(PIN_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+  if (boards.length === 0) return null;
+  const pinned = boards.filter((b) => pins.includes(b.id));
+  const rest = boards.filter((b) => !pins.includes(b.id));
+  const ordered = [...pinned, ...rest].slice(0, 14);
+
+  return (
+    <div className="mt-3 space-y-0.5">
+      <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-600">
+        Доски
+      </p>
+      {ordered.map((b) => {
+        const active = pathname === `/boards/${b.id}`;
+        const isPinned = pins.includes(b.id);
+        return (
+          <Link
+            key={b.id}
+            href={`/boards/${b.id}`}
+            onClick={onNavigate}
+            className={cn(
+              "group flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition",
+              active
+                ? "bg-white/10 text-neutral-100"
+                : "text-neutral-400 hover:bg-white/5 hover:text-neutral-200",
+            )}
+          >
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
+            <span className="min-w-0 flex-1 truncate">{b.title}</span>
+            <button
+              onClick={(e) => togglePin(b.id, e)}
+              aria-label={isPinned ? "Открепить" : "Закрепить"}
+              className={cn(
+                "shrink-0 rounded p-0.5 transition",
+                isPinned
+                  ? "text-amber-400"
+                  : "text-neutral-700 opacity-0 hover:text-neutral-400 group-hover:opacity-100",
+              )}
+            >
+              <Star className="h-3.5 w-3.5" fill={isPinned ? "currentColor" : "none"} />
+            </button>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 function UserCard({ user }: { user: SessionUser }) {
   return (
     <div className="flex items-center gap-3 border-t border-white/10 p-3">
@@ -156,12 +238,14 @@ export function AppShell({
   unreadTotal,
   notifUnread,
   caps,
+  boards,
   children,
 }: {
   user: SessionUser;
   unreadTotal: number;
   notifUnread: number;
   caps: NavCaps;
+  boards: SidebarBoard[];
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -205,6 +289,7 @@ export function AppShell({
             unreadTotal={unreadTotal}
             notifUnread={notifUnread}
           />
+          <BoardsNav boards={boards} pathname={pathname} />
         </div>
         <div className="flex items-center justify-end border-t border-white/10 px-3 py-2">
           <NotificationCenter variant="desktop" />
@@ -246,12 +331,17 @@ export function AppShell({
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="flex-1 px-3 py-2">
+              <div className="flex-1 overflow-y-auto px-3 py-2">
                 <NavLinks
                   items={items}
                   pathname={pathname}
                   unreadTotal={unreadTotal}
                   notifUnread={notifUnread}
+                  onNavigate={() => setMobileOpen(false)}
+                />
+                <BoardsNav
+                  boards={boards}
+                  pathname={pathname}
                   onNavigate={() => setMobileOpen(false)}
                 />
               </div>

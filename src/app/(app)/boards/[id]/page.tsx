@@ -215,9 +215,9 @@ export default async function BoardPage({
     })),
   }));
 
-  // Directory for inviting people to a personal board (owner only).
+  // Directory for managing members/roles (owner only, any board).
   let directory: DirectoryUser[] = [];
-  if (isOwner && board.isPersonal) {
+  if (isOwner) {
     const users = await prisma.user.findMany({
       where: { isActive: true, id: { not: board.ownerId } },
       orderBy: { lastName: "asc" },
@@ -239,6 +239,11 @@ export default async function BoardPage({
     color: l.color,
   }));
 
+  // Explicit member role overrides (for the members/roles modal).
+  const boardMembers: BoardMemberView[] = board.members.map((m) =>
+    toMemberView(m.user, m.role),
+  );
+
   return (
     <BoardView
       boardId={board.id}
@@ -252,6 +257,7 @@ export default async function BoardPage({
       members={headerMembers}
       assignable={assignable}
       directory={directory}
+      boardMembers={boardMembers}
       boardLabels={boardLabels}
       canViewTasks={canViewTasks}
       canViewComments={canViewComments}

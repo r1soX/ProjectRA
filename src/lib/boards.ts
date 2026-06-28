@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "./prisma";
 
-export type BoardRole = "OWNER" | "EDITOR" | "VIEWER";
+export type BoardRole = "OWNER" | "EDITOR" | "COMMENTER" | "VIEWER";
 
 /**
  * Boards visible to the user:
@@ -92,13 +92,15 @@ export async function getBoardWithData(
 
   const isOwner = board.ownerId === userId;
   const member = board.members.find((m) => m.userId === userId);
-  // Shared boards are accessible (and editable) by everyone.
+  // Personal boards require membership; shared boards are open to everyone.
   if (!isOwner && board.isPersonal && !member) return null;
 
+  // A BoardMember row on a shared board acts as a role override (e.g. downgrade
+  // someone to Viewer/Commenter); without one, shared boards default to Editor.
   const role: BoardRole = isOwner
     ? "OWNER"
-    : board.isPersonal
-      ? (member!.role as BoardRole)
+    : member
+      ? (member.role as BoardRole)
       : "EDITOR";
   return { board, role };
 }
@@ -118,13 +120,18 @@ export async function getBoardRole(
   });
   if (!board) return null;
   if (board.ownerId === userId) return "OWNER";
-  if (!board.isPersonal) return "EDITOR"; // shared → everyone can edit
   const m = board.members[0];
-  return m ? (m.role as BoardRole) : null;
+  if (m) return m.role as BoardRole; // explicit (or overridden) role
+  return board.isPersonal ? null : "EDITOR"; // shared default → editor
 }
 
 export function canEdit(role: BoardRole | null): boolean {
   return role === "OWNER" || role === "EDITOR";
+}
+
+/** Viewers can't comment; everyone else (owner/editor/commenter) can. */
+export function canComment(role: BoardRole | null): boolean {
+  return role === "OWNER" || role === "EDITOR" || role === "COMMENTER";
 }
 
 /** Make sure the board has its protected "Завершённые задачи" column. */

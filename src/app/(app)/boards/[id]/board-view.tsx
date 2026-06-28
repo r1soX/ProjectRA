@@ -216,6 +216,7 @@ export function BoardView({
   members,
   assignable,
   directory,
+  boardMembers,
   boardLabels,
   canViewTasks,
   canViewComments,
@@ -234,6 +235,7 @@ export function BoardView({
   members: BoardMemberView[];
   assignable: BoardMemberView[];
   directory: DirectoryUser[];
+  boardMembers: BoardMemberView[];
   boardLabels: BoardLabel[];
   canViewTasks: boolean;
   canViewComments: boolean;
@@ -242,6 +244,7 @@ export function BoardView({
   perms: BoardPerms;
 }) {
   const canEdit = role === "OWNER" || role === "EDITOR";
+  const canComment = role !== "VIEWER";
   const isOwner = role === "OWNER";
 
   const [cols, setCols] = useState<BoardColumn[]>(columns);
@@ -648,7 +651,7 @@ export function BoardView({
               canExportBoard={canExportBoard}
             />
           )}
-          {isOwner && isPersonal && (
+          {isOwner && (
             <Button size="sm" variant="secondary" onClick={() => setMembersOpen(true)}>
               <UsersIcon className="h-4 w-4" />
               <span className="hidden sm:inline">Участники</span>
@@ -778,9 +781,10 @@ export function BoardView({
         boardId={boardId}
         boardLabels={boardLabels}
         canViewComments={canViewComments}
+        canComment={canComment}
         perms={perms}
         canEdit={
-          selectedTask
+          canEdit && selectedTask
             ? perms.taskEditAny ||
               (perms.taskEditOwn && selectedTask.createdById === currentUserId)
             : false
@@ -790,7 +794,7 @@ export function BoardView({
         highlightCommentId={highlightCommentId}
         canModerate={isOwner}
         canDelete={
-          selectedTask
+          canEdit && selectedTask
             ? perms.taskDeleteAny ||
               (perms.taskDeleteOwn && selectedTask.createdById === currentUserId)
             : false
@@ -801,7 +805,8 @@ export function BoardView({
       <MembersModal
         open={membersOpen}
         boardId={boardId}
-        members={members}
+        isPersonal={isPersonal}
+        members={boardMembers}
         directory={directory}
         onClose={() => setMembersOpen(false)}
       />

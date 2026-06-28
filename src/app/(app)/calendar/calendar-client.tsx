@@ -40,6 +40,18 @@ function startOfMonth(d: Date) {
 function addMonths(d: Date, n: number) {
   return new Date(d.getFullYear(), d.getMonth() + n, 1);
 }
+function addDays(d: Date, n: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+function startOfWeek(d: Date) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); // Monday-first
+  return x;
+}
+
+type CalView = "month" | "week" | "day";
 
 export function CalendarClient({
   tasks: initial,
@@ -52,7 +64,24 @@ export function CalendarClient({
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initial);
-  const [month, setMonth] = useState(() => startOfMonth(new Date()));
+  const [anchor, setAnchor] = useState(() => new Date());
+  const [view, setView] = useState<CalView>("month");
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("projectra:cal-view");
+      if (v === "week" || v === "day" || v === "month") setView(v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  function changeView(v: CalView) {
+    setView(v);
+    try {
+      localStorage.setItem("projectra:cal-view", v);
+    } catch {
+      /* ignore */
+    }
+  }
   const [active, setActive] = useState<CalendarTask | null>(null);
   const [selected, setSelected] = useState<CalendarTask | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null);
@@ -92,18 +121,37 @@ export function CalendarClient({
   }, [tasks]);
 
   const cells = useMemo(() => {
-    const first = startOfMonth(month);
-    const offset = (first.getDay() + 6) % 7; // Monday-first
-    const gridStart = new Date(first);
-    gridStart.setDate(first.getDate() - offset);
-    return Array.from({ length: 42 }, (_, i) => {
-      const d = new Date(gridStart);
-      d.setDate(gridStart.getDate() + i);
-      return d;
-    });
-  }, [month]);
+    const gridStart = startOfWeek(startOfMonth(anchor));
+    return Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+  }, [anchor]);
+
+  const weekDays = useMemo(() => {
+    const ws = startOfWeek(anchor);
+    return Array.from({ length: 7 }, (_, i) => addDays(ws, i));
+  }, [anchor]);
 
   const todayKey = keyOf(new Date());
+
+  function navigate(delta: number) {
+    if (view === "month") setAnchor(addMonths(anchor, delta));
+    else if (view === "week") setAnchor(addDays(anchor, delta * 7));
+    else setAnchor(addDays(anchor, delta));
+  }
+
+  const title =
+    view === "month"
+      ? anchor.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })
+      : view === "day"
+        ? anchor.toLocaleDateString("ru-RU", {
+            day: "2-digit",
+            month: "long",
+            weekday: "long",
+          })
+        : (() => {
+            const ws = startOfWeek(anchor);
+            const we = addDays(ws, 6);
+            return `${ws.getDate()} ${ws.toLocaleDateString("ru-RU", { month: "short" })} — ${we.getDate()} ${we.toLocaleDateString("ru-RU", { month: "short", year: "numeric" })}`;
+          })();
 
   function canModify(t: CalendarTask) {
     return isAdmin || t.createdById === currentUserId;
@@ -127,31 +175,57 @@ export function CalendarClient({
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3 sm:px-6">
+      <div className="flex flex-wrap items-center gap-3 border-b border-white/10 px-4 py-3 sm:px-6">
         <h1 className="min-w-0 truncate text-base font-bold capitalize text-neutral-100 sm:text-lg">
-          {month.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
+          {title}
         </h1>
+
+        <div className="flex items-center gap-0.5 rounded-lg border border-neutral-700 bg-neutral-800/60 p-0.5 text-xs">
+          {(
+            [
+              ["month", "Месяц"],
+              ["week", "Неделя"],
+              ["day", "День"],
+            ] as const
+          ).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => changeView(v)}
+              className={cn(
+                "rounded-md px-2.5 py-1 transition",
+                view === v
+                  ? "bg-white/10 text-neutral-100"
+                  : "text-neutral-500 hover:text-neutral-300",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          <Button size="sm" variant="ghost" onClick={() => setMonth(addMonths(month, -1))}>
+          <Button size="sm" variant="ghost" onClick={() => navigate(-1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => setMonth(startOfMonth(new Date()))}>
+          <Button size="sm" variant="secondary" onClick={() => setAnchor(new Date())}>
             Сегодня
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setMonth(addMonths(month, 1))}>
+          <Button size="sm" variant="ghost" onClick={() => navigate(1)}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {/* Weekday row */}
-      <div className="grid grid-cols-7 border-b border-white/10 text-center text-xs text-neutral-500">
-        {WEEKDAYS.map((w) => (
-          <div key={w} className="py-2">
-            {w}
-          </div>
-        ))}
-      </div>
+      {/* Weekday row (month & week) */}
+      {view !== "day" && (
+        <div className="grid grid-cols-7 border-b border-white/10 text-center text-xs text-neutral-500">
+          {WEEKDAYS.map((w) => (
+            <div key={w} className="py-2">
+              {w}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Grid */}
       <DndContext
@@ -161,26 +235,49 @@ export function CalendarClient({
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       >
-        <div className="grid flex-1 grid-cols-7 grid-rows-6 overflow-y-auto">
-          {cells.map((d) => {
-            const k = keyOf(d);
-            const inMonth = d.getMonth() === month.getMonth();
-            const dayTasks = byDay.get(k) ?? [];
-            return (
-              <DayCell
-                key={k}
-                dateKey={k}
-                day={d.getDate()}
-                inMonth={inMonth}
-                isToday={k === todayKey}
-                tasks={dayTasks}
-                onOpenTask={setSelected}
-                onMore={() => setDayOpen(k)}
-                canModify={canModify}
-              />
-            );
-          })}
-        </div>
+        {view === "month" ? (
+          <div className="grid flex-1 grid-cols-7 grid-rows-6 overflow-y-auto">
+            {cells.map((d) => {
+              const k = keyOf(d);
+              return (
+                <DayCell
+                  key={k}
+                  dateKey={k}
+                  day={d.getDate()}
+                  inMonth={d.getMonth() === anchor.getMonth()}
+                  isToday={k === todayKey}
+                  tasks={byDay.get(k) ?? []}
+                  onOpenTask={setSelected}
+                  onMore={() => setDayOpen(k)}
+                  canModify={canModify}
+                />
+              );
+            })}
+          </div>
+        ) : view === "week" ? (
+          <div className="grid flex-1 grid-cols-7 overflow-y-auto">
+            {weekDays.map((d) => {
+              const k = keyOf(d);
+              return (
+                <WeekColumn
+                  key={k}
+                  dateKey={k}
+                  day={d.getDate()}
+                  isToday={k === todayKey}
+                  tasks={byDay.get(k) ?? []}
+                  onOpenTask={setSelected}
+                  canModify={canModify}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <DayView
+            dateKey={keyOf(anchor)}
+            tasks={byDay.get(keyOf(anchor)) ?? []}
+            onOpenTask={setSelected}
+          />
+        )}
 
         <DragOverlay>
           {active && (
@@ -304,6 +401,82 @@ function DayCell({
           ))}
         </button>
       )}
+    </div>
+  );
+}
+
+function WeekColumn({
+  dateKey,
+  day,
+  isToday,
+  tasks,
+  onOpenTask,
+  canModify,
+}: {
+  dateKey: string;
+  day: number;
+  isToday: boolean;
+  tasks: CalendarTask[];
+  onOpenTask: (t: CalendarTask) => void;
+  canModify: (t: CalendarTask) => boolean;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: dateKey });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex min-h-full flex-col gap-1 border-r border-white/[0.06] p-1.5",
+        isOver && "bg-sky-500/10 ring-1 ring-inset ring-sky-500/40",
+      )}
+    >
+      <span
+        className={cn(
+          "mb-1 inline-flex h-7 w-7 items-center justify-center self-start rounded-full text-sm",
+          isToday ? "bg-sky-500 font-semibold text-white" : "text-neutral-400",
+        )}
+      >
+        {day}
+      </span>
+      <div className="flex flex-col gap-1">
+        {tasks.map((t) => (
+          <TaskChip key={t.id} task={t} draggable={canModify(t)} onOpen={() => onOpenTask(t)} />
+        ))}
+        {tasks.length === 0 && (
+          <span className="px-1 text-[11px] text-neutral-700">—</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DayView({
+  dateKey,
+  tasks,
+  onOpenTask,
+}: {
+  dateKey: string;
+  tasks: CalendarTask[];
+  onOpenTask: (t: CalendarTask) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: dateKey });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn("flex-1 overflow-y-auto p-4 sm:p-6", isOver && "bg-sky-500/[0.05]")}
+    >
+      <div className="mx-auto max-w-2xl space-y-1.5">
+        {tasks.length === 0 ? (
+          <p className="py-16 text-center text-sm text-neutral-500">
+            На этот день задач нет.
+          </p>
+        ) : (
+          tasks.map((t) => (
+            <button key={t.id} onClick={() => onOpenTask(t)} className="block w-full text-left">
+              <ChipBody task={t} />
+            </button>
+          ))
+        )}
+      </div>
     </div>
   );
 }
