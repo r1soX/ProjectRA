@@ -118,8 +118,8 @@ export function CommandPalette({ caps }: { caps: NavCaps }) {
       { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
       { href: "/boards", label: "Доски", icon: LayoutGrid, cap: "boards" },
       { href: "/calendar", label: "Календарь", icon: CalendarDays, cap: "tasks" },
-      { href: "/messages", label: "Сообщения", icon: MessageCircle, cap: "messages" },
       { href: "/workload", label: "Нагрузка", icon: BarChart2, cap: "tasks" },
+      { href: "/messages", label: "Сообщения", icon: MessageCircle, cap: "messages" },
       { href: "/profile", label: "Профиль", icon: UserIcon },
     ];
     return all.filter((n) => !n.cap || caps[n.cap]);

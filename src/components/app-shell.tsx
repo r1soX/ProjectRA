@@ -57,27 +57,33 @@ type NavItem = {
 };
 
 const baseNav: NavItem[] = [
+  // Обзор
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
-  { href: "/inbox", label: "Входящие", icon: Inbox },
+  // Работа и планирование
   { href: "/boards", label: "Доски", icon: LayoutGrid, cap: "boards" },
-  { href: "/search", label: "Поиск", icon: Search, cap: "boards" },
-  { href: "/messages", label: "Сообщения", icon: MessageCircle, cap: "messages" },
   { href: "/calendar", label: "Календарь", icon: CalendarDays, cap: "tasks" },
   { href: "/workload", label: "Нагрузка", icon: BarChart2, cap: "tasks" },
+  // Коммуникации
+  { href: "/inbox", label: "Входящие", icon: Inbox },
+  { href: "/messages", label: "Сообщения", icon: MessageCircle, cap: "messages" },
+  // Утилиты / справка / аккаунт
+  { href: "/search", label: "Поиск", icon: Search, cap: "boards" },
   { href: "/docs", label: "Справка", icon: BookOpen },
   { href: "/profile", label: "Профиль", icon: UserIcon },
 ];
 
 const adminNav: NavItem[] = [
-  { href: "/admin/analytics", label: "Аналитика", icon: BarChart3 },
-  { href: "/admin/audit", label: "Журнал", icon: ScrollText },
+  // Управление
   { href: "/admin/users", label: "Пользователи", icon: Users, cap: "adminUsers" },
   { href: "/admin/permissions", label: "Права доступа", icon: Shield, cap: "adminPerms" },
   { href: "/admin/templates", label: "Шаблоны", icon: LayoutTemplate, cap: "adminTemplates" },
+  // Аналитика и аудит
+  { href: "/admin/analytics", label: "Аналитика", icon: BarChart3 },
+  { href: "/admin/audit", label: "Журнал", icon: ScrollText },
 ];
 
 // Primary destinations surfaced in the mobile bottom bar (in priority order).
-const MOBILE_PRIMARY = ["/dashboard", "/boards", "/messages", "/inbox"];
+const MOBILE_PRIMARY = ["/dashboard", "/boards", "/inbox", "/messages"];
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
