@@ -10,16 +10,11 @@ import {
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getUserBoards } from "@/lib/boards";
-import {
-  getMyWork,
-  getOnboardingProgress,
-  type MyTask,
-} from "@/lib/dashboard";
+import { getMyWork, type MyTask } from "@/lib/dashboard";
 import { hasPerm, PERMS } from "@/lib/permissions";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
 import { PageContainer } from "@/components/ui/page-container";
 import { EmptyState } from "@/components/ui/empty-state";
-import { OnboardingChecklist } from "./onboarding-checklist";
 import { cn } from "@/lib/cn";
 
 function dueLabel(iso: string) {
@@ -65,10 +60,9 @@ function StatCard({
 export default async function DashboardPage() {
   const user = await requireUser();
   const canBoards = await hasPerm(user.id, user.role, PERMS.BOARD_VIEW);
-  const [{ tasks, stats }, boards, onboarding] = await Promise.all([
+  const [{ tasks, stats }, boards] = await Promise.all([
     getMyWork(user.id),
     canBoards ? getUserBoards(user.id) : Promise.resolve([]),
-    getOnboardingProgress(user.id),
   ]);
 
   return (
@@ -83,10 +77,6 @@ export default async function DashboardPage() {
             : `На вас ${stats.active} активных задач${stats.overdue > 0 ? `, из них ${stats.overdue} просрочено` : ""}.`}
         </p>
       </div>
-
-      {!onboarding.allDone && (
-        <OnboardingChecklist steps={onboarding.steps} ownsBoard={onboarding.ownsBoard} />
-      )}
 
       {/* Stats */}
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
