@@ -13,6 +13,22 @@
 export async function register() {
   // Only run in the Node.js server runtime (not Edge, not the browser bundle).
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  // SQLite tuning — must run before traffic. Default journal mode makes a
+  // writer block ALL readers, which shows up as the app intermittently
+  // "freezing" while a background write (presence ping, deadline scheduler,
+  // task move) holds the lock. WAL lets reads proceed during writes;
+  // busy_timeout makes a query wait for a lock instead of erroring;
+  // synchronous=NORMAL is the safe, fast pairing for WAL.
+  try {
+    const { prisma } = await import("./lib/prisma");
+    await prisma.$queryRawUnsafe("PRAGMA journal_mode=WAL;");
+    await prisma.$queryRawUnsafe("PRAGMA busy_timeout=5000;");
+    await prisma.$queryRawUnsafe("PRAGMA synchronous=NORMAL;");
+  } catch (err) {
+    console.error("[sqlite] pragma init failed:", err);
+  }
+
   // Opt-out hook for environments that drive the cron route externally.
   if (process.env.DISABLE_DEADLINE_SCHEDULER === "1") return;
 

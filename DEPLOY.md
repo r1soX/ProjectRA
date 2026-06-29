@@ -11,8 +11,11 @@ Next.js 16 (App Router) + Prisma + SQLite. Реалтайм на SSE. Напом
 
 ```dotenv
 # SQLite-файл. Путь у Prisma резолвится относительно папки prisma/,
-# поэтому проще указать абсолютный путь:
-DATABASE_URL="file:/opt/ProjectRA/prisma/prod.db"
+# поэтому проще указать абсолютный путь.
+# connection_limit=1 — одно соединение к SQLite: убирает гонки на запись
+# («database is locked» / периодические подвисания). WAL включается
+# автоматически при старте (src/instrumentation.ts).
+DATABASE_URL="file:/opt/ProjectRA/prisma/prod.db?connection_limit=1"
 
 # ОБЯЗАТЕЛЬНО: секрет для подписи сессий (иначе приложение падает).
 # Сгенерировать:  openssl rand -base64 32
@@ -118,3 +121,9 @@ nginx -t && systemctl reload nginx
 - **`Failed to find Server Action "x"`** — это не падение сервера, а старая вкладка
   браузера с прошлой сборки дёргает action, которого в новой сборке нет. Лечится
   жёстким обновлением страницы (Ctrl+Shift+R) после стабильного запуска.
+- **Приложение периодически «подвисает» и само отвисает** — SQLite в обычном режиме
+  блокирует чтения на время любой записи (а онлайн-статус пишется каждые ~30 c на
+  каждого пользователя). Лечится режимом WAL — он включается автоматически при
+  старте (`src/instrumentation.ts`). Дополнительно поставь `?connection_limit=1`
+  в `DATABASE_URL`. Проверить режим: `sqlite3 prisma/prod.db 'PRAGMA journal_mode;'`
+  → должно быть `wal`.
