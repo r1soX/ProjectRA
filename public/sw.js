@@ -1,37 +1,37 @@
-const CACHE = "projectra-v2";
-const PRECACHE = ["/", "/dashboard", "/boards", "/inbox", "/messages", "/calendar"];
+// Minimal service worker.
+//
+// It deliberately does NOT cache or intercept requests. This is an SSR +
+// realtime app: caching HTML/navigations caused stale pages ("Failed to find
+// Server Action"), favicon/network errors and intermittent freezes (the old
+// fetch handler could call respondWith(undefined) → "Failed to convert value
+// to 'Response'"). The app must always reach the server.
+//
+// The SW is kept only to (a) stay registered so the app remains installable as
+// a PWA, and (b) actively purge caches left by previous, caching versions.
 
-self.addEventListener("install", (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()),
+const CACHE_PREFIX = "projectra-";
+
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      // Remove every cache created by older versions of this worker.
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((k) => k.startsWith(CACHE_PREFIX))
+          .map((k) => caches.delete(k)),
+      );
+      await self.clients.claim();
+    })(),
   );
 });
 
-self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))),
-    ).then(() => self.clients.claim()),
-  );
-});
-
-self.addEventListener("fetch", (e) => {
-  // Only cache GET requests for same-origin pages
-  if (e.request.method !== "GET") return;
-  const url = new URL(e.request.url);
-  if (url.origin !== location.origin) return;
-  // Skip API, SSE, and Next.js internals
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/_next/")) return;
-
-  e.respondWith(
-    fetch(e.request)
-      .then((res) => {
-        if (res.ok) {
-          const clone = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, clone));
-        }
-        return res;
-      })
-      .catch(() => caches.match(e.request)),
-  );
+// No-op fetch handler: present so the worker is well-formed, but it never calls
+// respondWith(), so the browser handles every request over the network as usual.
+self.addEventListener("fetch", () => {
+  /* pass through to network */
 });
