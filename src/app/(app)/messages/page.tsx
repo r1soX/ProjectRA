@@ -1,5 +1,10 @@
 import { requireUser } from "@/lib/auth";
-import { getConversationList, getChannelView, getUnread } from "@/lib/chat";
+import {
+  getConversationList,
+  getChannelView,
+  getUnread,
+  getAllDmChannels,
+} from "@/lib/chat";
 import { hasPerm, PERMS } from "@/lib/permissions";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { fullName, shortName, initials } from "@/lib/names";
@@ -8,6 +13,7 @@ import {
   type ChatBoard,
   type ChatUser,
   type ActiveChannel,
+  type SpectateChannel,
 } from "./messages-client";
 
 export default async function MessagesPage({
@@ -22,33 +28,58 @@ export default async function MessagesPage({
     );
   }
   const { c } = await searchParams;
+  const isAdmin = me.role === "ADMIN";
 
   const [{ users, boards }, unread] = await Promise.all([
-    getConversationList(me.id),
+    getConversationList(me.id, isAdmin),
     getUnread(me.id),
   ]);
+
+  // Admin surveillance: every DM between other people, labelled "A ↔ B".
+  let spectate: SpectateChannel[] = [];
+  if (isAdmin) {
+    const dms = await getAllDmChannels();
+    spectate = dms
+      .filter(
+        (ch) =>
+          ch.members.length === 2 &&
+          !ch.members.some((m) => m.userId === me.id),
+      )
+      .map((ch) => ({
+        channelId: ch.id,
+        title: ch.members.map((m) => shortName(m.user)).join(" ↔ "),
+      }));
+  }
 
   let active: ActiveChannel | null = null;
   if (c) {
     const channel = await getChannelView(c, me.id);
     if (channel) {
       const isDm = channel.type === "DM";
-      const other = isDm
-        ? channel.members.find((m) => m.userId !== me.id)?.user
-        : null;
+      const iAmMember = channel.members.some((m) => m.userId === me.id);
+      // Admin viewing a DM they're not part of → read-only spectator view.
+      const spectating = isDm && !iAmMember;
+      const other =
+        isDm && iAmMember
+          ? channel.members.find((m) => m.userId !== me.id)?.user
+          : null;
 
       active = {
         channelId: channel.id,
         type: channel.type,
         title: isDm
-          ? other
-            ? fullName(other)
-            : "Диалог"
+          ? spectating
+            ? channel.members.map((m) => shortName(m.user)).join(" ↔ ")
+            : other
+              ? fullName(other)
+              : "Диалог"
           : (channel.board?.title ?? channel.name),
         subtitle: isDm
-          ? other
-            ? `@${other.username}`
-            : ""
+          ? spectating
+            ? "переписка пользователей"
+            : other
+              ? `@${other.username}`
+              : ""
           : "Чат доски",
         color: channel.board?.color ?? null,
         otherUserId: other?.id ?? null,
@@ -56,6 +87,7 @@ export default async function MessagesPage({
         otherEmoji: other?.avatarEmoji ?? null,
         otherLastSeen: other?.lastSeenAt ? other.lastSeenAt.toISOString() : null,
         boardId: channel.boardId ?? null,
+        readOnly: spectating,
         messages: channel.messages.map((msg) => ({
           id: msg.id,
           body: msg.body,
@@ -101,6 +133,11 @@ export default async function MessagesPage({
   }));
 
   return (
-    <MessagesClient users={chatUsers} boards={chatBoards} active={active} />
+    <MessagesClient
+      users={chatUsers}
+      boards={chatBoards}
+      spectate={spectate}
+      active={active}
+    />
   );
 }

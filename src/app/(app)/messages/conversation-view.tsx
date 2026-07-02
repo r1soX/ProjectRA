@@ -14,6 +14,7 @@ import {
   X,
   FileText,
   Download,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
@@ -66,7 +67,15 @@ type LightboxState =
   | { kind: "video"; src: string; name?: string }
   | null;
 
-export function ConversationView({ active, users = [] }: { active: ActiveChannel; users?: ChatUser[] }) {
+export function ConversationView({
+  active,
+  users = [],
+  readOnly = false,
+}: {
+  active: ActiveChannel;
+  users?: ChatUser[];
+  readOnly?: boolean;
+}) {
   const router = useRouter();
   const confirm = useConfirm();
   const [body, setBody] = useState("");
@@ -180,10 +189,12 @@ export function ConversationView({ active, users = [] }: { active: ActiveChannel
           <p
             className={cn(
               "truncate text-xs",
-              !isBoard && otherOnline ? "text-emerald-400" : "text-neutral-500",
+              !isBoard && !readOnly && otherOnline
+                ? "text-emerald-400"
+                : "text-neutral-500",
             )}
           >
-            {isBoard
+            {isBoard || readOnly
               ? active.subtitle
               : otherOnline
                 ? "в сети"
@@ -315,7 +326,14 @@ export function ConversationView({ active, users = [] }: { active: ActiveChannel
         <div ref={bottomRef} />
       </div>
 
-      {/* Composer */}
+      {/* Composer (hidden while an admin spectates someone else's chat) */}
+      {readOnly ? (
+        <div className="flex items-center justify-center gap-2 border-t border-white/10 bg-white/[0.02] px-3 py-3 text-xs text-neutral-500">
+          <Eye className="h-4 w-4" />
+          Режим просмотра — переписка доступна только для чтения
+        </div>
+      ) : (
+        <>
       {attachment && (
         <div className="flex items-center gap-2 border-t border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-300">
           <Paperclip className="h-4 w-4 text-sky-400" />
@@ -412,6 +430,8 @@ export function ConversationView({ active, users = [] }: { active: ActiveChannel
           <Send className="h-4 w-4" />
         </Button>
       </form>
+        </>
+      )}
     </div>
     </>
   );

@@ -297,6 +297,13 @@ export const PERM_GROUPS: {
     ],
   },
   {
+    group: "Экспорт",
+    items: [
+      { perm: PERMS.EXPORT_BOARD, label: "Экспортировать доску" },
+      { perm: PERMS.EXPORT_TASKS, label: "Экспортировать задачи" },
+    ],
+  },
+  {
     group: "Администрирование",
     items: [
       { perm: PERMS.ADMIN_USERS_VIEW,         label: "Просматривать пользователей" },

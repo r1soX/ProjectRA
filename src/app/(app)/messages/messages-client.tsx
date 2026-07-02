@@ -1,6 +1,7 @@
 "use client";
 
-import { MessageCircle, LayoutGrid, MessagesSquare } from "lucide-react";
+import Link from "next/link";
+import { MessageCircle, LayoutGrid, MessagesSquare, Eye } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -24,6 +25,10 @@ export type ChatBoard = {
   title: string;
   color: string;
   unread: number;
+};
+export type SpectateChannel = {
+  channelId: string;
+  title: string;
 };
 export type ChatMessage = {
   id: string;
@@ -52,16 +57,19 @@ export type ActiveChannel = {
   otherEmoji: string | null;
   otherLastSeen: string | null;
   boardId: string | null;
+  readOnly?: boolean;
   messages: ChatMessage[];
 };
 
 export function MessagesClient({
   users,
   boards,
+  spectate = [],
   active,
 }: {
   users: ChatUser[];
   boards: ChatBoard[];
+  spectate?: SpectateChannel[];
   active: ActiveChannel | null;
 }) {
   const presence = usePresence();
@@ -148,6 +156,36 @@ export function MessagesClient({
               </button>
             </form>
           ))}
+
+          {spectate.length > 0 && (
+            <>
+              <div className="mt-2">
+                <Section icon={Eye} label="Все переписки" />
+              </div>
+              {spectate.map((s) => (
+                <Link
+                  key={s.channelId}
+                  href={`/messages?c=${s.channelId}`}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-white/5",
+                    active?.channelId === s.channelId && "bg-white/10",
+                  )}
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-neutral-400">
+                    <Eye className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-neutral-100">
+                      {s.title}
+                    </span>
+                    <span className="block truncate text-xs text-neutral-500">
+                      переписка пользователей
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </>
+          )}
         </div>
       </aside>
 
@@ -159,7 +197,11 @@ export function MessagesClient({
         )}
       >
         {active ? (
-          <ConversationView active={active} users={users} />
+          <ConversationView
+            active={active}
+            users={users}
+            readOnly={active.readOnly}
+          />
         ) : (
           <div className="flex h-full items-center justify-center">
             <EmptyState

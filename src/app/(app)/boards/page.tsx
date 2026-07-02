@@ -20,8 +20,8 @@ export default async function BoardsPage() {
   const canCreate = await hasPerm(user.id, user.role, PERMS.BOARD_CREATE);
   await ensureSystemBoardTemplates();
   const [boards, archived] = await Promise.all([
-    getUserBoards(user.id),
-    getArchivedBoards(user.id),
+    getUserBoards(user.id, user.role === "ADMIN"),
+    getArchivedBoards(user.id, user.role === "ADMIN"),
   ]);
 
   const toCard = (b: (typeof boards)[number]): BoardCard => ({

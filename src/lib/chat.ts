@@ -15,6 +15,15 @@ const userPick = {
   },
 } as const;
 
+/** True if the user has the ADMIN role (god mode — reads every conversation). */
+async function isAdminUser(userId: string) {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  return u?.role === "ADMIN";
+}
+
 /** Find (or create) the 1:1 DM channel between two users. */
 export async function ensureDmChannel(meId: string, otherId: string) {
   if (meId === otherId) return null;
@@ -77,7 +86,9 @@ export async function canAccessChannel(channelId: string, userId: string) {
   if (ch.type === "BOARD" && ch.boardId) {
     return (await getBoardRole(ch.boardId, userId)) != null;
   }
-  return ch.members.some((m) => m.userId === userId);
+  if (ch.members.some((m) => m.userId === userId)) return true;
+  // Admins (god mode) may read any conversation, including others' DMs.
+  return await isAdminUser(userId);
 }
 
 /** Full channel data (with messages) if the user has access, else null. */
@@ -100,9 +111,23 @@ export async function getChannelView(channelId: string, userId: string) {
   if (channel.type === "BOARD" && channel.boardId) {
     ok = (await getBoardRole(channel.boardId, userId)) != null;
   } else {
-    ok = channel.members.some((m) => m.userId === userId);
+    ok =
+      channel.members.some((m) => m.userId === userId) ||
+      (await isAdminUser(userId));
   }
   return ok ? channel : null;
+}
+
+/**
+ * Every 1:1 DM channel in the app — the admin's surveillance list. Each entry
+ * carries both participants so the UI can label it "A ↔ B".
+ */
+export async function getAllDmChannels() {
+  return prisma.channel.findMany({
+    where: { type: "DM" },
+    orderBy: { createdAt: "desc" },
+    include: { members: { include: { user: userPick } } },
+  });
 }
 
 /** Unread message counts for the current user, grouped by DM user and board. */
@@ -215,14 +240,14 @@ export async function recipientsOfChannel(
 }
 
 /** Sidebar data: people to DM + boards to chat in. */
-export async function getConversationList(meId: string) {
+export async function getConversationList(meId: string, isAdmin = false) {
   const [users, boards] = await Promise.all([
     prisma.user.findMany({
       where: { isActive: true, id: { not: meId } },
       orderBy: { lastName: "asc" },
       select: userPick.select,
     }),
-    getUserBoards(meId),
+    getUserBoards(meId, isAdmin),
   ]);
   return { users, boards };
 }

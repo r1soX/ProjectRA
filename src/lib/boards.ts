@@ -8,16 +8,22 @@ export type BoardRole = "OWNER" | "EDITOR" | "COMMENTER" | "VIEWER";
  *  - every shared (non-personal) board,
  *  - personal boards they own,
  *  - personal boards they were invited to.
+ *
+ * Admins (god mode) see every board, including other people's personal ones.
  */
-export async function getUserBoards(userId: string) {
+export async function getUserBoards(userId: string, isAdmin = false) {
   return prisma.board.findMany({
     where: {
       archivedAt: null,
-      OR: [
-        { isPersonal: false },
-        { ownerId: userId },
-        { members: { some: { userId } } },
-      ],
+      ...(isAdmin
+        ? {}
+        : {
+            OR: [
+              { isPersonal: false },
+              { ownerId: userId },
+              { members: { some: { userId } } },
+            ],
+          }),
     },
     orderBy: { createdAt: "asc" },
     include: {
@@ -27,10 +33,13 @@ export async function getUserBoards(userId: string) {
   });
 }
 
-/** Archived boards the user owns (only a board's owner manages its archive). */
-export async function getArchivedBoards(userId: string) {
+/**
+ * Archived boards the user owns (only a board's owner manages its archive).
+ * Admins (god mode) see every archived board so they can restore any of them.
+ */
+export async function getArchivedBoards(userId: string, isAdmin = false) {
   return prisma.board.findMany({
-    where: { archivedAt: { not: null }, ownerId: userId },
+    where: { archivedAt: { not: null }, ...(isAdmin ? {} : { ownerId: userId }) },
     orderBy: { archivedAt: "desc" },
     include: {
       _count: { select: { tasks: true, columns: true } },
@@ -106,15 +115,19 @@ export async function getBoardWithData(
   const isOwner = board.ownerId === userId;
   const member = board.members.find((m) => m.userId === userId);
   // Personal boards require membership; shared boards are open to everyone.
-  if (!isOwner && board.isPersonal && !member) return null;
+  // Admins (god mode) may enter any board, even someone else's personal one.
+  if (!isOwner && board.isPersonal && !member && !isAdmin) return null;
 
   // A BoardMember row on a shared board acts as a role override (e.g. downgrade
   // someone to Viewer/Commenter); without one, shared boards default to Editor.
+  // A non-member admin acts as Owner (full control) anywhere.
   const role: BoardRole = isOwner
     ? "OWNER"
     : member
       ? (member.role as BoardRole)
-      : "EDITOR";
+      : isAdmin
+        ? "OWNER"
+        : "EDITOR";
   return { board, role };
 }
 
@@ -135,7 +148,13 @@ export async function getBoardRole(
   if (board.ownerId === userId) return "OWNER";
   const m = board.members[0];
   if (m) return m.role as BoardRole; // explicit (or overridden) role
-  return board.isPersonal ? null : "EDITOR"; // shared default → editor
+  if (!board.isPersonal) return "EDITOR"; // shared default → editor
+  // Personal board, not a member: only an admin (god mode) may act — as OWNER.
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  return u?.role === "ADMIN" ? "OWNER" : null;
 }
 
 export function canEdit(role: BoardRole | null): boolean {
