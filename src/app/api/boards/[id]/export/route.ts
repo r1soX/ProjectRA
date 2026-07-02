@@ -26,7 +26,11 @@ export async function GET(
   const { id } = await params;
   const format = new URL(req.url).searchParams.get("format") === "json" ? "json" : "csv";
 
-  const result = await getBoardWithData(id, user.id, user.role === "ADMIN");
+  const [viewAll, viewAllTasks] = await Promise.all([
+    hasPerm(user.id, user.role, PERMS.BOARD_VIEW_ALL),
+    hasPerm(user.id, user.role, PERMS.TASK_VIEW_ALL),
+  ]);
+  const result = await getBoardWithData(id, user.id, { viewAll, viewAllTasks });
   if (!result) return new Response("Not found", { status: 404 });
   const { board } = result;
 

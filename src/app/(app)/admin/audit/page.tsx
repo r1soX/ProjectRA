@@ -1,8 +1,10 @@
 import { requireAdmin } from "@/lib/auth";
+import { hasPerm, PERMS } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { AUDIT_LABELS } from "@/lib/audit";
 import { shortName } from "@/lib/names";
 import { PageContainer } from "@/components/ui/page-container";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ScrollText } from "lucide-react";
 
@@ -16,7 +18,14 @@ function fmt(d: Date) {
 }
 
 export default async function AuditPage() {
-  await requireAdmin();
+  const user = await requireAdmin();
+  if (!(await hasPerm(user.id, user.role, PERMS.ADMIN_AUDIT_VIEW))) {
+    return (
+      <PageContainer>
+        <AccessDenied message="У вас нет прав на просмотр журнала действий." />
+      </PageContainer>
+    );
+  }
   const rows = await prisma.auditLog.findMany({
     orderBy: { createdAt: "desc" },
     take: 100,

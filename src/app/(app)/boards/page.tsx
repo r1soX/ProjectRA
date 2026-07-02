@@ -17,11 +17,15 @@ export default async function BoardsPage() {
       </PageContainer>
     );
   }
-  const canCreate = await hasPerm(user.id, user.role, PERMS.BOARD_CREATE);
+  const [canCreate, viewAll, manageAll] = await Promise.all([
+    hasPerm(user.id, user.role, PERMS.BOARD_CREATE),
+    hasPerm(user.id, user.role, PERMS.BOARD_VIEW_ALL),
+    hasPerm(user.id, user.role, PERMS.BOARD_MANAGE_ALL),
+  ]);
   await ensureSystemBoardTemplates();
   const [boards, archived] = await Promise.all([
-    getUserBoards(user.id, user.role === "ADMIN"),
-    getArchivedBoards(user.id, user.role === "ADMIN"),
+    getUserBoards(user.id, viewAll),
+    getArchivedBoards(user.id, viewAll),
   ]);
 
   const toCard = (b: (typeof boards)[number]): BoardCard => ({
@@ -31,8 +35,8 @@ export default async function BoardsPage() {
     isPersonal: b.isPersonal,
     ownerName: shortName(b.owner),
     taskCount: b._count.tasks,
-    // Only the owner (or an admin) manages a board's archive state.
-    canArchive: b.ownerId === user.id || user.role === "ADMIN",
+    // The owner — or anyone with global board management — manages archiving.
+    canArchive: b.ownerId === user.id || manageAll,
   });
 
   const data = boards.map(toCard);

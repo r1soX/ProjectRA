@@ -10,8 +10,10 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
+import { hasPerm, PERMS } from "@/lib/permissions";
 import { getWorkspaceAnalytics } from "@/lib/analytics";
 import { PageContainer } from "@/components/ui/page-container";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { cn } from "@/lib/cn";
 
 function Kpi({
@@ -48,7 +50,14 @@ function weekday(iso: string) {
 }
 
 export default async function AnalyticsPage() {
-  await requireAdmin();
+  const user = await requireAdmin();
+  if (!(await hasPerm(user.id, user.role, PERMS.ADMIN_ANALYTICS_VIEW))) {
+    return (
+      <PageContainer>
+        <AccessDenied message="У вас нет прав на просмотр аналитики." />
+      </PageContainer>
+    );
+  }
   const a = await getWorkspaceAnalytics();
   const maxDay = Math.max(1, ...a.createdSeries.map((s) => s.count));
   const maxContrib = Math.max(1, ...a.topContributors.map((c) => c.completed));

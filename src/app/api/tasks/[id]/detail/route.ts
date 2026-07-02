@@ -85,7 +85,7 @@ export async function GET(
     board.isPersonal &&
     board.ownerId !== user.id &&
     !board.members.some((m) => m.userId === user.id) &&
-    user.role !== "ADMIN"
+    !(await hasPerm(user.id, user.role, PERMS.TASK_VIEW_ALL))
   ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

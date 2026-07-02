@@ -28,16 +28,19 @@ export default async function MessagesPage({
     );
   }
   const { c } = await searchParams;
-  const isAdmin = me.role === "ADMIN";
+  const [canViewAny, canViewAllBoards] = await Promise.all([
+    hasPerm(me.id, me.role, PERMS.MESSAGE_VIEW_ANY),
+    hasPerm(me.id, me.role, PERMS.BOARD_VIEW_ALL),
+  ]);
 
   const [{ users, boards }, unread] = await Promise.all([
-    getConversationList(me.id, isAdmin),
+    getConversationList(me.id, canViewAllBoards),
     getUnread(me.id),
   ]);
 
-  // Admin surveillance: every DM between other people, labelled "A ↔ B".
+  // Surveillance (MESSAGE_VIEW_ANY): every DM between other people, "A ↔ B".
   let spectate: SpectateChannel[] = [];
-  if (isAdmin) {
+  if (canViewAny) {
     const dms = await getAllDmChannels();
     spectate = dms
       .filter(

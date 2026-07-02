@@ -17,11 +17,11 @@ export type BoardHit = { id: string; title: string; color: string };
  * Search across the boards the user can access. Filters in JS so the match
  * is case-insensitive for Cyrillic too (SQLite LIKE isn't).
  */
-export async function search(meId: string, isAdmin: boolean, raw: string) {
+export async function search(meId: string, viewAll: boolean, raw: string) {
   const q = raw.trim().toLowerCase();
   if (q.length < 2) return { tasks: [] as TaskHit[], boards: [] as BoardHit[] };
 
-  const boards = await getUserBoards(meId);
+  const boards = await getUserBoards(meId, viewAll);
   const boardMeta = new Map(
     boards.map((b) => [b.id, { title: b.title, color: b.color ?? "#0ea5e9" }]),
   );
@@ -35,7 +35,7 @@ export async function search(meId: string, isAdmin: boolean, raw: string) {
   const candidates = await prisma.task.findMany({
     where: {
       boardId: { in: [...boardMeta.keys()] },
-      ...(isAdmin ? {} : { OR: [{ isPersonal: false }, { createdById: meId }] }),
+      ...(viewAll ? {} : { OR: [{ isPersonal: false }, { createdById: meId }] }),
     },
     orderBy: { updatedAt: "desc" },
     take: 500,

@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "./prisma";
 import { getBoardRole, getUserBoards } from "./boards";
+import { userHasPerm, PERMS } from "./permissions";
 
 const userPick = {
   select: {
@@ -15,13 +16,9 @@ const userPick = {
   },
 } as const;
 
-/** True if the user has the ADMIN role (god mode — reads every conversation). */
-async function isAdminUser(userId: string) {
-  const u = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { role: true },
-  });
-  return u?.role === "ADMIN";
+/** MESSAGE_VIEW_ANY holders may read every conversation, including others' DMs. */
+function canViewAnyMessages(userId: string) {
+  return userHasPerm(userId, PERMS.MESSAGE_VIEW_ANY);
 }
 
 /** Find (or create) the 1:1 DM channel between two users. */
@@ -87,8 +84,8 @@ export async function canAccessChannel(channelId: string, userId: string) {
     return (await getBoardRole(ch.boardId, userId)) != null;
   }
   if (ch.members.some((m) => m.userId === userId)) return true;
-  // Admins (god mode) may read any conversation, including others' DMs.
-  return await isAdminUser(userId);
+  // MESSAGE_VIEW_ANY may read any conversation, including others' DMs.
+  return await canViewAnyMessages(userId);
 }
 
 /** Full channel data (with messages) if the user has access, else null. */
@@ -113,7 +110,7 @@ export async function getChannelView(channelId: string, userId: string) {
   } else {
     ok =
       channel.members.some((m) => m.userId === userId) ||
-      (await isAdminUser(userId));
+      (await canViewAnyMessages(userId));
   }
   return ok ? channel : null;
 }
@@ -240,14 +237,14 @@ export async function recipientsOfChannel(
 }
 
 /** Sidebar data: people to DM + boards to chat in. */
-export async function getConversationList(meId: string, isAdmin = false) {
+export async function getConversationList(meId: string, viewAllBoards = false) {
   const [users, boards] = await Promise.all([
     prisma.user.findMany({
       where: { isActive: true, id: { not: meId } },
       orderBy: { lastName: "asc" },
       select: userPick.select,
     }),
-    getUserBoards(meId, isAdmin),
+    getUserBoards(meId, viewAllBoards),
   ]);
   return { users, boards };
 }

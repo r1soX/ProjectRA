@@ -14,13 +14,15 @@ export async function GET(req: NextRequest) {
 
   const q = (new URL(req.url).searchParams.get("q") ?? "").trim();
   const ql = q.toLowerCase();
-  const isAdmin = user.role === "ADMIN";
 
-  const canBoards = await hasPerm(user.id, user.role, PERMS.BOARD_VIEW);
+  const [canBoards, viewAll] = await Promise.all([
+    hasPerm(user.id, user.role, PERMS.BOARD_VIEW),
+    hasPerm(user.id, user.role, PERMS.BOARD_VIEW_ALL),
+  ]);
 
   // Boards: all of the user's boards when idle (for navigation/quick-add),
   // filtered by the query otherwise.
-  const allBoards = canBoards ? await getUserBoards(user.id) : [];
+  const allBoards = canBoards ? await getUserBoards(user.id, viewAll) : [];
   const boards = allBoards
     .filter((b) => !ql || b.title.toLowerCase().includes(ql))
     .slice(0, 12)
@@ -28,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   // Tasks via the shared search (respects access + personal-task rules).
   const tasks =
-    canBoards && q.length >= 2 ? (await search(user.id, isAdmin, q)).tasks.slice(0, 8) : [];
+    canBoards && q.length >= 2 ? (await search(user.id, viewAll, q)).tasks.slice(0, 8) : [];
 
   // People (for opening a DM).
   let users: {

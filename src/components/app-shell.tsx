@@ -46,6 +46,8 @@ export type NavCaps = {
   adminUsers: boolean;
   adminPerms: boolean;
   adminTemplates: boolean;
+  adminAnalytics: boolean;
+  adminAudit: boolean;
 };
 
 type NavItem = {
@@ -78,8 +80,8 @@ const adminNav: NavItem[] = [
   { href: "/admin/permissions", label: "Права доступа", icon: Shield, cap: "adminPerms" },
   { href: "/admin/templates", label: "Шаблоны", icon: LayoutTemplate, cap: "adminTemplates" },
   // Аналитика и аудит
-  { href: "/admin/analytics", label: "Аналитика", icon: BarChart3 },
-  { href: "/admin/audit", label: "Журнал", icon: ScrollText },
+  { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, cap: "adminAnalytics" },
+  { href: "/admin/audit", label: "Журнал", icon: ScrollText, cap: "adminAudit" },
 ];
 
 // Primary destinations surfaced in the mobile bottom bar (in priority order).

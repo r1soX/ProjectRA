@@ -347,7 +347,12 @@ async function requireBoardOwner(boardId: string) {
     where: { id: boardId },
     select: { ownerId: true, isPersonal: true },
   });
-  if (!board || board.ownerId !== user.id) {
+  if (!board) throw new Error("Доска не найдена");
+  // The owner — or anyone with global board management — may manage the board.
+  if (
+    board.ownerId !== user.id &&
+    !(await hasPerm(user.id, user.role, PERMS.BOARD_MANAGE_ALL))
+  ) {
     throw new Error("Только владелец управляет участниками");
   }
   return { user, board };

@@ -21,12 +21,12 @@ export type LinkEdge = {
 export async function getBoardLinks(
   boardId: string,
   userId: string,
-  isAdmin = false,
+  viewAllTasks = false,
 ) {
   const role = await getBoardRole(boardId, userId);
   if (!role) return null;
 
-  const taskWhere = isAdmin
+  const taskWhere = viewAllTasks
     ? { boardId }
     : {
         boardId,

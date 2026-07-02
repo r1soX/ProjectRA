@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "./prisma";
+import { userHasPerm, PERMS } from "./permissions";
 
 export type BoardRole = "OWNER" | "EDITOR" | "COMMENTER" | "VIEWER";
 
@@ -9,13 +10,14 @@ export type BoardRole = "OWNER" | "EDITOR" | "COMMENTER" | "VIEWER";
  *  - personal boards they own,
  *  - personal boards they were invited to.
  *
- * Admins (god mode) see every board, including other people's personal ones.
+ * With BOARD_VIEW_ALL (god mode) the user sees every board, including other
+ * people's personal ones.
  */
-export async function getUserBoards(userId: string, isAdmin = false) {
+export async function getUserBoards(userId: string, viewAll = false) {
   return prisma.board.findMany({
     where: {
       archivedAt: null,
-      ...(isAdmin
+      ...(viewAll
         ? {}
         : {
             OR: [
@@ -35,11 +37,11 @@ export async function getUserBoards(userId: string, isAdmin = false) {
 
 /**
  * Archived boards the user owns (only a board's owner manages its archive).
- * Admins (god mode) see every archived board so they can restore any of them.
+ * With BOARD_VIEW_ALL the user sees every archived board (to restore any).
  */
-export async function getArchivedBoards(userId: string, isAdmin = false) {
+export async function getArchivedBoards(userId: string, viewAll = false) {
   return prisma.board.findMany({
-    where: { archivedAt: { not: null }, ...(isAdmin ? {} : { ownerId: userId }) },
+    where: { archivedAt: { not: null }, ...(viewAll ? {} : { ownerId: userId }) },
     orderBy: { archivedAt: "desc" },
     include: {
       _count: { select: { tasks: true, columns: true } },
@@ -64,10 +66,11 @@ const userPick = {
 export async function getBoardWithData(
   boardId: string,
   userId: string,
-  isAdmin = false,
+  opts: { viewAll?: boolean; manageAll?: boolean; viewAllTasks?: boolean } = {},
 ) {
-  // Personal tasks are visible only to their creator (and admins).
-  const taskWhere = isAdmin
+  const { viewAll = false, manageAll = false, viewAllTasks = false } = opts;
+  // Personal tasks are visible only to their creator, unless TASK_VIEW_ALL.
+  const taskWhere = viewAllTasks
     ? {}
     : { OR: [{ isPersonal: false }, { createdById: userId }] };
 
@@ -115,19 +118,23 @@ export async function getBoardWithData(
   const isOwner = board.ownerId === userId;
   const member = board.members.find((m) => m.userId === userId);
   // Personal boards require membership; shared boards are open to everyone.
-  // Admins (god mode) may enter any board, even someone else's personal one.
-  if (!isOwner && board.isPersonal && !member && !isAdmin) return null;
+  // A global viewer/manager may still enter any personal board.
+  if (!isOwner && board.isPersonal && !member && !viewAll && !manageAll)
+    return null;
 
   // A BoardMember row on a shared board acts as a role override (e.g. downgrade
   // someone to Viewer/Commenter); without one, shared boards default to Editor.
-  // A non-member admin acts as Owner (full control) anywhere.
+  // BOARD_MANAGE_ALL grants Owner anywhere; BOARD_VIEW_ALL alone is read-only
+  // on personal boards the user isn't part of.
   const role: BoardRole = isOwner
     ? "OWNER"
     : member
       ? (member.role as BoardRole)
-      : isAdmin
+      : manageAll
         ? "OWNER"
-        : "EDITOR";
+        : board.isPersonal
+          ? "VIEWER"
+          : "EDITOR";
   return { board, role };
 }
 
@@ -149,12 +156,8 @@ export async function getBoardRole(
   const m = board.members[0];
   if (m) return m.role as BoardRole; // explicit (or overridden) role
   if (!board.isPersonal) return "EDITOR"; // shared default → editor
-  // Personal board, not a member: only an admin (god mode) may act — as OWNER.
-  const u = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { role: true },
-  });
-  return u?.role === "ADMIN" ? "OWNER" : null;
+  // Personal board, not a member: only BOARD_MANAGE_ALL grants access (Owner).
+  return (await userHasPerm(userId, PERMS.BOARD_MANAGE_ALL)) ? "OWNER" : null;
 }
 
 export function canEdit(role: BoardRole | null): boolean {

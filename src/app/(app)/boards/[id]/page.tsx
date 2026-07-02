@@ -74,7 +74,16 @@ export default async function BoardPage({
     );
   }
   await ensureCompletedColumn(id);
-  const result = await getBoardWithData(id, user.id, user.role === "ADMIN");
+  const [viewAll, manageAll, viewAllTasks] = await Promise.all([
+    hasPerm(user.id, user.role, PERMS.BOARD_VIEW_ALL),
+    hasPerm(user.id, user.role, PERMS.BOARD_MANAGE_ALL),
+    hasPerm(user.id, user.role, PERMS.TASK_VIEW_ALL),
+  ]);
+  const result = await getBoardWithData(id, user.id, {
+    viewAll,
+    manageAll,
+    viewAllTasks,
+  });
   if (!result) notFound();
 
   // Tasks / comments visibility honour the granular view permissions.

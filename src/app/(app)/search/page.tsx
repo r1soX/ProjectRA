@@ -21,7 +21,8 @@ export default async function SearchPage({
     );
   }
   const { q = "" } = await searchParams;
-  const { tasks, boards } = await search(me.id, me.role === "ADMIN", q);
+  const viewAll = await hasPerm(me.id, me.role, PERMS.BOARD_VIEW_ALL);
+  const { tasks, boards } = await search(me.id, viewAll, q);
 
   return (
     <PageContainer className="max-w-3xl">

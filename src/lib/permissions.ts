@@ -64,6 +64,13 @@ export const PERMS = {
   EXPORT_BOARD: "export.board",
   EXPORT_TASKS: "export.tasks",
 
+  // Global access overrides (cross-user visibility & control — "god mode",
+  // but flexible: grantable to any role or individual user).
+  BOARD_VIEW_ALL:   "board.view.all",    // see every board incl. others' personal
+  BOARD_MANAGE_ALL: "board.manage.all",  // act as owner on any board
+  TASK_VIEW_ALL:    "task.view.all",     // see other users' personal tasks
+  MESSAGE_VIEW_ANY: "message.view.any",  // read any conversation incl. others' DMs
+
   // Admin
   ADMIN_USERS_VIEW:        "admin.users.view",
   ADMIN_USERS_CREATE:      "admin.users.create",
@@ -72,6 +79,8 @@ export const PERMS = {
   ADMIN_USERS_ACTIVATE:    "admin.users.activate",
   ADMIN_PERMISSIONS_MANAGE:"admin.permissions.manage",
   ADMIN_TEMPLATES_MANAGE:  "admin.templates.manage",
+  ADMIN_ANALYTICS_VIEW:    "admin.analytics.view",
+  ADMIN_AUDIT_VIEW:        "admin.audit.view",
 } as const;
 
 export type PermKey = (typeof PERMS)[keyof typeof PERMS];
@@ -99,9 +108,12 @@ const ADMIN_EXTRAS: PermKey[] = [
   PERMS.COMMENT_EDIT_ANY, PERMS.COMMENT_DELETE_ANY,
   PERMS.MESSAGE_DELETE_ANY,
   PERMS.TIME_VIEW_ALL,
+  PERMS.BOARD_VIEW_ALL, PERMS.BOARD_MANAGE_ALL,
+  PERMS.TASK_VIEW_ALL, PERMS.MESSAGE_VIEW_ANY,
   PERMS.ADMIN_USERS_VIEW, PERMS.ADMIN_USERS_CREATE, PERMS.ADMIN_USERS_EDIT,
   PERMS.ADMIN_USERS_DELETE, PERMS.ADMIN_USERS_ACTIVATE,
   PERMS.ADMIN_PERMISSIONS_MANAGE, PERMS.ADMIN_TEMPLATES_MANAGE,
+  PERMS.ADMIN_ANALYTICS_VIEW, PERMS.ADMIN_AUDIT_VIEW,
 ];
 
 const ADMIN_DEFAULTS: PermKey[] = [...USER_DEFAULTS, ...ADMIN_EXTRAS];
@@ -133,6 +145,19 @@ export async function hasPerm(
     cache.set(userId, userPerms);
   }
   return userPerms.has(perm);
+}
+
+/**
+ * Same as {@link hasPerm} but for call sites that only have a userId (deep in
+ * the data layer). Looks up the user's role first, then reuses the perm cache.
+ */
+export async function userHasPerm(userId: string, perm: PermKey): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!user) return false;
+  return hasPerm(userId, user.role, perm);
 }
 
 async function buildPermSet(userId: string, role: string): Promise<Set<PermKey>> {
@@ -304,6 +329,15 @@ export const PERM_GROUPS: {
     ],
   },
   {
+    group: "Расширенный доступ",
+    items: [
+      { perm: PERMS.BOARD_VIEW_ALL,   label: "Видеть все доски (в т.ч. чужие личные)" },
+      { perm: PERMS.BOARD_MANAGE_ALL, label: "Управлять любой доской (как владелец)" },
+      { perm: PERMS.TASK_VIEW_ALL,    label: "Видеть чужие личные задачи" },
+      { perm: PERMS.MESSAGE_VIEW_ANY, label: "Читать любые переписки (чужие ЛС)" },
+    ],
+  },
+  {
     group: "Администрирование",
     items: [
       { perm: PERMS.ADMIN_USERS_VIEW,         label: "Просматривать пользователей" },
@@ -313,6 +347,8 @@ export const PERM_GROUPS: {
       { perm: PERMS.ADMIN_USERS_ACTIVATE,     label: "Активировать / деактивировать" },
       { perm: PERMS.ADMIN_PERMISSIONS_MANAGE, label: "Управлять правами" },
       { perm: PERMS.ADMIN_TEMPLATES_MANAGE,   label: "Управлять шаблонами досок" },
+      { perm: PERMS.ADMIN_ANALYTICS_VIEW,     label: "Просматривать аналитику" },
+      { perm: PERMS.ADMIN_AUDIT_VIEW,         label: "Просматривать журнал действий" },
     ],
   },
 ];

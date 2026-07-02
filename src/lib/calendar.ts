@@ -25,12 +25,15 @@ function toDateInput(d: Date | null): string | null {
   return d ? d.toISOString().slice(0, 10) : null;
 }
 
-/** All dated tasks across the boards the user can access. */
+/**
+ * All dated tasks across the boards the user can access. With `viewAll`
+ * (BOARD_VIEW_ALL) the scope widens to every board and every personal task.
+ */
 export async function getCalendarTasks(
   meId: string,
-  isAdmin = false,
+  viewAll = false,
 ): Promise<CalendarTask[]> {
-  const boards = await getUserBoards(meId);
+  const boards = await getUserBoards(meId, viewAll);
   const boardMap = new Map(
     boards.map((b) => [b.id, { title: b.title, color: b.color ?? "#0ea5e9" }]),
   );
@@ -40,7 +43,7 @@ export async function getCalendarTasks(
     where: {
       boardId: { in: [...boardMap.keys()] },
       dueDate: { not: null },
-      ...(isAdmin
+      ...(viewAll
         ? {}
         : { OR: [{ isPersonal: false }, { createdById: meId }] }),
     },
