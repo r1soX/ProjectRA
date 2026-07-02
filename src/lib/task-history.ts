@@ -7,6 +7,7 @@ export type HistoryAction =
   | "description"
   | "column"
   | "priority"
+  | "personal"
   | "assignee_add"
   | "assignee_remove"
   | "due"
@@ -16,8 +17,17 @@ export type HistoryAction =
   | "completed"
   | "recurred"
   | "subtask_add"
+  | "subtask_done"
+  | "subtask_undone"
+  | "subtask_remove"
+  | "comment"
+  | "comment_edit"
+  | "comment_delete"
   | "time_logged"
+  | "time_edit"
+  | "time_delete"
   | "attachment_add"
+  | "attachment_remove"
   | "color";
 
 interface HistoryMeta {

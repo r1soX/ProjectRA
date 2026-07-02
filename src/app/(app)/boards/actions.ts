@@ -6,7 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { getBoardRole, canEdit, canComment } from "@/lib/boards";
-import { normalizePriority } from "@/lib/priority";
+import { normalizePriority, PRIORITY_META } from "@/lib/priority";
 import { normalizeStatus, STATUSES } from "@/lib/status";
 import { ruleFromTask, nextOccurrence } from "@/lib/recurrence";
 import { publishBoard } from "@/lib/realtime";
@@ -500,16 +500,37 @@ export async function updateTask(taskId: string, formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return { error: "Введите название задачи" } as ActionState;
 
+  // Snapshot the previous values so we can log exactly what changed.
+  const old = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: {
+      title: true,
+      description: true,
+      color: true,
+      priority: true,
+      isPersonal: true,
+      startDate: true,
+      dueDate: true,
+    },
+  });
+
+  const description = String(formData.get("description") ?? "").trim() || null;
+  const color = String(formData.get("color") ?? "").trim() || null;
+  const priority = normalizePriority(formData.get("priority"));
+  const isPersonal = formData.get("isPersonal") === "on";
+  const startDate = parseDate(formData.get("startDate"));
+  const dueDate = parseDateTime(formData.get("dueDate"), formData.get("dueTime"));
+
   await prisma.task.update({
     where: { id: taskId },
     data: {
       title,
-      description: String(formData.get("description") ?? "").trim() || null,
-      color: String(formData.get("color") ?? "").trim() || null,
-      priority: normalizePriority(formData.get("priority")),
-      isPersonal: formData.get("isPersonal") === "on",
-      startDate: parseDate(formData.get("startDate")),
-      dueDate: parseDateTime(formData.get("dueDate"), formData.get("dueTime")),
+      description,
+      color,
+      priority,
+      isPersonal,
+      startDate,
+      dueDate,
       recurFreq: normalizeRecurFreq(formData.get("recurFreq")),
       recurInterval: Math.max(
         1,
@@ -519,6 +540,34 @@ export async function updateTask(taskId: string, formData: FormData) {
       recurUntil: parseDate(formData.get("recurUntil")),
     },
   });
+
+  // History: one entry per changed field.
+  const u = ctx.user.id;
+  const dayTime = (d: Date | null) =>
+    d ? d.toISOString().replace("T", " ").slice(0, d.getUTCHours() || d.getUTCMinutes() ? 16 : 10) : "—";
+  const sameDate = (a: Date | null, b: Date | null) =>
+    (a?.getTime() ?? null) === (b?.getTime() ?? null);
+  if (old) {
+    if (old.title !== title)
+      await logHistory(taskId, u, "title", { before: old.title, after: title });
+    if ((old.description ?? "") !== (description ?? ""))
+      await logHistory(taskId, u, "description");
+    if (old.priority !== priority)
+      await logHistory(taskId, u, "priority", {
+        after: PRIORITY_META[normalizePriority(priority)].label,
+      });
+    if (old.color !== color)
+      await logHistory(taskId, u, "color", { after: color });
+    if (old.isPersonal !== isPersonal)
+      await logHistory(taskId, u, "personal", {
+        after: isPersonal ? "личная" : "общая",
+      });
+    if (!sameDate(old.startDate, startDate))
+      await logHistory(taskId, u, "start", { after: dayTime(startDate) });
+    if (!sameDate(old.dueDate, dueDate))
+      await logHistory(taskId, u, "due", { after: dayTime(dueDate) });
+  }
+
   bump(boardId);
   return { ok: true } as ActionState;
 }
@@ -677,9 +726,15 @@ export async function moveTask(
 
   const col = await prisma.column.findUnique({
     where: { id: toColumnId },
-    select: { boardId: true, systemKey: true, statusKey: true },
+    select: { boardId: true, systemKey: true, statusKey: true, title: true },
   });
   if (!col || col.boardId !== boardId) return;
+
+  // Remember the source column so we can log the move (from → to).
+  const fromCol = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { columnId: true, column: { select: { title: true } } },
+  });
 
   // Moving into "Завершённые задачи": only the creator/admin, and only after
   // every assignee has confirmed completion.
@@ -764,6 +819,13 @@ export async function moveTask(
       prisma.task.update({ where: { id }, data: { order: i } }),
     ),
   ]);
+  // Log the column change (skip pure reordering within the same column).
+  if (fromCol && fromCol.columnId !== toColumnId) {
+    await logHistory(taskId, user.id, "column", {
+      before: fromCol.column.title,
+      after: col.title,
+    });
+  }
   bump(boardId);
 }
 
@@ -803,6 +865,7 @@ export async function addComment(
   const comment = await prisma.comment.create({
     data: { taskId, userId: user.id, body },
   });
+  await logHistory(taskId, user.id, "comment", { after: body.slice(0, 60) });
 
   // @-mentions
   const task = await prisma.task.findUnique({
@@ -831,7 +894,7 @@ export async function editComment(commentId: string, body: string) {
   if (!text) return;
   const comment = await prisma.comment.findUnique({
     where: { id: commentId },
-    select: { userId: true, task: { select: { boardId: true } } },
+    select: { userId: true, taskId: true, task: { select: { boardId: true } } },
   });
   if (!comment) return;
   const editAny = await hasPerm(user.id, user.role, PERMS.COMMENT_EDIT_ANY);
@@ -840,6 +903,7 @@ export async function editComment(commentId: string, body: string) {
     throw new Error("Нет прав на редактирование комментария");
   }
   await prisma.comment.update({ where: { id: commentId }, data: { body: text } });
+  await logHistory(comment.taskId, user.id, "comment_edit");
   bump(comment.task.boardId);
 }
 
@@ -847,7 +911,7 @@ export async function deleteComment(commentId: string) {
   const user = await requireUser();
   const comment = await prisma.comment.findUnique({
     where: { id: commentId },
-    select: { userId: true, task: { select: { boardId: true } } },
+    select: { userId: true, taskId: true, task: { select: { boardId: true } } },
   });
   if (!comment) return;
 
@@ -857,6 +921,7 @@ export async function deleteComment(commentId: string) {
     throw new Error("Нет прав на удаление комментария");
   }
   await prisma.comment.delete({ where: { id: commentId } });
+  await logHistory(comment.taskId, user.id, "comment_delete");
   bump(comment.task.boardId);
 }
 
@@ -972,6 +1037,7 @@ export async function toggleSubtaskDone(subtaskId: string) {
     select: {
       boardId: true,
       parentId: true,
+      title: true,
       column: { select: { systemKey: true } },
     },
   });
@@ -1009,6 +1075,15 @@ export async function toggleSubtaskDone(subtaskId: string) {
       });
     }
   }
+  // Record on the parent task's history (history is viewed on the parent).
+  if (sub.parentId) {
+    await logHistory(
+      sub.parentId,
+      user.id,
+      isDone ? "subtask_undone" : "subtask_done",
+      { name: sub.title },
+    );
+  }
   bump(sub.boardId);
 }
 
@@ -1016,13 +1091,14 @@ export async function deleteSubtask(subtaskId: string) {
   // Only a real subtask (has a parent) may be deleted here…
   const sub = await prisma.task.findUnique({
     where: { id: subtaskId },
-    select: { parentId: true },
+    select: { parentId: true, title: true },
   });
   if (!sub || !sub.parentId) return;
   // …and only with the proper delete permission (own/any), like deleteTask.
   const ctx = await requireTaskDeleter(subtaskId);
   if (!ctx) return;
   await prisma.task.delete({ where: { id: subtaskId } });
+  await logHistory(sub.parentId, ctx.user.id, "subtask_remove", { name: sub.title });
   bump(ctx.task.boardId);
 }
 
@@ -1133,7 +1209,7 @@ export async function editTimeEntry(
   const user = await requireUser();
   const entry = await prisma.timeEntry.findUnique({
     where: { id: entryId },
-    select: { userId: true, task: { select: { boardId: true } } },
+    select: { userId: true, taskId: true, task: { select: { boardId: true } } },
   });
   if (!entry) return { error: "Не найдено" };
   // Only the author may edit, and only with the TIME_EDIT_OWN permission.
@@ -1147,6 +1223,7 @@ export async function editTimeEntry(
     where: { id: entryId },
     data: { minutes, note: note.trim() || null },
   });
+  await logHistory(entry.taskId, user.id, "time_edit", { minutes });
   bump(entry.task.boardId);
   return { ok: true };
 }
@@ -1181,13 +1258,14 @@ export async function deleteTaskAttachment(attachmentId: string) {
   const user = await requireUser();
   const att = await prisma.taskAttachment.findUnique({
     where: { id: attachmentId },
-    select: { userId: true, task: { select: { boardId: true } } },
+    select: { userId: true, taskId: true, name: true, task: { select: { boardId: true } } },
   });
   if (!att) return;
   if (att.userId !== user.id && user.role !== "ADMIN") {
     throw new Error("Удалить вложение может только автор или администратор");
   }
   await prisma.taskAttachment.delete({ where: { id: attachmentId } });
+  await logHistory(att.taskId, user.id, "attachment_remove", { after: att.name });
   bump(att.task.boardId);
 }
 
@@ -1197,7 +1275,7 @@ export async function deleteTimeEntry(entryId: string): Promise<ActionState> {
   const user = await requireUser();
   const entry = await prisma.timeEntry.findUnique({
     where: { id: entryId },
-    select: { userId: true, task: { select: { boardId: true } } },
+    select: { userId: true, taskId: true, minutes: true, task: { select: { boardId: true } } },
   });
   if (!entry) return { error: "Не найдено" };
   const canDel = entry.userId === user.id
@@ -1205,6 +1283,7 @@ export async function deleteTimeEntry(entryId: string): Promise<ActionState> {
     : user.role === "ADMIN";
   if (!canDel) return { error: "Нет прав на удаление записи" };
   await prisma.timeEntry.delete({ where: { id: entryId } });
+  await logHistory(entry.taskId, user.id, "time_delete", { minutes: entry.minutes });
   bump(entry.task.boardId);
   return { ok: true };
 }

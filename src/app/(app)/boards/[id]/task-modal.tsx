@@ -1547,21 +1547,32 @@ type HistoryItem = { id: string; action: string; meta: Record<string, unknown> |
 
 const ACTION_LABELS: Record<string, string> = {
   created: "создал задачу",
-  title: "изменил название",
+  title: "изменил название на",
   description: "изменил описание",
   column: "перенёс задачу",
-  priority: "изменил приоритет",
+  priority: "изменил приоритет на",
+  personal: "сделал задачу",
   assignee_add: "добавил исполнителя",
   assignee_remove: "снял исполнителя",
-  due: "изменил срок",
-  start: "изменил начало",
+  due: "изменил срок на",
+  start: "изменил начало на",
   label_add: "добавил метку",
   label_remove: "убрал метку",
   completed: "завершил задачу",
   recurred: "перенёс повторение на",
   subtask_add: "добавил подзадачу",
+  subtask_done: "выполнил подзадачу",
+  subtask_undone: "вернул в работу подзадачу",
+  subtask_remove: "удалил подзадачу",
+  comment: "оставил комментарий",
+  comment_edit: "изменил комментарий",
+  comment_delete: "удалил комментарий",
   time_logged: "записал время",
+  time_edit: "изменил запись времени",
+  time_delete: "удалил запись времени",
   attachment_add: "прикрепил файл",
+  attachment_remove: "удалил файл",
+  color: "изменил цвет",
 };
 
 function HistorySection({ history }: { history: HistoryItem[] }) {
@@ -1596,8 +1607,21 @@ function HistorySection({ history }: { history: HistoryItem[] }) {
             </span>
             <span className="text-neutral-500">
               {ACTION_LABELS[h.action] ?? h.action}
-              {h.meta?.after != null && ` «${String(h.meta.after).slice(0, 40)}»`}
-              {h.action === "time_logged" && h.meta?.minutes != null && ` ${String(h.meta.minutes)} мин`}
+              {h.action === "column" && h.meta?.before != null
+                ? ` из «${String(h.meta.before).slice(0, 30)}» в «${String(h.meta.after).slice(0, 30)}»`
+                : (h.action === "subtask_done" ||
+                      h.action === "subtask_undone" ||
+                      h.action === "subtask_remove") &&
+                    h.meta?.name != null
+                  ? ` «${String(h.meta.name).slice(0, 40)}»`
+                  : h.meta?.after != null
+                    ? ` «${String(h.meta.after).slice(0, 40)}»`
+                    : ""}
+              {(h.action === "time_logged" ||
+                h.action === "time_edit" ||
+                h.action === "time_delete") &&
+                h.meta?.minutes != null &&
+                ` ${String(h.meta.minutes)} мин`}
             </span>
             <span className="ml-auto shrink-0 text-[10px] text-neutral-600">
               {formatRelative(h.createdAt)}
