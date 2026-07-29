@@ -100,6 +100,22 @@ export async function setRole(
   revalidatePath("/admin/users");
 }
 
+/** Admin sets (or clears) another user's photo/emoji. Own dedicated permission. */
+export async function setUserAvatar(
+  userId: string,
+  avatar: string | null,
+  avatarEmoji: string | null,
+): Promise<void> {
+  const admin = await requireAdminPerm(PERMS.ADMIN_USERS_AVATAR);
+  const target = await prisma.user.update({
+    where: { id: userId },
+    data: { avatar, avatarEmoji },
+    select: { username: true },
+  });
+  await logAudit(admin.id, "user.avatar", `@${target.username}`);
+  revalidatePath("/admin/users");
+}
+
 const resetSchema = z.object({
   userId: z.string().min(1),
   password: z.string().min(6, "Минимум 6 символов"),

@@ -27,6 +27,7 @@ export const AUDIT_LABELS: Record<string, string> = {
   "user.delete": "Удалил пользователя",
   "user.role": "Изменил роль",
   "user.activate": "Сменил активность",
+  "user.avatar": "Изменил фото пользователя",
   "user.reset_password": "Сбросил пароль",
   "perm.role": "Изменил право роли",
   "perm.user": "Изменил право пользователя",

@@ -10,6 +10,7 @@ export default async function AdminUsersPage() {
   if (!(await hasPerm(admin.id, admin.role, PERMS.ADMIN_USERS_VIEW))) {
     redirect("/dashboard");
   }
+  const canSetAvatar = await hasPerm(admin.id, admin.role, PERMS.ADMIN_USERS_AVATAR);
 
   const users = await prisma.user.findMany({
     orderBy: [{ role: "asc" }, { lastName: "asc" }],
@@ -36,7 +37,11 @@ export default async function AdminUsersPage() {
 
   return (
     <PageContainer>
-      <UsersClient users={data} currentUserId={admin.id} />
+      <UsersClient
+        users={data}
+        currentUserId={admin.id}
+        canSetAvatar={canSetAvatar}
+      />
     </PageContainer>
   );
 }

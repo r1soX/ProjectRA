@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
   AlertCircle,
@@ -12,12 +13,14 @@ import {
   ShieldOff,
   Ban,
   CircleCheck,
+  ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { Avatar } from "@/components/ui/avatar";
+import { AvatarEditor } from "@/app/(app)/profile/avatar-editor";
 import { useConfirm } from "@/components/ui/dialog-provider";
 import { cn } from "@/lib/cn";
 import { fullName, initials } from "@/lib/names";
@@ -26,6 +29,7 @@ import {
   toggleActive,
   setRole,
   resetPassword,
+  setUserAvatar,
   deleteUser,
   type AdminState,
 } from "./actions";
@@ -181,14 +185,54 @@ function ResetPasswordModal({
   );
 }
 
+function PhotoModal({
+  user,
+  onClose,
+}: {
+  user: AdminUser | null;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  return (
+    <Modal
+      open={!!user}
+      onClose={onClose}
+      title={user ? `Фото · @${user.username}` : ""}
+    >
+      {user && (
+        <div className="space-y-4">
+          <AvatarEditor
+            avatar={user.avatar}
+            emoji={user.avatarEmoji}
+            initials={initials(user)}
+            save={async (a, e) => {
+              await setUserAvatar(user.id, a, e);
+              router.refresh();
+            }}
+          />
+          <div className="flex justify-end">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Закрыть
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function UserRow({
   user,
   isSelf,
+  canSetAvatar,
   onReset,
+  onPhoto,
 }: {
   user: AdminUser;
   isSelf: boolean;
+  canSetAvatar: boolean;
   onReset: (u: AdminUser) => void;
+  onPhoto: (u: AdminUser) => void;
 }) {
   const [pending, startTransition] = useTransition();
   const confirm = useConfirm();
@@ -268,6 +312,17 @@ function UserRow({
           )}
         </Button>
 
+        {canSetAvatar && (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => onPhoto(user)}
+            title="Установить фото"
+          >
+            <ImageIcon className="h-4 w-4" />
+          </Button>
+        )}
+
         <Button
           size="sm"
           variant="secondary"
@@ -302,12 +357,17 @@ function UserRow({
 export function UsersClient({
   users,
   currentUserId,
+  canSetAvatar = false,
 }: {
   users: AdminUser[];
   currentUserId: string;
+  canSetAvatar?: boolean;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [resetUser, setResetUser] = useState<AdminUser | null>(null);
+  const [photoUserId, setPhotoUserId] = useState<string | null>(null);
+  // Derive from the live list so the editor reflects updates after a refresh.
+  const photoUser = users.find((u) => u.id === photoUserId) ?? null;
 
   return (
     <div>
@@ -331,7 +391,9 @@ export function UsersClient({
               key={u.id}
               user={u}
               isSelf={u.id === currentUserId}
+              canSetAvatar={canSetAvatar}
               onReset={setResetUser}
+              onPhoto={(user) => setPhotoUserId(user.id)}
             />
           ))}
         </AnimatePresence>
@@ -339,6 +401,7 @@ export function UsersClient({
 
       <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} />
       <ResetPasswordModal user={resetUser} onClose={() => setResetUser(null)} />
+      <PhotoModal user={photoUser} onClose={() => setPhotoUserId(null)} />
     </div>
   );
 }

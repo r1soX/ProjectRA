@@ -13,11 +13,16 @@ export function AvatarEditor({
   avatar,
   emoji,
   initials,
+  save,
 }: {
   avatar: string | null;
   emoji: string | null;
   initials: string;
+  // How to persist. Defaults to updating the current user's own avatar; the
+  // admin passes a bound action to set another user's photo.
+  save?: (avatar: string | null, emoji: string | null) => void | Promise<void>;
 }) {
+  const persist = save ?? saveAvatar;
   const fileRef = useRef<HTMLInputElement>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -48,7 +53,7 @@ export function AvatarEditor({
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       if (!res.ok) { setError("Не удалось загрузить"); return; }
       const data = await res.json();
-      start(() => saveAvatar(data.url, null));
+      start(() => persist(data.url, null));
     } catch {
       setError("Ошибка загрузки");
     } finally {
@@ -109,7 +114,7 @@ export function AvatarEditor({
                         type="button"
                         onClick={() => {
                           setEmojiOpen(false);
-                          start(() => saveAvatar(null, e));
+                          start(() => persist(null, e));
                         }}
                         className="flex items-center justify-center rounded-lg p-1 text-xl leading-none hover:bg-white/10"
                       >
@@ -126,7 +131,7 @@ export function AvatarEditor({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => start(() => saveAvatar(null, null))}
+                onClick={() => start(() => persist(null, null))}
               >
                 <Trash2 className="h-4 w-4" />
                 Убрать
