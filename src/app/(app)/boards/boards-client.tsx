@@ -7,6 +7,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -61,6 +62,19 @@ export type BoardCard = {
 const CARD_W = 288; // fixed card width for free-canvas placement
 const GAP = 16;
 const DEFAULT_ROW_H = 210;
+
+/** True on ≥ md screens. The free canvas is desktop-only; mobile uses a grid. */
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isDesktop;
+}
 
 export const BOARD_COLORS = [
   "#0ea5e9",
@@ -183,6 +197,89 @@ function CreateBoardModal({
   );
 }
 
+/** The card visual — shared by the desktop canvas tile and the mobile grid. */
+function BoardCardInner({
+  board,
+  showMove,
+}: {
+  board: BoardCard;
+  showMove: boolean;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  function onArchive(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    start(async () => {
+      await archiveBoard(board.id);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="glass glass-hover group relative block overflow-hidden rounded-2xl shadow-lg shadow-black/20 transition hover:shadow-xl hover:shadow-sky-500/10">
+      <div className="h-1.5" style={{ backgroundColor: board.color }} />
+      {showMove && (
+        <span
+          className="absolute left-1.5 top-2.5 z-10 text-neutral-600"
+          title="Перетащите карточку"
+        >
+          <Move className="h-3.5 w-3.5" />
+        </span>
+      )}
+      {board.canArchive && (
+        <button
+          onClick={onArchive}
+          onPointerDown={(e) => e.stopPropagation()}
+          disabled={pending}
+          title="Архивировать доску"
+          aria-label="Архивировать доску"
+          className="absolute right-2 top-3 z-10 rounded-lg p-1.5 text-neutral-500 opacity-60 transition hover:bg-white/10 hover:text-neutral-200 focus:opacity-100 disabled:opacity-40 sm:opacity-0 sm:group-hover:opacity-100"
+        >
+          <Archive className="h-4 w-4" />
+        </button>
+      )}
+      <div className="p-5">
+        <div className={cn("flex items-start justify-between gap-2", showMove && "pl-5")}>
+          <h2 className="font-semibold text-neutral-100">{board.title}</h2>
+          <span
+            className={cn(
+              "flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs",
+              board.isPersonal
+                ? "bg-neutral-800 text-neutral-400"
+                : "bg-sky-500/15 text-sky-300",
+              board.canArchive && "mr-7",
+            )}
+          >
+            {board.isPersonal ? (
+              <>
+                <Lock className="h-3 w-3" /> личная
+              </>
+            ) : (
+              <>
+                <UsersIcon className="h-3 w-3" /> общая
+              </>
+            )}
+          </span>
+        </div>
+        <div className="mt-4 space-y-2.5 text-xs text-neutral-500">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <ListChecks className="h-3.5 w-3.5" />
+              {board.taskCount} задач
+            </span>
+            <span>·</span>
+            <span className="truncate">{board.ownerName}</span>
+          </div>
+          <StatusBreakdown counts={board.statusCounts} total={board.taskCount} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Desktop: a freely draggable, absolutely-positioned card on the canvas. */
 function BoardTile({
   board,
   pos,
@@ -191,7 +288,6 @@ function BoardTile({
   pos: { x: number; y: number };
 }) {
   const router = useRouter();
-  const [pending, start] = useTransition();
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: board.id });
 
@@ -204,19 +300,8 @@ function BoardTile({
       ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
       : undefined,
     zIndex: isDragging ? 30 : undefined,
-    // Keep mobile scroll working; the TouchSensor's long-press delay separates
-    // a scroll from a drag.
     touchAction: isDragging ? "none" : undefined,
   };
-
-  function onArchive(e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    start(async () => {
-      await archiveBoard(board.id);
-      router.refresh();
-    });
-  }
 
   return (
     <div
@@ -232,62 +317,7 @@ function BoardTile({
         isDragging && "opacity-80",
       )}
     >
-      <div className="glass glass-hover group relative block overflow-hidden rounded-2xl shadow-lg shadow-black/20 transition hover:shadow-xl hover:shadow-sky-500/10">
-        <div className="h-1.5" style={{ backgroundColor: board.color }} />
-        <span
-          className="absolute left-1.5 top-2.5 z-10 text-neutral-600"
-          title="Перетащите карточку"
-        >
-          <Move className="h-3.5 w-3.5" />
-        </span>
-        {board.canArchive && (
-          <button
-            onClick={onArchive}
-            onPointerDown={(e) => e.stopPropagation()}
-            disabled={pending}
-            title="Архивировать доску"
-            aria-label="Архивировать доску"
-            className="absolute right-2 top-3 z-10 rounded-lg p-1.5 text-neutral-500 opacity-60 transition hover:bg-white/10 hover:text-neutral-200 focus:opacity-100 disabled:opacity-40 sm:opacity-0 sm:group-hover:opacity-100"
-          >
-            <Archive className="h-4 w-4" />
-          </button>
-        )}
-        <div className="p-5">
-          <div className="flex items-start justify-between gap-2 pl-5">
-            <h2 className="font-semibold text-neutral-100">{board.title}</h2>
-            <span
-              className={cn(
-                "flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs",
-                board.isPersonal
-                  ? "bg-neutral-800 text-neutral-400"
-                  : "bg-sky-500/15 text-sky-300",
-                board.canArchive && "mr-7",
-              )}
-            >
-              {board.isPersonal ? (
-                <>
-                  <Lock className="h-3 w-3" /> личная
-                </>
-              ) : (
-                <>
-                  <UsersIcon className="h-3 w-3" /> общая
-                </>
-              )}
-            </span>
-          </div>
-          <div className="mt-4 space-y-2.5 text-xs text-neutral-500">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1">
-                <ListChecks className="h-3.5 w-3.5" />
-                {board.taskCount} задач
-              </span>
-              <span>·</span>
-              <span className="truncate">{board.ownerName}</span>
-            </div>
-            <StatusBreakdown counts={board.statusCounts} total={board.taskCount} />
-          </div>
-        </div>
-      </div>
+      <BoardCardInner board={board} showMove />
     </div>
   );
 }
@@ -378,18 +408,20 @@ export function BoardsClient({
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
+  const isDesktop = useIsDesktop();
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [pos, setPos] = useState<Record<string, { x: number; y: number }>>({});
 
   // Measure the canvas width (drives the default layout + horizontal clamping).
+  // Re-runs when the canvas mounts (isDesktop flips) so width is captured.
   useEffect(() => {
     const measure = () => setWidth(canvasRef.current?.clientWidth ?? 0);
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, []);
+  }, [isDesktop]);
 
   // Seed positions: saved x/y from the server, a grid default for the rest.
   useEffect(() => {
@@ -460,13 +492,13 @@ export function BoardsClient({
           <p className="mt-1 text-sm text-neutral-500">
             {boards.length === 0
               ? "Пока нет досок"
-              : boards.length > 1
+              : isDesktop && boards.length > 1
                 ? `Всего: ${boards.length} · перетащите карточки, чтобы расставить как удобно`
                 : `Всего: ${boards.length}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {boards.length > 1 && (
+          {isDesktop && boards.length > 1 && (
             <button
               onClick={onReset}
               title="Сбросить раскладку"
@@ -499,7 +531,8 @@ export function BoardsClient({
             Пока нет досок
           </div>
         )
-      ) : (
+      ) : isDesktop ? (
+        // Desktop: free-form draggable canvas.
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div
             ref={canvasRef}
@@ -509,16 +542,19 @@ export function BoardsClient({
             {boards.map((b) => {
               const p = pos[b.id];
               if (!p) return null;
-              return (
-                <BoardTile
-                  key={b.id}
-                  board={b}
-                  pos={p}
-                />
-              );
+              return <BoardTile key={b.id} board={b} pos={p} />;
             })}
           </div>
         </DndContext>
+      ) : (
+        // Mobile: plain responsive grid, no dragging (avoids the tall canvas).
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {boards.map((b) => (
+            <Link key={b.id} href={`/boards/${b.id}`}>
+              <BoardCardInner board={b} showMove={false} />
+            </Link>
+          ))}
+        </div>
       )}
 
       {archived.length > 0 && (
