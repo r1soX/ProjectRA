@@ -6,9 +6,7 @@ import {
   useRef,
   useState,
   useTransition,
-  type RefObject,
 } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -30,6 +28,7 @@ import {
   ArchiveRestore,
   ChevronDown,
   Move,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +41,7 @@ import {
   archiveBoard,
   unarchiveBoard,
   moveBoard,
+  resetBoardLayout,
   type ActionState,
 } from "./actions";
 
@@ -186,11 +186,9 @@ function CreateBoardModal({
 function BoardTile({
   board,
   pos,
-  suppressClick,
 }: {
   board: BoardCard;
   pos: { x: number; y: number };
-  suppressClick: RefObject<boolean>;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -226,23 +224,15 @@ function BoardTile({
       style={style}
       {...attributes}
       {...listeners}
+      // dnd-kit swallows the click that follows a real drag (same element as
+      // the drag listeners), so a plain click opens the board but a drag won't.
+      onClick={() => router.push(`/boards/${board.id}`)}
       className={cn(
         "cursor-grab select-none active:cursor-grabbing",
         isDragging && "opacity-80",
       )}
     >
-      <Link
-        href={`/boards/${board.id}`}
-        // Protect against opening the board right after a drag.
-        onClick={(e) => {
-          if (suppressClick.current) {
-            e.preventDefault();
-            suppressClick.current = false;
-          }
-        }}
-        draggable={false}
-        className="glass glass-hover group relative block overflow-hidden rounded-2xl shadow-lg shadow-black/20 transition hover:shadow-xl hover:shadow-sky-500/10"
-      >
+      <div className="glass glass-hover group relative block overflow-hidden rounded-2xl shadow-lg shadow-black/20 transition hover:shadow-xl hover:shadow-sky-500/10">
         <div className="h-1.5" style={{ backgroundColor: board.color }} />
         <span
           className="absolute left-1.5 top-2.5 z-10 text-neutral-600"
@@ -297,7 +287,7 @@ function BoardTile({
             <StatusBreakdown counts={board.statusCounts} total={board.taskCount} />
           </div>
         </div>
-      </Link>
+      </div>
     </div>
   );
 }
@@ -391,7 +381,6 @@ export function BoardsClient({
   const canvasRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [pos, setPos] = useState<Record<string, { x: number; y: number }>>({});
-  const suppressClick = useRef(false);
 
   // Measure the canvas width (drives the default layout + horizontal clamping).
   useEffect(() => {
@@ -442,16 +431,25 @@ export function BoardsClient({
       moveBoard(id, nx, ny);
       return { ...prev, [id]: { x: nx, y: ny } };
     });
-    // A real drag just happened — swallow the click that follows so the board
-    // doesn't open.
-    suppressClick.current = true;
-    window.setTimeout(() => {
-      suppressClick.current = false;
-    }, 50);
   }
 
-  const canvasHeight =
+  function onReset() {
+    const perRow = Math.max(1, Math.floor((width + GAP) / (CARD_W + GAP)));
+    const next: Record<string, { x: number; y: number }> = {};
+    boards.forEach((b, i) => {
+      next[b.id] = {
+        x: (i % perRow) * (CARD_W + GAP),
+        y: Math.floor(i / perRow) * (DEFAULT_ROW_H + GAP),
+      };
+    });
+    setPos(next);
+    resetBoardLayout();
+  }
+
+  // At least a screenful tall, growing to fit the lowest card.
+  const contentBottom =
     Math.max(0, ...boards.map((b) => pos[b.id]?.y ?? 0)) + DEFAULT_ROW_H + 40;
+  const canvasHeight = Math.max(576, contentBottom);
 
   return (
     <div>
@@ -466,12 +464,24 @@ export function BoardsClient({
                 : `Всего: ${boards.length}`}
           </p>
         </div>
-        {canCreate && (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Новая доска</span>
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {boards.length > 1 && (
+            <button
+              onClick={onReset}
+              title="Сбросить раскладку"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-neutral-400 transition hover:bg-white/10 hover:text-neutral-200"
+            >
+              <RotateCcw className="h-4 w-4" />
+              <span className="hidden sm:inline">Сбросить раскладку</span>
+            </button>
+          )}
+          {canCreate && (
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Новая доска</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       {boards.length === 0 ? (
@@ -493,7 +503,7 @@ export function BoardsClient({
           <div
             ref={canvasRef}
             className="relative w-full"
-            style={{ height: canvasHeight, minHeight: 320 }}
+            style={{ height: canvasHeight }}
           >
             {boards.map((b) => {
               const p = pos[b.id];
@@ -503,7 +513,6 @@ export function BoardsClient({
                   key={b.id}
                   board={b}
                   pos={p}
-                  suppressClick={suppressClick}
                 />
               );
             })}

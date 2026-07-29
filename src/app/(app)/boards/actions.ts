@@ -291,6 +291,12 @@ export async function moveBoard(boardId: string, x: number, y: number) {
   });
 }
 
+/** Clear the current user's board layout — boards return to the default grid. */
+export async function resetBoardLayout() {
+  const user = await requireUser();
+  await prisma.boardOrder.deleteMany({ where: { userId: user.id } });
+}
+
 /** Archive a board — hides it from lists/sidebar without deleting anything. */
 export async function archiveBoard(boardId: string) {
   const { user } = await requireBoardOwner(boardId);
