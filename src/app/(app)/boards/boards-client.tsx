@@ -7,7 +7,8 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   DndContext,
   closestCenter,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -219,7 +220,7 @@ function BoardTile({ board }: { board: BoardCard }) {
           }}
           title="Перетащите, чтобы изменить порядок"
           aria-label="Переместить доску"
-          className="absolute left-1.5 top-3 z-10 cursor-grab touch-none rounded-lg p-1 text-neutral-600 opacity-0 transition hover:bg-white/10 hover:text-neutral-300 focus:opacity-100 group-hover:opacity-100 active:cursor-grabbing"
+          className="absolute left-1.5 top-3 z-10 cursor-grab touch-none rounded-lg p-1 text-neutral-500 opacity-60 transition hover:bg-white/10 hover:text-neutral-300 focus:opacity-100 active:cursor-grabbing sm:opacity-0 sm:group-hover:opacity-100"
         >
           <GripVertical className="h-4 w-4" />
         </button>
@@ -229,7 +230,7 @@ function BoardTile({ board }: { board: BoardCard }) {
             disabled={pending}
             title="Архивировать доску"
             aria-label="Архивировать доску"
-            className="absolute right-2 top-3.5 z-10 rounded-lg p-1.5 text-neutral-500 opacity-0 transition hover:bg-white/10 hover:text-neutral-200 focus:opacity-100 group-hover:opacity-100 disabled:opacity-40"
+            className="absolute right-2 top-3.5 z-10 rounded-lg p-1.5 text-neutral-500 opacity-60 transition hover:bg-white/10 hover:text-neutral-200 focus:opacity-100 disabled:opacity-40 sm:opacity-0 sm:group-hover:opacity-100"
           >
             <Archive className="h-4 w-4" />
           </button>
@@ -367,7 +368,8 @@ export function BoardsClient({
   }, [boards]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
   );
 
   function onDragEnd(e: DragEndEvent) {

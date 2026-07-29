@@ -197,20 +197,22 @@ export default async function AnalyticsPage() {
         <h2 className="mb-4 text-sm font-semibold text-neutral-200">
           Создано задач за 14 дней
         </h2>
-        <div className="flex h-40 items-end gap-1.5">
-          {a.createdSeries.map((s) => (
-            <div key={s.date} className="flex flex-1 flex-col items-center gap-1.5">
-              <div className="flex w-full flex-1 items-end">
-                <div
-                  className="w-full rounded-t-md bg-gradient-to-t from-sky-500/40 to-sky-400"
-                  style={{ height: `${(s.count / maxDay) * 100}%`, minHeight: s.count ? 4 : 0 }}
-                  title={`${s.date}: ${s.count}`}
-                />
+        <div className="overflow-x-auto">
+          <div className="flex h-40 min-w-[460px] items-end gap-1.5 sm:min-w-0">
+            {a.createdSeries.map((s) => (
+              <div key={s.date} className="flex flex-1 flex-col items-center gap-1.5">
+                <div className="flex w-full flex-1 items-end">
+                  <div
+                    className="w-full rounded-t-md bg-gradient-to-t from-sky-500/40 to-sky-400"
+                    style={{ height: `${(s.count / maxDay) * 100}%`, minHeight: s.count ? 4 : 0 }}
+                    title={`${s.date}: ${s.count}`}
+                  />
+                </div>
+                <span className="text-[9px] text-neutral-500">{dayLabel(s.date)}</span>
+                <span className="text-[10px] font-medium text-neutral-400">{s.count}</span>
               </div>
-              <span className="text-[9px] text-neutral-500">{dayLabel(s.date)}</span>
-              <span className="text-[10px] font-medium text-neutral-400">{s.count}</span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
