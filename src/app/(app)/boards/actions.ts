@@ -18,7 +18,9 @@ import { toCanonicalWall } from "@/lib/timezone";
 
 function normalizeRecurFreq(v: FormDataEntryValue | null): string | null {
   const s = typeof v === "string" ? v : "";
-  return s === "DAILY" || s === "WEEKLY" || s === "MONTHLY" ? s : null;
+  return s === "DAILY" || s === "WEEKLY" || s === "MONTHLY" || s === "YEARLY"
+    ? s
+    : null;
 }
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };

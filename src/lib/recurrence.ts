@@ -1,4 +1,4 @@
-export type RecurFreq = "DAILY" | "WEEKLY" | "MONTHLY";
+export type RecurFreq = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 
 export type RecurRule = {
   freq: RecurFreq;
@@ -30,7 +30,12 @@ export function ruleFromTask(t: {
   recurDays: string | null;
   recurUntil: string | null;
 }): RecurRule | null {
-  if (t.recurFreq !== "DAILY" && t.recurFreq !== "WEEKLY" && t.recurFreq !== "MONTHLY")
+  if (
+    t.recurFreq !== "DAILY" &&
+    t.recurFreq !== "WEEKLY" &&
+    t.recurFreq !== "MONTHLY" &&
+    t.recurFreq !== "YEARLY"
+  )
     return null;
   return {
     freq: t.recurFreq,
@@ -53,10 +58,30 @@ export function describeRecurrence(rule: RecurRule): string {
       .join(", ");
     return `еженедельно: ${labels}`;
   }
+  if (rule.freq === "YEARLY") {
+    return rule.interval <= 1 ? "ежегодно" : `каждые ${rule.interval} г.`;
+  }
   // MONTHLY
   if (rule.days.length === 0) return "каждый месяц";
   const nums = [...rule.days].sort((a, b) => a - b).join(", ");
   return `${nums} числа каждого месяца`;
+}
+
+/** The next `count` occurrences after `base` (fewer if the rule ends). */
+export function upcomingOccurrences(
+  rule: RecurRule,
+  base: Date,
+  count: number,
+): Date[] {
+  const out: Date[] = [];
+  let cur = base;
+  for (let i = 0; i < count; i++) {
+    const next = nextOccurrence(rule, cur);
+    if (!next) break;
+    out.push(next);
+    cur = next;
+  }
+  return out;
 }
 
 function utcWeekday(d: Date): number {
@@ -73,6 +98,15 @@ export function nextOccurrence(rule: RecurRule, from: Date): Date | null {
     Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()),
   );
   const until = rule.until ? new Date(rule.until + "T00:00:00Z") : null;
+
+  // Yearly: same month/day, N years on — computed directly (a day-by-day scan
+  // wouldn't reach multi-year intervals).
+  if (rule.freq === "YEARLY") {
+    const next = new Date(start);
+    next.setUTCFullYear(start.getUTCFullYear() + Math.max(1, rule.interval));
+    if (until && next > until) return null;
+    return next;
+  }
 
   for (let i = 1; i <= 400; i++) {
     const d = new Date(start);

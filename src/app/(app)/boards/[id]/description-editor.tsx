@@ -26,18 +26,22 @@ export function DescriptionEditor({
   defaultValue: string;
   disabled: boolean;
 }) {
-  const [value, setValue] = useState(defaultValue);
+  // Normalize CRLF → LF so the state length matches the textarea's selection
+  // offsets (the browser measures selection against LF-normalized content).
+  const [value, setValue] = useState(defaultValue.replace(/\r\n?/g, "\n"));
   const [editing, setEditing] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
 
   function wrap(marker: string, placeholder = "текст") {
     const ta = ref.current;
     if (!ta) return;
+    // Slice the textarea's OWN value: its selectionStart/End are guaranteed to
+    // line up with it, whereas the React state could differ (e.g. stray \r).
+    const src = ta.value;
     const start = ta.selectionStart;
     const end = ta.selectionEnd;
-    const sel = value.slice(start, end) || placeholder;
-    const next =
-      value.slice(0, start) + marker + sel + marker + value.slice(end);
+    const sel = src.slice(start, end) || placeholder;
+    const next = src.slice(0, start) + marker + sel + marker + src.slice(end);
     setValue(next);
     requestAnimationFrame(() => {
       ta.focus();

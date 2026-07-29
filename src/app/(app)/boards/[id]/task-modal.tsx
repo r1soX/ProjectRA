@@ -44,6 +44,7 @@ import {
   parseRecurDays,
   ruleFromTask,
   describeRecurrence,
+  upcomingOccurrences,
   type RecurFreq,
 } from "@/lib/recurrence";
 import {
@@ -1689,6 +1690,7 @@ function RecurrenceEditor({
     ["DAILY", "День"],
     ["WEEKLY", "Неделя"],
     ["MONTHLY", "Месяц"],
+    ["YEARLY", "Год"],
   ];
 
   return (
@@ -1698,7 +1700,7 @@ function RecurrenceEditor({
       <input type="hidden" name="recurDays" value={recurDaysValue} />
       <input type="hidden" name="recurUntil" value={until} />
 
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-5 gap-1.5">
         {freqs.map(([val, label]) => (
           <button
             key={val}
@@ -1720,48 +1722,59 @@ function RecurrenceEditor({
         ))}
       </div>
 
-      {freq === "DAILY" && (
+      {(freq === "DAILY" || freq === "YEARLY") && (
         <label className="flex items-center gap-2 text-xs text-neutral-400">
           каждые
           <input
             type="number"
             min={1}
-            max={365}
+            max={freq === "YEARLY" ? 20 : 365}
             value={interval}
             disabled={disabled}
             onChange={(e) => setIntervalN(Math.max(1, parseInt(e.target.value, 10) || 1))}
             className="h-8 w-16 rounded-lg border border-neutral-700 bg-neutral-900/60 px-2 text-center text-neutral-100 outline-none focus:border-sky-500"
           />
-          дн.
+          {freq === "YEARLY" ? "г." : "дн."}
         </label>
       )}
 
       {freq === "WEEKLY" && (
-        <div className="flex flex-wrap gap-1">
-          {WEEKDAY_LABELS.map((lbl, i) => {
-            const n = i + 1;
-            const active = days.includes(n);
-            return (
-              <button
-                key={n}
-                type="button"
-                disabled={disabled}
-                onClick={() =>
-                  setDays((ds) =>
-                    ds.includes(n) ? ds.filter((x) => x !== n) : [...ds, n],
-                  )
-                }
-                className={cn(
-                  "h-7 w-9 rounded-md border text-xs transition disabled:opacity-50",
-                  active
-                    ? "border-violet-500/50 bg-violet-500/20 text-violet-200"
-                    : "border-neutral-700 text-neutral-400 hover:bg-neutral-800/60",
-                )}
-              >
-                {lbl}
-              </button>
-            );
-          })}
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap gap-1">
+            {WEEKDAY_LABELS.map((lbl, i) => {
+              const n = i + 1;
+              const active = days.includes(n);
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() =>
+                    setDays((ds) =>
+                      ds.includes(n) ? ds.filter((x) => x !== n) : [...ds, n],
+                    )
+                  }
+                  className={cn(
+                    "h-7 w-9 rounded-md border text-xs transition disabled:opacity-50",
+                    active
+                      ? "border-violet-500/50 bg-violet-500/20 text-violet-200"
+                      : "border-neutral-700 text-neutral-400 hover:bg-neutral-800/60",
+                  )}
+                >
+                  {lbl}
+                </button>
+              );
+            })}
+          </div>
+          {!disabled && (
+            <button
+              type="button"
+              onClick={() => setDays([1, 2, 3, 4, 5])}
+              className="text-[11px] text-violet-300 transition hover:underline"
+            >
+              По будням (Пн–Пт)
+            </button>
+          )}
         </div>
       )}
 
@@ -1788,6 +1801,39 @@ function RecurrenceEditor({
           />
         </label>
       )}
+
+      {freq &&
+        (() => {
+          const rule = { freq, interval, days, until: until || null };
+          const base = task.dueDate
+            ? new Date(`${task.dueDate}T00:00:00Z`)
+            : new Date();
+          const ups = upcomingOccurrences(rule, base, 3);
+          const fmt = (d: Date) =>
+            d.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
+          return (
+            <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 px-2.5 py-2 text-[11px] leading-snug text-neutral-400">
+              <p className="text-violet-200">
+                Повторяется: {describeRecurrence(rule)}
+              </p>
+              {!task.dueDate ? (
+                <p className="mt-0.5 text-amber-300/80">
+                  Задайте срок задачи — от него отсчитываются повторения.
+                </p>
+              ) : ups.length ? (
+                <p className="mt-0.5">
+                  Следующие: {ups.map(fmt).join(" · ")}
+                </p>
+              ) : (
+                <p className="mt-0.5">Повторений больше нет (истёк срок «до»).</p>
+              )}
+              <p className="mt-1 text-neutral-600">
+                Срок переносится на следующую дату, когда задачу выполняют
+                (кнопкой ниже или переносом в «Завершённые»).
+              </p>
+            </div>
+          );
+        })()}
     </div>
   );
 }
