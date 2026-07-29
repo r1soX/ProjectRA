@@ -63,7 +63,12 @@ docker compose build
 docker compose up -d db
 docker compose ps          # дождаться, пока db => healthy
 
-# 5) Применить схему к Postgres и перенести данные — одной командой в контейнере.
+# 5) ВАЖНО: влить WAL в основной файл (SQLite хранит свежие записи в dev.db-wal).
+#    Иначе часть данных не перенесётся! После этого dev.db самодостаточен.
+sqlite3 prisma/dev.db 'PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;'
+#    нет sqlite3?  →  sudo apt-get install -y sqlite3
+
+# 6) Применить схему к Postgres и перенести данные — одной командой в контейнере.
 #    Точка входа сама сделает `prisma db push`, затем запустит миграцию.
 docker compose run --rm \
   -v "$PWD/prisma/dev.db:/app/prisma/dev.db:ro" \
@@ -71,13 +76,13 @@ docker compose run --rm \
   scripts/migrate-sqlite-to-postgres.ts
 #    (сверьте счётчики строк в выводе)
 
-# 6) Запустить приложение
+# 7) Запустить приложение
 docker compose up -d app     # или `docker compose up -d` (db+app)
 docker compose logs -f app   # проверить, что стартовало
 
-# 7) Проверить на домене/IP:3000 — войти прежними логинами, убедиться что данные на месте.
+# 8) Проверить на домене/IP:3000 — войти прежними логинами, убедиться что данные на месте.
 
-# 8) Только когда всё ок — убрать старый процесс, чтобы не занимал порт 3000
+# 9) Только когда всё ок — убрать старый процесс, чтобы не занимал порт 3000
 pm2 delete all && pm2 save
 ```
 

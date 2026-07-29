@@ -10,6 +10,13 @@
  *   #   SQLITE_PATH=./prisma/dev.db   (source file)
  *   #   DRY_RUN=1                      (read + convert, no writes)
  *
+ * IMPORTANT: SQLite in WAL mode keeps recent writes in a separate `-wal` file.
+ * If you migrate only the main `dev.db` (e.g. mounting a single file into a
+ * container) you'll MISS that data. Fold the WAL into the main file first:
+ *   sqlite3 dev.db 'PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;'
+ * When run locally alongside `dev.db-wal`/`dev.db-shm`, this script already sees
+ * WAL data (it opens read-only with the sidecar files present).
+ *
  * Requires Node ≥ 22.5 (for node:sqlite).
  */
 import { DatabaseSync } from "node:sqlite";
@@ -108,7 +115,25 @@ function tableExists(db: DatabaseSync, name: string): boolean {
 async function main() {
   console.log(`Source: ${SQLITE_PATH}  →  Postgres (DATABASE_URL)`);
   if (DRY_RUN) console.log("DRY RUN — no writes.\n");
-  const db = new DatabaseSync(SQLITE_PATH);
+  // Read-only: safe with :ro mounts, never mutates the source. With the
+  // -wal/-shm sidecar files present, this still reads the latest WAL data.
+  const db = new DatabaseSync(SQLITE_PATH, { readOnly: true });
+
+  // Warn if a non-empty WAL sits next to the DB but isn't readable here — its
+  // rows would be missed. (Sidecar not present in a single-file container mount.)
+  try {
+    const wal = db
+      .prepare("PRAGMA wal_checkpoint(PASSIVE)")
+      .get() as { busy?: number; log?: number } | undefined;
+    if (wal && typeof wal.log === "number" && wal.log > 0) {
+      console.warn(
+        `\n⚠  В WAL есть ${wal.log} страниц. Если данные неполные — сначала выполните:\n` +
+          `   sqlite3 ${SQLITE_PATH} 'PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;'\n`,
+      );
+    }
+  } catch {
+    /* checkpoint unavailable on a read-only handle — ignore */
+  }
 
   let total = 0;
   for (const model of ORDER) {
