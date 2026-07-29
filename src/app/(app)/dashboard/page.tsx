@@ -88,7 +88,7 @@ export default async function DashboardPage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         {/* My tasks */}
-        <section className="glass rounded-2xl p-4 sm:p-5">
+        <section className="glass min-w-0 overflow-hidden rounded-2xl p-4 sm:p-5">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-neutral-200">
             <ListChecks className="h-4 w-4 text-sky-400" />
             Мои задачи
@@ -115,7 +115,7 @@ export default async function DashboardPage() {
                       {t.title}
                     </span>
                     <span
-                      className="hidden shrink-0 rounded px-2 py-0.5 text-xs text-neutral-300 sm:inline"
+                      className="hidden max-w-[9rem] shrink-0 truncate rounded px-2 py-0.5 text-xs text-neutral-300 sm:inline-block"
                       style={{ backgroundColor: t.boardColor + "22" }}
                     >
                       {t.boardTitle}
@@ -138,7 +138,7 @@ export default async function DashboardPage() {
         </section>
 
         {/* Boards quick access */}
-        <section className="glass h-fit rounded-2xl p-4 sm:p-5">
+        <section className="glass h-fit min-w-0 overflow-hidden rounded-2xl p-4 sm:p-5">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-neutral-200">
             <LayoutGrid className="h-4 w-4 text-indigo-400" />
             Доски
