@@ -72,7 +72,7 @@ export default async function BoardsPage() {
   });
 
   return (
-    <PageContainer>
+    <PageContainer className="max-w-none">
       <BoardsClient
         boards={data}
         archived={archivedData}
