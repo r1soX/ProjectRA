@@ -197,7 +197,12 @@ function statusForColumn(
   if (systemKey === "COMPLETED") return "done";
   const t = title.toLowerCase();
   if (/готов|сделано|закрыт|опубликов|принят/.test(t)) return "done";
-  if (/бэклог|идеи|новые|отклик|когда/.test(t)) return "backlog";
+  if (/отмен|cancel|отклонен/.test(t)) return "canceled";
+  if (/провер|ревью|review|тест|qa|приёмк|приемк/.test(t)) return "review";
+  if (/заблок|block|стоп|блокир/.test(t)) return "blocked";
+  if (/отлож|заморож|пауз|hold|ожидан/.test(t)) return "on_hold";
+  if (/бэклог|идеи|новые|отклик|когда|backlog/.test(t)) return "backlog";
+  if (/в работ|процесс|делаем|in.?progress|разработ/.test(t)) return "in_progress";
   if (order === 0) return "todo";
   if (isLast) return "done";
   return "in_progress";

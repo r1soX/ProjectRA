@@ -28,7 +28,7 @@ export default async function BoardsPage() {
     getArchivedBoards(user.id, viewAll),
   ]);
 
-  // Per-board task breakdown (done / in-progress) for the active board cards.
+  // Per-board task breakdown by real status, for the active board cards.
   const activeIds = boards.map((b) => b.id);
   const grouped = activeIds.length
     ? await prisma.task.groupBy({
@@ -37,11 +37,11 @@ export default async function BoardsPage() {
         _count: { _all: true },
       })
     : [];
-  const doneBy = new Map<string, number>();
-  const progBy = new Map<string, number>();
+  const countsBy = new Map<string, Record<string, number>>();
   for (const g of grouped) {
-    if (g.status === "done") doneBy.set(g.boardId, g._count._all);
-    else if (g.status === "in_progress") progBy.set(g.boardId, g._count._all);
+    const rec = countsBy.get(g.boardId) ?? {};
+    rec[g.status] = (rec[g.status] ?? 0) + g._count._all;
+    countsBy.set(g.boardId, rec);
   }
 
   const toCard = (b: (typeof boards)[number]): BoardCard => ({
@@ -51,8 +51,7 @@ export default async function BoardsPage() {
     isPersonal: b.isPersonal,
     ownerName: shortName(b.owner),
     taskCount: b._count.tasks,
-    doneCount: doneBy.get(b.id) ?? 0,
-    inProgressCount: progBy.get(b.id) ?? 0,
+    statusCounts: countsBy.get(b.id) ?? {},
     // The owner — or anyone with global board management — manages archiving.
     canArchive: b.ownerId === user.id || manageAll,
   });

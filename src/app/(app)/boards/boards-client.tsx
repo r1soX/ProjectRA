@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/cn";
+import { STATUS_META, STATUSES } from "@/lib/status";
 import {
   createBoard,
   archiveBoard,
@@ -33,8 +34,7 @@ export type BoardCard = {
   isPersonal: boolean;
   ownerName: string;
   taskCount: number;
-  doneCount: number;
-  inProgressCount: number;
+  statusCounts: Record<string, number>;
   canArchive: boolean;
 };
 
@@ -217,7 +217,7 @@ function BoardTile({ board, index }: { board: BoardCard; index: number }) {
               )}
             </span>
           </div>
-          <div className="mt-4 space-y-2 text-xs text-neutral-500">
+          <div className="mt-4 space-y-2.5 text-xs text-neutral-500">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1">
                 <ListChecks className="h-3.5 w-3.5" />
@@ -226,22 +226,54 @@ function BoardTile({ board, index }: { board: BoardCard; index: number }) {
               <span>·</span>
               <span className="truncate">{board.ownerName}</span>
             </div>
-            {board.taskCount > 0 && (
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1.5" title="Выполнено">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  {board.doneCount} готово
-                </span>
-                <span className="flex items-center gap-1.5" title="В работе">
-                  <span className="h-2 w-2 rounded-full bg-amber-400" />
-                  {board.inProgressCount} в работе
-                </span>
-              </div>
-            )}
+            <StatusBreakdown counts={board.statusCounts} total={board.taskCount} />
           </div>
         </div>
       </Link>
     </motion.div>
+  );
+}
+
+function StatusBreakdown({
+  counts,
+  total,
+}: {
+  counts: Record<string, number>;
+  total: number;
+}) {
+  if (total === 0) {
+    return <p className="text-neutral-600">Задач пока нет</p>;
+  }
+  const present = STATUSES.filter((s) => (counts[s] ?? 0) > 0);
+  return (
+    <div className="space-y-1.5">
+      {/* Proportional status bar */}
+      <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+        {present.map((s) => (
+          <div
+            key={s}
+            style={{
+              width: `${((counts[s] ?? 0) / total) * 100}%`,
+              backgroundColor: STATUS_META[s].bar,
+            }}
+            title={`${STATUS_META[s].label}: ${counts[s]}`}
+          />
+        ))}
+      </div>
+      {/* Per-status counts */}
+      <div className="flex flex-wrap gap-x-2.5 gap-y-1">
+        {present.map((s) => (
+          <span key={s} className="flex items-center gap-1 text-neutral-400">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: STATUS_META[s].bar }}
+            />
+            <span className="font-medium text-neutral-300">{counts[s]}</span>
+            {STATUS_META[s].label}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
