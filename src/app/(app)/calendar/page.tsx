@@ -10,7 +10,7 @@ export default async function CalendarPage() {
     return <AccessDenied message="У вас нет прав на просмотр задач." />;
   }
   const canViewAll = await hasPerm(me.id, me.role, PERMS.BOARD_VIEW_ALL);
-  const tasks = await getCalendarTasks(me.id, canViewAll);
+  const tasks = await getCalendarTasks(me.id, canViewAll, me.timezone);
 
   return (
     <CalendarClient

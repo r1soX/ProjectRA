@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
+import { TIMEZONES } from "@/lib/timezone";
 import {
   updateProfile,
   changePassword,
@@ -59,12 +60,14 @@ export function ProfileForms({
   firstName,
   middleName,
   birthDate,
+  timezone,
 }: {
   username: string;
   lastName: string;
   firstName: string;
   middleName: string | null;
   birthDate: string | null;
+  timezone: string;
 }) {
   const [profileState, profileAction, profilePending] = useActionState<
     FormState,
@@ -104,6 +107,24 @@ export function ProfileForms({
               defaultValue={birthDate ?? ""}
               className="[color-scheme:dark]"
             />
+          </Field>
+          <Field
+            label="Часовой пояс"
+            htmlFor="timezone"
+            hint="Время сроков в задачах показывается в этом поясе"
+          >
+            <select
+              id="timezone"
+              name="timezone"
+              defaultValue={timezone}
+              className="w-full rounded-xl border border-neutral-700 bg-neutral-900/60 px-3 py-2.5 text-base sm:text-sm text-neutral-100 outline-none focus:border-sky-500"
+            >
+              {TIMEZONES.map((tz) => (
+                <option key={tz.id} value={tz.id}>
+                  {tz.label}
+                </option>
+              ))}
+            </select>
           </Field>
           <StatusBanner state={profileState} />
           <Button type="submit" loading={profilePending}>

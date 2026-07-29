@@ -14,6 +14,7 @@ import { notifyMentions, notifyAssigned } from "@/lib/notify";
 import { logHistory } from "@/lib/task-history";
 import { shortName } from "@/lib/names";
 import { hasPerm, PERMS } from "@/lib/permissions";
+import { toCanonicalWall } from "@/lib/timezone";
 
 function normalizeRecurFreq(v: FormDataEntryValue | null): string | null {
   const s = typeof v === "string" ? v : "";
@@ -122,18 +123,22 @@ function parseDate(v: FormDataEntryValue | null): Date | null {
 
 /**
  * Combine a date (yyyy-mm-dd) with an optional time (HH:mm) into an instant.
- * Interpreted as UTC wall-clock to match the app's date-only convention
- * (`new Date("yyyy-mm-dd")` is already UTC midnight). No time → UTC midnight,
- * which downstream code treats as "date only".
+ * The time is entered in the setter's timezone; we convert it to the canonical
+ * (Иркутск) wall-clock for storage. No time → UTC midnight (date-only), which
+ * downstream code treats as a plain day and never shifts across zones.
  */
 function parseDateTime(
   dateVal: FormDataEntryValue | null,
   timeVal: FormDataEntryValue | null,
+  setterTz: string,
 ): Date | null {
   const d = typeof dateVal === "string" ? dateVal.trim() : "";
   if (!d) return null;
   const t = typeof timeVal === "string" ? timeVal.trim() : "";
-  return t ? new Date(`${d}T${t}:00Z`) : new Date(`${d}T00:00:00Z`);
+  const naive = t
+    ? new Date(`${d}T${t}:00Z`)
+    : new Date(`${d}T00:00:00Z`);
+  return toCanonicalWall(naive, setterTz);
 }
 
 // ── boards ───────────────────────────────────────────────────────
@@ -524,7 +529,11 @@ export async function updateTask(taskId: string, formData: FormData) {
   const priority = normalizePriority(formData.get("priority"));
   const isPersonal = formData.get("isPersonal") === "on";
   const startDate = parseDate(formData.get("startDate"));
-  const dueDate = parseDateTime(formData.get("dueDate"), formData.get("dueTime"));
+  const dueDate = parseDateTime(
+    formData.get("dueDate"),
+    formData.get("dueTime"),
+    ctx.user.timezone,
+  );
 
   await prisma.task.update({
     where: { id: taskId },

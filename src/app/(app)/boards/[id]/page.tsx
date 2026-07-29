@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getBoardWithData, ensureCompletedColumn } from "@/lib/boards";
+import { toViewerWall } from "@/lib/timezone";
 import { hasPerm, getUserPermMap, PERMS } from "@/lib/permissions";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { shortName, initials, fullName } from "@/lib/names";
@@ -186,8 +187,8 @@ export default async function BoardPage({
       recurDays: t.recurDays,
       recurUntil: toDateInput(t.recurUntil),
       startDate: toDateInput(t.startDate),
-      dueDate: toDateInput(t.dueDate),
-      dueTime: toTimeInput(t.dueDate),
+      dueDate: toDateInput(toViewerWall(t.dueDate, user.timezone)),
+      dueTime: toTimeInput(toViewerWall(t.dueDate, user.timezone)),
       done: c.systemKey === "COMPLETED",
       subtaskTotal: t.subtasks.length,
       subtaskDone: t.subtasks.filter((s) => s.column.systemKey === "COMPLETED").length,

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { requireUser } from "@/lib/auth";
+import { isValidTz, DEFAULT_TZ } from "@/lib/timezone";
 
 export type FormState = { ok?: boolean; error?: string; message?: string };
 
@@ -25,6 +26,7 @@ const profileSchema = z.object({
   firstName: z.string().trim().min(1, "Введите имя"),
   middleName: z.string().trim().optional(),
   birthDate: z.string().trim().optional(),
+  timezone: z.string().trim().optional(),
 });
 
 export async function updateProfile(
@@ -37,12 +39,13 @@ export async function updateProfile(
     firstName: formData.get("firstName"),
     middleName: formData.get("middleName"),
     birthDate: formData.get("birthDate"),
+    timezone: formData.get("timezone"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message };
   }
 
-  const { lastName, firstName, middleName, birthDate } = parsed.data;
+  const { lastName, firstName, middleName, birthDate, timezone } = parsed.data;
   await prisma.user.update({
     where: { id: session.id },
     data: {
@@ -50,6 +53,7 @@ export async function updateProfile(
       firstName,
       middleName: middleName || null,
       birthDate: birthDate ? new Date(birthDate) : null,
+      timezone: timezone && isValidTz(timezone) ? timezone : DEFAULT_TZ,
     },
   });
   revalidatePath("/profile");

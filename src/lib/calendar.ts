@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "./prisma";
 import { getUserBoards } from "./boards";
 import { initials } from "./names";
+import { toViewerWall, DEFAULT_TZ } from "./timezone";
 
 export type CalendarTask = {
   id: string;
@@ -32,6 +33,7 @@ function toDateInput(d: Date | null): string | null {
 export async function getCalendarTasks(
   meId: string,
   viewAll = false,
+  viewerTz: string = DEFAULT_TZ,
 ): Promise<CalendarTask[]> {
   const boards = await getUserBoards(meId, viewAll);
   const boardMap = new Map(
@@ -76,7 +78,7 @@ export async function getCalendarTasks(
       priority: t.priority,
       color: t.color,
       startDate: toDateInput(t.startDate),
-      dueDate: toDateInput(t.dueDate)!,
+      dueDate: toDateInput(toViewerWall(t.dueDate, viewerTz))!,
       createdById: t.createdById,
       assignees: t.assignees.map((a) => ({
         initials: initials(a.user),

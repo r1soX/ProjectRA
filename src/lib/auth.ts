@@ -16,6 +16,7 @@ export type SessionUser = {
   firstName: string;
   middleName: string | null;
   role: string;
+  timezone: string;
   avatar: string | null;
   avatarEmoji: string | null;
 };
@@ -56,6 +57,7 @@ export async function getSession(): Promise<SessionUser | null> {
       firstName: true,
       middleName: true,
       role: true,
+      timezone: true,
       avatar: true,
       avatarEmoji: true,
       isActive: true,
@@ -70,6 +72,7 @@ export async function getSession(): Promise<SessionUser | null> {
     firstName: user.firstName,
     middleName: user.middleName,
     role: user.role,
+    timezone: user.timezone,
     avatar: user.avatar,
     avatarEmoji: user.avatarEmoji,
   };

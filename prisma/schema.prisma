@@ -24,6 +24,7 @@ model User {
   email        String?   @unique
   passwordHash String
   role         String    @default("USER") // ADMIN | USER
+  timezone     String    @default("Asia/Irkutsk") // IANA tz для отображения времени
   avatar       String? // загруженная картинка (url)
   avatarEmoji  String? // эмодзи вместо аватара
   lastSeenAt   DateTime? // онлайн-присутствие

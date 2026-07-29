@@ -15,6 +15,7 @@ export default async function ProfilePage() {
       firstName: true,
       middleName: true,
       birthDate: true,
+      timezone: true,
       avatar: true,
       avatarEmoji: true,
     },
@@ -41,6 +42,7 @@ export default async function ProfilePage() {
         firstName={user.firstName}
         middleName={user.middleName}
         birthDate={user.birthDate ? user.birthDate.toISOString().slice(0, 10) : null}
+        timezone={user.timezone}
       />
     </PageContainer>
   );

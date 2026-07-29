@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "./prisma";
 import { publishUser } from "./realtime";
 import { canAccessChannel } from "./chat";
+import { toViewerWall, DEFAULT_TZ } from "./timezone";
 
 export type NotifType =
   | "mention_comment"
@@ -208,14 +209,11 @@ export async function checkDeadlines() {
     const dueMid = Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate());
     const nowMid = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
     const daysLeft = Math.round((dueMid - nowMid) / (1000 * 60 * 60 * 24));
-    // Include a specific time in the reminder when the deadline has one.
+    // The reminder shows a specific time only when the deadline has one.
     const hasTime =
       due.getUTCHours() !== 0 ||
       due.getUTCMinutes() !== 0 ||
       due.getUTCSeconds() !== 0;
-    const dueTime = hasTime
-      ? `${String(due.getUTCHours()).padStart(2, "0")}:${String(due.getUTCMinutes()).padStart(2, "0")}`
-      : undefined;
 
     // Someone who already confirmed their part is done shouldn't be nagged
     // about the deadline (upcoming or overdue) — only the creator and the
@@ -226,7 +224,20 @@ export async function checkDeadlines() {
     ];
     const uniqueRecipients = [...new Set(recipients)];
 
+    // Each recipient sees the deadline time in their own timezone.
+    const tzRows = await prisma.user.findMany({
+      where: { id: { in: uniqueRecipients } },
+      select: { id: true, timezone: true },
+    });
+    const tzMap = new Map(tzRows.map((r) => [r.id, r.timezone]));
+
     for (const userId of uniqueRecipients) {
+      const localDue = hasTime
+        ? toViewerWall(task.dueDate, tzMap.get(userId) ?? DEFAULT_TZ)
+        : null;
+      const dueTime = localDue
+        ? `${String(localDue.getUTCHours()).padStart(2, "0")}:${String(localDue.getUTCMinutes()).padStart(2, "0")}`
+        : undefined;
       await createNotification(
         userId,
         "deadline",
