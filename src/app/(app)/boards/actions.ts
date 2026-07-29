@@ -279,6 +279,21 @@ export async function deleteBoard(boardId: string) {
   redirect("/boards");
 }
 
+/** Persist the current user's personal drag-arranged order of boards. */
+export async function reorderBoards(orderedIds: string[]) {
+  const user = await requireUser();
+  await prisma.$transaction(
+    orderedIds.map((id, i) =>
+      prisma.boardOrder.upsert({
+        where: { userId_boardId: { userId: user.id, boardId: id } },
+        create: { userId: user.id, boardId: id, position: i },
+        update: { position: i },
+      }),
+    ),
+  );
+  revalidatePath("/boards");
+}
+
 /** Archive a board — hides it from lists/sidebar without deleting anything. */
 export async function archiveBoard(boardId: string) {
   const { user } = await requireBoardOwner(boardId);

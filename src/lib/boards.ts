@@ -14,24 +14,42 @@ export type BoardRole = "OWNER" | "EDITOR" | "COMMENTER" | "VIEWER";
  * people's personal ones.
  */
 export async function getUserBoards(userId: string, viewAll = false) {
-  return prisma.board.findMany({
-    where: {
-      archivedAt: null,
-      ...(viewAll
-        ? {}
-        : {
-            OR: [
-              { isPersonal: false },
-              { ownerId: userId },
-              { members: { some: { userId } } },
-            ],
-          }),
-    },
-    orderBy: { createdAt: "asc" },
-    include: {
-      _count: { select: { tasks: true, columns: true } },
-      owner: { select: { id: true, lastName: true, firstName: true } },
-    },
+  const [boards, orders] = await Promise.all([
+    prisma.board.findMany({
+      where: {
+        archivedAt: null,
+        ...(viewAll
+          ? {}
+          : {
+              OR: [
+                { isPersonal: false },
+                { ownerId: userId },
+                { members: { some: { userId } } },
+              ],
+            }),
+      },
+      orderBy: { createdAt: "asc" },
+      include: {
+        _count: { select: { tasks: true, columns: true } },
+        owner: { select: { id: true, lastName: true, firstName: true } },
+      },
+    }),
+    prisma.boardOrder.findMany({
+      where: { userId },
+      select: { boardId: true, position: true },
+    }),
+  ]);
+
+  // Apply the user's personal drag-arranged order; boards without a saved
+  // position fall to the end, oldest first.
+  const pos = new Map(orders.map((o) => [o.boardId, o.position]));
+  return boards.sort((a, b) => {
+    const pa = pos.get(a.id);
+    const pb = pos.get(b.id);
+    if (pa != null && pb != null) return pa - pb;
+    if (pa != null) return -1;
+    if (pb != null) return 1;
+    return a.createdAt.getTime() - b.createdAt.getTime();
   });
 }
 

@@ -5,6 +5,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Plus,
   Lock,
   Users as UsersIcon,
@@ -13,6 +28,7 @@ import {
   Archive,
   ArchiveRestore,
   ChevronDown,
+  GripVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +40,7 @@ import {
   createBoard,
   archiveBoard,
   unarchiveBoard,
+  reorderBoards,
   type ActionState,
 } from "./actions";
 
@@ -159,9 +176,22 @@ function CreateBoardModal({
   );
 }
 
-function BoardTile({ board, index }: { board: BoardCard; index: number }) {
+function BoardTile({ board }: { board: BoardCard }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: board.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 20 : undefined,
+  };
 
   function onArchive(e: React.MouseEvent) {
     e.preventDefault();
@@ -173,16 +203,26 @@ function BoardTile({ board, index }: { board: BoardCard; index: number }) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.04 }}
-    >
+    <div ref={setNodeRef} style={style} className={cn(isDragging && "opacity-70")}>
       <Link
         href={`/boards/${board.id}`}
         className="glass glass-hover group relative block overflow-hidden rounded-2xl shadow-lg shadow-black/20 transition hover:-translate-y-1 hover:shadow-xl hover:shadow-sky-500/10"
       >
         <div className="h-1.5" style={{ backgroundColor: board.color }} />
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          title="Перетащите, чтобы изменить порядок"
+          aria-label="Переместить доску"
+          className="absolute left-1.5 top-3 z-10 cursor-grab touch-none rounded-lg p-1 text-neutral-600 opacity-0 transition hover:bg-white/10 hover:text-neutral-300 focus:opacity-100 group-hover:opacity-100 active:cursor-grabbing"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
         {board.canArchive && (
           <button
             onClick={onArchive}
@@ -195,7 +235,7 @@ function BoardTile({ board, index }: { board: BoardCard; index: number }) {
           </button>
         )}
         <div className="p-5">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start justify-between gap-2 pl-5">
             <h2 className="font-semibold text-neutral-100">{board.title}</h2>
             <span
               className={cn(
@@ -230,7 +270,7 @@ function BoardTile({ board, index }: { board: BoardCard; index: number }) {
           </div>
         </div>
       </Link>
-    </motion.div>
+    </div>
   );
 }
 
@@ -319,6 +359,29 @@ export function BoardsClient({
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
+  const [items, setItems] = useState(boards);
+
+  // Keep the local (drag) order in sync when the server sends a new list.
+  useEffect(() => {
+    setItems(boards);
+  }, [boards]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
+
+  function onDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    setItems((cur) => {
+      const oldIndex = cur.findIndex((b) => b.id === active.id);
+      const newIndex = cur.findIndex((b) => b.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return cur;
+      const next = arrayMove(cur, oldIndex, newIndex);
+      reorderBoards(next.map((b) => b.id));
+      return next;
+    });
+  }
 
   return (
     <div>
@@ -326,7 +389,11 @@ export function BoardsClient({
         <div>
           <h1 className="text-2xl font-bold text-neutral-100">Доски</h1>
           <p className="mt-1 text-sm text-neutral-500">
-            {boards.length === 0 ? "Пока нет досок" : `Всего: ${boards.length}`}
+            {boards.length === 0
+              ? "Пока нет досок"
+              : boards.length > 1
+                ? `Всего: ${boards.length} · перетащите карточки, чтобы упорядочить`
+                : `Всего: ${boards.length}`}
           </p>
         </div>
         {canCreate && (
@@ -352,11 +419,22 @@ export function BoardsClient({
           </div>
         )
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {boards.map((b, i) => (
-            <BoardTile key={b.id} board={b} index={i} />
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={onDragEnd}
+        >
+          <SortableContext
+            items={items.map((b) => b.id)}
+            strategy={rectSortingStrategy}
+          >
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {items.map((b) => (
+                <BoardTile key={b.id} board={b} />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {archived.length > 0 && (

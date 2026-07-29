@@ -47,6 +47,7 @@ model User {
   boardTemplates     BoardTemplate[]
   commentReactions   CommentReaction[]
   auditLogs          AuditLog[]
+  boardOrders        BoardOrder[]
 }
 
 // ── Boards ────────────────────────────────────────────────────────
@@ -68,6 +69,20 @@ model Board {
   labels   Label[]
   links    TaskLink[]
   channels Channel[]
+  orders   BoardOrder[]
+}
+
+// Per-user visual ordering of boards (drag-to-arrange on the boards page).
+model BoardOrder {
+  id       String @id @default(cuid())
+  userId   String
+  boardId  String
+  position Int
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, boardId])
 }
 
 model BoardMember {
