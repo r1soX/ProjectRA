@@ -4,6 +4,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
 import { STATUS_META, normalizeStatus } from "@/lib/status";
+import { FEATURES } from "@/lib/features";
 import { isTaskOverdue, formatDue } from "./task-card-body";
 import type { BoardColumn, BoardTask } from "./board-view";
 
@@ -79,15 +80,16 @@ export function BoardListView({
                         <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">
                           {t.title}
                         </span>
-                        {t.labels.slice(0, 2).map((l) => (
-                          <span
-                            key={l.id}
-                            className="hidden shrink-0 rounded px-1.5 py-0.5 text-[11px] sm:inline"
-                            style={{ backgroundColor: l.color + "33", color: l.color }}
-                          >
-                            {l.name}
-                          </span>
-                        ))}
+                        {FEATURES.labels &&
+                          t.labels.slice(0, 2).map((l) => (
+                            <span
+                              key={l.id}
+                              className="hidden shrink-0 rounded px-1.5 py-0.5 text-[11px] sm:inline"
+                              style={{ backgroundColor: l.color + "33", color: l.color }}
+                            >
+                              {l.name}
+                            </span>
+                          ))}
                         <span className={cn("hidden shrink-0 items-center gap-1 text-[11px] sm:flex", pr.badge, "rounded px-1.5 py-0.5")}>
                           <span className={cn("h-1.5 w-1.5 rounded-full", pr.dot)} />
                           {pr.label}

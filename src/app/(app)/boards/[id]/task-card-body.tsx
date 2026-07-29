@@ -15,6 +15,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
 import { STATUS_META, normalizeStatus } from "@/lib/status";
 import { ruleFromTask, describeRecurrence } from "@/lib/recurrence";
+import { FEATURES } from "@/lib/features";
 import type { BoardTask } from "./board-view";
 
 function isOverdue(s: string) {
@@ -110,15 +111,16 @@ export const TaskCardBody = memo(function TaskCardBody({
               </span>
             ) : null;
           })()}
-          {task.labels.map((l) => (
-            <span
-              key={l.id}
-              className="rounded px-1.5 py-0.5 text-[11px]"
-              style={{ backgroundColor: l.color + "33", color: l.color }}
-            >
-              {l.name}
-            </span>
-          ))}
+          {FEATURES.labels &&
+            task.labels.map((l) => (
+              <span
+                key={l.id}
+                className="rounded px-1.5 py-0.5 text-[11px]"
+                style={{ backgroundColor: l.color + "33", color: l.color }}
+              >
+                {l.name}
+              </span>
+            ))}
         </div>
         <p className="break-words text-[15px] leading-snug text-neutral-100 sm:text-sm">
           {task.title}
@@ -152,7 +154,7 @@ export const TaskCardBody = memo(function TaskCardBody({
               <span />
             )}
             <div className="flex shrink-0 items-center gap-2.5">
-              {task.subtaskTotal > 0 && (
+              {FEATURES.subtasks && task.subtaskTotal > 0 && (
                 <span
                   className={cn(
                     "flex items-center gap-1 text-xs",

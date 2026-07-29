@@ -19,6 +19,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { usePrompt, useConfirm } from "@/components/ui/dialog-provider";
 import { PRIORITIES, PRIORITY_META } from "@/lib/priority";
 import { STATUSES, STATUS_META } from "@/lib/status";
+import { FEATURES } from "@/lib/features";
 import { cn } from "@/lib/cn";
 import type { BoardMemberView, BoardLabel } from "./board-view";
 
@@ -214,8 +215,8 @@ export function BoardFilters({
         </Dropdown>
       )}
 
-      {/* Labels */}
-      {labels.length > 0 && (
+      {/* Labels (hidden — see FEATURES.labels) */}
+      {FEATURES.labels && labels.length > 0 && (
         <Dropdown
           label={filters.labels.length ? `Метки · ${filters.labels.length}` : "Метки"}
           icon={Tag}

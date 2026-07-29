@@ -36,6 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast-provider";
 import { cn } from "@/lib/cn";
 import { PRIORITIES, PRIORITY_META, normalizePriority } from "@/lib/priority";
+import { FEATURES } from "@/lib/features";
 import { STATUS_META, normalizeStatus } from "@/lib/status";
 import {
   WEEKDAY_LABELS,
@@ -161,7 +162,7 @@ function PropertyChips({ task }: { task: BoardTask }) {
           {task.assignees.length}
         </span>
       )}
-      {task.subtaskTotal > 0 && (
+      {FEATURES.subtasks && task.subtaskTotal > 0 && (
         <span
           className={cn(
             chip,
@@ -174,7 +175,7 @@ function PropertyChips({ task }: { task: BoardTask }) {
           {task.subtaskDone}/{task.subtaskTotal}
         </span>
       )}
-      {task.labels.length > 0 && (
+      {FEATURES.labels && task.labels.length > 0 && (
         <span className={cn(chip, neutral)}>
           <Tag className="h-3 w-3" />
           {task.labels.length}
@@ -563,60 +564,67 @@ export function TaskModal({
                       </div>
                     )}
 
-                    {/* Subtasks */}
-                    <SubtasksSection
-                      subtasks={subtasks}
-                      canEdit={canEdit}
-                      loaded={detailLoaded}
-                      onAdd={async (title) => {
-                        const id = await createSubtask(task.id, title);
-                        if (id) setSubtasks((s) => [...s, { id, title, done: false }]);
-                      }}
-                      onToggle={async (subtaskId) => {
-                        await toggleSubtaskDone(subtaskId);
-                        setSubtasks((s) =>
-                          s.map((x) => x.id === subtaskId ? { ...x, done: !x.done } : x),
-                        );
-                      }}
-                      onDelete={async (subtaskId) => {
-                        await deleteSubtask(subtaskId);
-                        setSubtasks((s) => s.filter((x) => x.id !== subtaskId));
-                      }}
-                    />
+                    {/* Subtasks (hidden — see FEATURES.subtasks) */}
+                    {FEATURES.subtasks && (
+                      <SubtasksSection
+                        subtasks={subtasks}
+                        canEdit={canEdit}
+                        loaded={detailLoaded}
+                        onAdd={async (title) => {
+                          const id = await createSubtask(task.id, title);
+                          if (id) setSubtasks((s) => [...s, { id, title, done: false }]);
+                        }}
+                        onToggle={async (subtaskId) => {
+                          await toggleSubtaskDone(subtaskId);
+                          setSubtasks((s) =>
+                            s.map((x) => x.id === subtaskId ? { ...x, done: !x.done } : x),
+                          );
+                        }}
+                        onDelete={async (subtaskId) => {
+                          await deleteSubtask(subtaskId);
+                          setSubtasks((s) => s.filter((x) => x.id !== subtaskId));
+                        }}
+                      />
+                    )}
 
-                    {/* Time tracking */}
-                    <TimeTrackingSection
-                      taskId={task.id}
-                      entries={timeEntries}
-                      loaded={detailLoaded}
-                      canLog={perms.timeLog}
-                      canEditOwn={perms.timeEditOwn}
-                      canDeleteOwn={perms.timeDeleteOwn}
-                      onLogged={(entry) => setTimeEntries((es) => [entry, ...es])}
-                      onEdit={async (id, minutes, note) => {
-                        await editTimeEntry(id, minutes, note);
-                        setTimeEntries((es) =>
-                          es.map((e) =>
-                            e.id === id
-                              ? { ...e, minutes, note: note.trim() || null }
-                              : e,
-                          ),
-                        );
-                      }}
-                      onDelete={async (id) => {
-                        await deleteTimeEntry(id);
-                        setTimeEntries((es) => es.filter((e) => e.id !== id));
-                      }}
-                    />
+                    {/* Time tracking (hidden — see FEATURES.timeTracking) */}
+                    {FEATURES.timeTracking && (
+                      <TimeTrackingSection
+                        taskId={task.id}
+                        entries={timeEntries}
+                        loaded={detailLoaded}
+                        canLog={perms.timeLog}
+                        canEditOwn={perms.timeEditOwn}
+                        canDeleteOwn={perms.timeDeleteOwn}
+                        onLogged={(entry) => setTimeEntries((es) => [entry, ...es])}
+                        onEdit={async (id, minutes, note) => {
+                          await editTimeEntry(id, minutes, note);
+                          setTimeEntries((es) =>
+                            es.map((e) =>
+                              e.id === id
+                                ? { ...e, minutes, note: note.trim() || null }
+                                : e,
+                            ),
+                          );
+                        }}
+                        onDelete={async (id) => {
+                          await deleteTimeEntry(id);
+                          setTimeEntries((es) => es.filter((e) => e.id !== id));
+                        }}
+                      />
+                    )}
 
-                    <LabelsSection
-                      boardId={boardId}
-                      taskId={task.id}
-                      assignedIds={task.labels.map((l) => l.id)}
-                      labels={boardLabels}
-                      canAssign={canEdit}
-                      canManage={boardCanEdit && perms.labelManage}
-                    />
+                    {/* Labels (hidden — see FEATURES.labels) */}
+                    {FEATURES.labels && (
+                      <LabelsSection
+                        boardId={boardId}
+                        taskId={task.id}
+                        assignedIds={task.labels.map((l) => l.id)}
+                        labels={boardLabels}
+                        canAssign={canEdit}
+                        canManage={boardCanEdit && perms.labelManage}
+                      />
+                    )}
 
                     <div>
                       <SectionTitle icon={Palette}>Цвет</SectionTitle>
