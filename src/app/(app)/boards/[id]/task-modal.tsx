@@ -74,7 +74,19 @@ import type {
   DirectoryUser,
 } from "./board-view";
 
-const TASK_COLORS = ["#0ea5e9", "#6366f1", "#8b5cf6", "#ec4899", "#10b981", "#f59e0b", "#ef4444"];
+const TASK_COLORS = [
+  "#0ea5e9", // sky
+  "#6366f1", // indigo
+  "#8b5cf6", // violet
+  "#ec4899", // pink
+  "#f43f5e", // rose
+  "#ef4444", // red
+  "#f97316", // orange
+  "#f59e0b", // amber
+  "#10b981", // emerald
+  "#14b8a6", // teal
+  "#64748b", // slate
+];
 
 const LINK_LABEL: Record<string, string> = {
   RELATES: "связь",
@@ -1793,7 +1805,7 @@ function PrioritySelector({
   return (
     <>
       <input type="hidden" name="priority" value={value} />
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-2 gap-1.5">
         {PRIORITIES.map((p) => {
           const meta = PRIORITY_META[p];
           const active = value === p;
