@@ -72,6 +72,16 @@ model Board {
   orders   BoardOrder[]
 }
 
+// Admin-managed task statuses (label + colour). Seeded with a default set.
+model StatusDef {
+  id       String  @id @default(cuid())
+  key      String  @unique // stable identifier stored on tasks/columns
+  label    String
+  color    String  @default("#64748b") // hex, drives dot/badge/bar
+  order    Int     @default(0)
+  isSystem Boolean @default(false) // built-in defaults (not deletable)
+}
+
 // Per-user free-canvas placement of boards on the boards page (x/y coords).
 model BoardOrder {
   id      String @id @default(cuid())

@@ -38,7 +38,8 @@ import { cn } from "@/lib/cn";
 import { PRIORITIES, PRIORITY_META, normalizePriority } from "@/lib/priority";
 import { FEATURES } from "@/lib/features";
 import { DescriptionEditor } from "./description-editor";
-import { STATUS_META, STATUSES, normalizeStatus } from "@/lib/status";
+import { normalizeStatus, statusDotStyle, statusBadgeStyle } from "@/lib/status";
+import { useStatuses, useStatusOf } from "@/components/status-provider";
 import {
   WEEKDAY_LABELS,
   parseRecurDays,
@@ -126,7 +127,8 @@ function fmtChipDate(s: string) {
  * below the fold. Read-only — editing still happens in the sections below.
  */
 function PropertyChips({ task }: { task: BoardTask }) {
-  const status = STATUS_META[normalizeStatus(task.status)];
+  const statusOf = useStatusOf();
+  const status = statusOf(normalizeStatus(task.status));
   const priority = PRIORITY_META[normalizePriority(task.priority)];
   const rule = ruleFromTask(task);
   const overdue = isTaskOverdue(task);
@@ -134,8 +136,11 @@ function PropertyChips({ task }: { task: BoardTask }) {
   const neutral = "bg-white/[0.06] text-neutral-300";
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className={cn(chip, status.badge)}>
-        <span className={cn("h-1.5 w-1.5 rounded-full", status.dot)} />
+      <span className={chip} style={statusBadgeStyle(status.color)}>
+        <span
+          className="h-1.5 w-1.5 rounded-full"
+          style={statusDotStyle(status.color)}
+        />
         {status.label}
       </span>
       <span className={cn(chip, priority.badge)}>
@@ -1853,7 +1858,9 @@ function StatusPicker({
   const [isLocked, setIsLocked] = useState(locked);
   const [open, setOpen] = useState(false);
   const [, start] = useTransition();
-  const cur = STATUS_META[value];
+  const statuses = useStatuses();
+  const statusOf = useStatusOf();
+  const cur = statusOf(value);
 
   // Re-sync when the board refreshes (e.g. after "auto" adopts the column's
   // status server-side, or a drag on the board changed it).
@@ -1875,12 +1882,10 @@ function StatusPicker({
 
   const badge = (
     <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium",
-        cur.badge,
-      )}
+      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium"
+      style={statusBadgeStyle(cur.color)}
     >
-      <span className={cn("h-2 w-2 rounded-full", cur.dot)} />
+      <span className="h-2 w-2 rounded-full" style={statusDotStyle(cur.color)} />
       {cur.label}
       {isLocked && <Lock className="h-3 w-3 opacity-60" />}
     </span>
@@ -1911,21 +1916,23 @@ function StatusPicker({
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="glass-strong absolute left-0 top-full z-20 mt-1 w-full min-w-44 rounded-xl p-1 shadow-2xl">
-            {STATUSES.map((s) => {
-              const m = STATUS_META[s];
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => choose(s)}
-                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-200 transition hover:bg-white/5"
-                >
-                  <span className={cn("h-2 w-2 rounded-full", m.dot)} />
-                  <span className="flex-1">{m.label}</span>
-                  {isLocked && value === s && <Check className="h-3.5 w-3.5 text-sky-400" />}
-                </button>
-              );
-            })}
+            {statuses.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => choose(s.key)}
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-200 transition hover:bg-white/5"
+              >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={statusDotStyle(s.color)}
+                />
+                <span className="flex-1">{s.label}</span>
+                {isLocked && value === s.key && (
+                  <Check className="h-3.5 w-3.5 text-sky-400" />
+                )}
+              </button>
+            ))}
             <div className="my-1 border-t border-white/10" />
             <button
               type="button"

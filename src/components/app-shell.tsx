@@ -21,6 +21,7 @@ import {
   Inbox,
   BarChart3,
   ScrollText,
+  Tags,
   Star,
   PanelLeftClose,
   PanelLeftOpen,
@@ -46,6 +47,7 @@ export type NavCaps = {
   adminUsers: boolean;
   adminPerms: boolean;
   adminTemplates: boolean;
+  adminStatuses: boolean;
   adminAnalytics: boolean;
   adminAudit: boolean;
 };
@@ -79,6 +81,7 @@ const adminNav: NavItem[] = [
   { href: "/admin/users", label: "Пользователи", icon: Users, cap: "adminUsers" },
   { href: "/admin/permissions", label: "Права доступа", icon: Shield, cap: "adminPerms" },
   { href: "/admin/templates", label: "Шаблоны", icon: LayoutTemplate, cap: "adminTemplates" },
+  { href: "/admin/statuses", label: "Статусы", icon: Tags, cap: "adminStatuses" },
   // Аналитика и аудит
   { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, cap: "adminAnalytics" },
   { href: "/admin/audit", label: "Журнал", icon: ScrollText, cap: "adminAudit" },

@@ -7,7 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { getBoardRole, canEdit, canComment } from "@/lib/boards";
 import { normalizePriority, PRIORITY_META } from "@/lib/priority";
-import { normalizeStatus, STATUSES, STATUS_META } from "@/lib/status";
+import { normalizeStatus } from "@/lib/status";
+import { statusKeySet, statusLabel } from "@/lib/statuses";
 import { ruleFromTask, nextOccurrence } from "@/lib/recurrence";
 import { publishBoard } from "@/lib/realtime";
 import { notifyMentions, notifyAssigned } from "@/lib/notify";
@@ -441,7 +442,7 @@ export async function setColumnStatus(columnId: string, statusKey: string) {
   if (!col) return;
   const user = await requireBoardEditor(col.boardId);
   await requirePerm(user, PERMS.COLUMN_EDIT);
-  if (!STATUSES.includes(statusKey as never)) return;
+  if (!(await statusKeySet()).has(statusKey)) return;
   await prisma.$transaction([
     prisma.column.update({ where: { id: columnId }, data: { statusKey } }),
     prisma.task.updateMany({ where: { columnId }, data: { status: statusKey } }),
@@ -917,19 +918,19 @@ export async function setTaskStatus(taskId: string, status: string) {
       data: { status: adopted, statusLocked: false },
     });
     await logHistory(taskId, user.id, "status", {
-      after: STATUS_META[adopted].label,
+      after: await statusLabel(adopted),
     });
     bump(boardId);
     return;
   }
 
-  if (!STATUSES.includes(status as never)) return;
+  if (!(await statusKeySet()).has(status)) return;
   await prisma.task.update({
     where: { id: taskId },
     data: { status, statusLocked: true },
   });
   await logHistory(taskId, user.id, "status", {
-    after: STATUS_META[normalizeStatus(status)].label,
+    after: await statusLabel(status),
   });
   bump(boardId);
 }

@@ -13,7 +13,7 @@ import { hasPerm, PERMS } from "@/lib/permissions";
 import { getWorkspaceAnalytics } from "@/lib/analytics";
 import { PageContainer } from "@/components/ui/page-container";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { STATUS_META, STATUSES, type TaskStatus } from "@/lib/status";
+import { getStatuses } from "@/lib/statuses";
 import {
   PRIORITY_META,
   PRIORITIES,
@@ -116,12 +116,13 @@ export default async function AnalyticsPage() {
   const maxContrib = Math.max(1, ...a.topContributors.map((c) => c.completed));
   const maxLoad = Math.max(1, ...a.workload.map((c) => c.active));
 
+  const statuses = await getStatuses();
   const statusMap = new Map(a.statusDistribution.map((s) => [s.status, s.count]));
-  const statusSegments = STATUSES.map((s: TaskStatus) => ({
-    key: s,
-    label: STATUS_META[s].label,
-    color: STATUS_META[s].bar,
-    count: statusMap.get(s) ?? 0,
+  const statusSegments = statuses.map((s) => ({
+    key: s.key,
+    label: s.label,
+    color: s.color,
+    count: statusMap.get(s.key) ?? 0,
   }));
 
   const prMap = new Map<string, number>();

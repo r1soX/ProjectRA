@@ -13,7 +13,8 @@ import {
 import { cn } from "@/lib/cn";
 import { Avatar } from "@/components/ui/avatar";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
-import { STATUS_META, normalizeStatus } from "@/lib/status";
+import { normalizeStatus, statusDotStyle, statusBadgeStyle } from "@/lib/status";
+import { useStatusOf } from "@/components/status-provider";
 import { ruleFromTask, describeRecurrence } from "@/lib/recurrence";
 import { FEATURES } from "@/lib/features";
 import type { BoardTask } from "./board-view";
@@ -63,7 +64,8 @@ export const TaskCardBody = memo(function TaskCardBody({
   task: BoardTask;
 }) {
   const priority = PRIORITY_META[normalizePriority(task.priority)];
-  const status = STATUS_META[normalizeStatus(task.status)];
+  const statusOf = useStatusOf();
+  const status = statusOf(normalizeStatus(task.status));
   return (
     <>
       <div
@@ -79,12 +81,13 @@ export const TaskCardBody = memo(function TaskCardBody({
             </span>
           )}
           <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium",
-              status.badge,
-            )}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium"
+            style={statusBadgeStyle(status.color)}
           >
-            <span className={cn("h-1.5 w-1.5 rounded-full", status.dot)} />
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={statusDotStyle(status.color)}
+            />
             {status.label}
           </span>
           <span

@@ -3,10 +3,12 @@ import { getUnreadTotal } from "@/lib/chat";
 import { getUserBoards } from "@/lib/boards";
 import { prisma } from "@/lib/prisma";
 import { hasPerm, PERMS } from "@/lib/permissions";
+import { getStatuses } from "@/lib/statuses";
 import { AppShell, type NavCaps } from "@/components/app-shell";
 import { DialogProvider } from "@/components/ui/dialog-provider";
 import { ToastProvider } from "@/components/ui/toast-provider";
 import { PresenceProvider } from "@/components/presence-provider";
+import { StatusProvider } from "@/components/status-provider";
 
 export default async function AppLayout({
   children,
@@ -14,9 +16,10 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  const [unreadTotal, notifUnread] = await Promise.all([
+  const [unreadTotal, notifUnread, statuses] = await Promise.all([
     getUnreadTotal(user.id),
     prisma.notification.count({ where: { userId: user.id, isRead: false } }),
+    getStatuses(),
   ]);
 
   // Capabilities that decide which nav sections are shown — no dead links.
@@ -28,6 +31,7 @@ export default async function AppLayout({
     adminUsers,
     adminPerms,
     adminTemplates,
+    adminStatuses,
     adminAnalytics,
     adminAudit,
   ] = await Promise.all([
@@ -37,6 +41,7 @@ export default async function AppLayout({
     isAdmin ? hasPerm(user.id, user.role, PERMS.ADMIN_USERS_VIEW) : Promise.resolve(false),
     isAdmin ? hasPerm(user.id, user.role, PERMS.ADMIN_PERMISSIONS_MANAGE) : Promise.resolve(false),
     isAdmin ? hasPerm(user.id, user.role, PERMS.ADMIN_TEMPLATES_MANAGE) : Promise.resolve(false),
+    isAdmin ? hasPerm(user.id, user.role, PERMS.ADMIN_STATUSES_MANAGE) : Promise.resolve(false),
     isAdmin ? hasPerm(user.id, user.role, PERMS.ADMIN_ANALYTICS_VIEW) : Promise.resolve(false),
     isAdmin ? hasPerm(user.id, user.role, PERMS.ADMIN_AUDIT_VIEW) : Promise.resolve(false),
   ]);
@@ -47,6 +52,7 @@ export default async function AppLayout({
     adminUsers,
     adminPerms,
     adminTemplates,
+    adminStatuses,
     adminAnalytics,
     adminAudit,
   };
@@ -63,15 +69,17 @@ export default async function AppLayout({
     <DialogProvider>
       <ToastProvider>
         <PresenceProvider>
-          <AppShell
-            user={user}
-            unreadTotal={unreadTotal}
-            notifUnread={notifUnread}
-            caps={caps}
-            boards={sidebarBoards}
-          >
-            {children}
-          </AppShell>
+          <StatusProvider statuses={statuses}>
+            <AppShell
+              user={user}
+              unreadTotal={unreadTotal}
+              notifUnread={notifUnread}
+              caps={caps}
+              boards={sidebarBoards}
+            >
+              {children}
+            </AppShell>
+          </StatusProvider>
         </PresenceProvider>
       </ToastProvider>
     </DialogProvider>

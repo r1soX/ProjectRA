@@ -81,6 +81,7 @@ export const PERMS = {
   ADMIN_TEMPLATES_MANAGE:  "admin.templates.manage",
   ADMIN_ANALYTICS_VIEW:    "admin.analytics.view",
   ADMIN_AUDIT_VIEW:        "admin.audit.view",
+  ADMIN_STATUSES_MANAGE:   "admin.statuses.manage",
 } as const;
 
 export type PermKey = (typeof PERMS)[keyof typeof PERMS];
@@ -114,6 +115,7 @@ const ADMIN_EXTRAS: PermKey[] = [
   PERMS.ADMIN_USERS_DELETE, PERMS.ADMIN_USERS_ACTIVATE,
   PERMS.ADMIN_PERMISSIONS_MANAGE, PERMS.ADMIN_TEMPLATES_MANAGE,
   PERMS.ADMIN_ANALYTICS_VIEW, PERMS.ADMIN_AUDIT_VIEW,
+  PERMS.ADMIN_STATUSES_MANAGE,
 ];
 
 const ADMIN_DEFAULTS: PermKey[] = [...USER_DEFAULTS, ...ADMIN_EXTRAS];
@@ -349,6 +351,7 @@ export const PERM_GROUPS: {
       { perm: PERMS.ADMIN_TEMPLATES_MANAGE,   label: "Управлять шаблонами досок" },
       { perm: PERMS.ADMIN_ANALYTICS_VIEW,     label: "Просматривать аналитику" },
       { perm: PERMS.ADMIN_AUDIT_VIEW,         label: "Просматривать журнал действий" },
+      { perm: PERMS.ADMIN_STATUSES_MANAGE,    label: "Управлять статусами задач" },
     ],
   },
 ];

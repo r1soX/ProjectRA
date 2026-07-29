@@ -3,16 +3,21 @@
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
 import { PRIORITY_META, normalizePriority } from "@/lib/priority";
-import { STATUS_META, normalizeStatus } from "@/lib/status";
+import { normalizeStatus, statusDotStyle } from "@/lib/status";
+import { useStatusOf } from "@/components/status-provider";
 import { FEATURES } from "@/lib/features";
 import { isTaskOverdue, formatDue } from "./task-card-body";
 import type { BoardColumn, BoardTask } from "./board-view";
 
 function StatusDot({ status }: { status: string }) {
-  const m = STATUS_META[normalizeStatus(status)];
+  const statusOf = useStatusOf();
+  const m = statusOf(normalizeStatus(status));
   return (
     <span className="flex items-center gap-1.5">
-      <span className={cn("h-2 w-2 shrink-0 rounded-full", m.dot)} />
+      <span
+        className="h-2 w-2 shrink-0 rounded-full"
+        style={statusDotStyle(m.color)}
+      />
       <span className="text-xs text-neutral-400">{m.label}</span>
     </span>
   );
@@ -49,6 +54,7 @@ export function BoardListView({
   columns: BoardColumn[];
   onOpenTask: (id: string) => void;
 }) {
+  const statusOf = useStatusOf();
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="mx-auto max-w-4xl space-y-5">
@@ -76,7 +82,10 @@ export function BoardListView({
                         onClick={() => onOpenTask(t.id)}
                         className="flex w-full items-center gap-3 border-b border-white/[0.05] px-3 py-2.5 text-left transition last:border-b-0 hover:bg-white/[0.04]"
                       >
-                        <span className={cn("h-2 w-2 shrink-0 rounded-full", STATUS_META[normalizeStatus(t.status)].dot)} />
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={statusDotStyle(statusOf(normalizeStatus(t.status)).color)}
+                        />
                         <span className="min-w-0 flex-1 truncate text-sm text-neutral-100">
                           {t.title}
                         </span>

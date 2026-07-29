@@ -18,7 +18,8 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { usePrompt, useConfirm } from "@/components/ui/dialog-provider";
 import { PRIORITIES, PRIORITY_META } from "@/lib/priority";
-import { STATUSES, STATUS_META } from "@/lib/status";
+import { statusDotStyle } from "@/lib/status";
+import { useStatuses } from "@/components/status-provider";
 import { FEATURES } from "@/lib/features";
 import { cn } from "@/lib/cn";
 import type { BoardMemberView, BoardLabel } from "./board-view";
@@ -167,6 +168,7 @@ export function BoardFilters({
 }) {
   const prompt = usePrompt();
   const confirm = useConfirm();
+  const statuses = useStatuses();
   const active = isFilterActive(filters);
 
   const toggleIn = (arr: string[], id: string) =>
@@ -244,14 +246,17 @@ export function BoardFilters({
         active={filters.statuses.length > 0}
       >
         {() =>
-          STATUSES.map((s) => (
+          statuses.map((s) => (
             <CheckRow
-              key={s}
-              active={filters.statuses.includes(s)}
-              onClick={() => onChange({ ...filters, statuses: toggleIn(filters.statuses, s) })}
+              key={s.key}
+              active={filters.statuses.includes(s.key)}
+              onClick={() => onChange({ ...filters, statuses: toggleIn(filters.statuses, s.key) })}
             >
-              <span className={cn("h-2 w-2 shrink-0 rounded-full", STATUS_META[s].dot)} />
-              <span>{STATUS_META[s].label}</span>
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={statusDotStyle(s.color)}
+              />
+              <span>{s.label}</span>
             </CheckRow>
           ))
         }

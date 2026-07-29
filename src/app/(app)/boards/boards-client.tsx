@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/cn";
-import { STATUS_META, STATUSES } from "@/lib/status";
+import { useStatuses } from "@/components/status-provider";
 import {
   createBoard,
   archiveBoard,
@@ -299,35 +299,36 @@ function StatusBreakdown({
   counts: Record<string, number>;
   total: number;
 }) {
+  const statuses = useStatuses();
   if (total === 0) {
     return <p className="text-neutral-600">Задач пока нет</p>;
   }
-  const present = STATUSES.filter((s) => (counts[s] ?? 0) > 0);
+  const present = statuses.filter((s) => (counts[s.key] ?? 0) > 0);
   return (
     <div className="space-y-1.5">
       {/* Proportional status bar */}
       <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-white/5">
         {present.map((s) => (
           <div
-            key={s}
+            key={s.key}
             style={{
-              width: `${((counts[s] ?? 0) / total) * 100}%`,
-              backgroundColor: STATUS_META[s].bar,
+              width: `${((counts[s.key] ?? 0) / total) * 100}%`,
+              backgroundColor: s.color,
             }}
-            title={`${STATUS_META[s].label}: ${counts[s]}`}
+            title={`${s.label}: ${counts[s.key]}`}
           />
         ))}
       </div>
       {/* Per-status counts */}
       <div className="flex flex-wrap gap-x-2.5 gap-y-1">
         {present.map((s) => (
-          <span key={s} className="flex items-center gap-1 text-neutral-400">
+          <span key={s.key} className="flex items-center gap-1 text-neutral-400">
             <span
               className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: STATUS_META[s].bar }}
+              style={{ backgroundColor: s.color }}
             />
-            <span className="font-medium text-neutral-300">{counts[s]}</span>
-            {STATUS_META[s].label}
+            <span className="font-medium text-neutral-300">{counts[s.key]}</span>
+            {s.label}
           </span>
         ))}
       </div>
