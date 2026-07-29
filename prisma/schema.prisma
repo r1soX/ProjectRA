@@ -72,12 +72,13 @@ model Board {
   orders   BoardOrder[]
 }
 
-// Per-user visual ordering of boards (drag-to-arrange on the boards page).
+// Per-user free-canvas placement of boards on the boards page (x/y coords).
 model BoardOrder {
-  id       String @id @default(cuid())
-  userId   String
-  boardId  String
-  position Int
+  id      String @id @default(cuid())
+  userId  String
+  boardId String
+  x       Float  @default(0)
+  y       Float  @default(0)
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)

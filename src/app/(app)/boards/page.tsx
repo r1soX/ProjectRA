@@ -1,5 +1,9 @@
 import { requireUser } from "@/lib/auth";
-import { getUserBoards, getArchivedBoards } from "@/lib/boards";
+import {
+  getUserBoards,
+  getArchivedBoards,
+  getBoardPositions,
+} from "@/lib/boards";
 import { hasPerm, PERMS } from "@/lib/permissions";
 import { ensureSystemBoardTemplates } from "@/lib/board-templates";
 import { prisma } from "@/lib/prisma";
@@ -23,9 +27,10 @@ export default async function BoardsPage() {
     hasPerm(user.id, user.role, PERMS.BOARD_MANAGE_ALL),
   ]);
   await ensureSystemBoardTemplates();
-  const [boards, archived] = await Promise.all([
+  const [boards, archived, positions] = await Promise.all([
     getUserBoards(user.id, viewAll),
     getArchivedBoards(user.id, viewAll),
+    getBoardPositions(user.id),
   ]);
 
   // Per-board task breakdown by real status, for the active board cards.
@@ -52,6 +57,8 @@ export default async function BoardsPage() {
     ownerName: shortName(b.owner),
     taskCount: b._count.tasks,
     statusCounts: countsBy.get(b.id) ?? {},
+    x: positions.get(b.id)?.x ?? null,
+    y: positions.get(b.id)?.y ?? null,
     // The owner — or anyone with global board management — manages archiving.
     canArchive: b.ownerId === user.id || manageAll,
   });

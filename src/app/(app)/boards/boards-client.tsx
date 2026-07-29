@@ -1,25 +1,25 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type RefObject,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
   DndContext,
-  closestCenter,
   MouseSensor,
   TouchSensor,
   useSensor,
   useSensors,
+  useDraggable,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  rectSortingStrategy,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import {
   Plus,
   Lock,
@@ -29,7 +29,7 @@ import {
   Archive,
   ArchiveRestore,
   ChevronDown,
-  GripVertical,
+  Move,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ import {
   createBoard,
   archiveBoard,
   unarchiveBoard,
-  reorderBoards,
+  moveBoard,
   type ActionState,
 } from "./actions";
 
@@ -54,7 +54,13 @@ export type BoardCard = {
   taskCount: number;
   statusCounts: Record<string, number>;
   canArchive: boolean;
+  x: number | null;
+  y: number | null;
 };
+
+const CARD_W = 288; // fixed card width for free-canvas placement
+const GAP = 16;
+const DEFAULT_ROW_H = 210;
 
 export const BOARD_COLORS = [
   "#0ea5e9",
@@ -177,21 +183,32 @@ function CreateBoardModal({
   );
 }
 
-function BoardTile({ board }: { board: BoardCard }) {
+function BoardTile({
+  board,
+  pos,
+  suppressClick,
+}: {
+  board: BoardCard;
+  pos: { x: number; y: number };
+  suppressClick: RefObject<boolean>;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: board.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 20 : undefined,
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({ id: board.id });
+
+  const style: React.CSSProperties = {
+    position: "absolute",
+    left: pos.x,
+    top: pos.y,
+    width: CARD_W,
+    transform: transform
+      ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+      : undefined,
+    zIndex: isDragging ? 30 : undefined,
+    // Keep mobile scroll working; the TouchSensor's long-press delay separates
+    // a scroll from a drag.
+    touchAction: isDragging ? "none" : undefined,
   };
 
   function onArchive(e: React.MouseEvent) {
@@ -204,33 +221,43 @@ function BoardTile({ board }: { board: BoardCard }) {
   }
 
   return (
-    <div ref={setNodeRef} style={style} className={cn(isDragging && "opacity-70")}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "cursor-grab select-none active:cursor-grabbing",
+        isDragging && "opacity-80",
+      )}
+    >
       <Link
         href={`/boards/${board.id}`}
-        className="glass glass-hover group relative block overflow-hidden rounded-2xl shadow-lg shadow-black/20 transition hover:-translate-y-1 hover:shadow-xl hover:shadow-sky-500/10"
+        // Protect against opening the board right after a drag.
+        onClick={(e) => {
+          if (suppressClick.current) {
+            e.preventDefault();
+            suppressClick.current = false;
+          }
+        }}
+        draggable={false}
+        className="glass glass-hover group relative block overflow-hidden rounded-2xl shadow-lg shadow-black/20 transition hover:shadow-xl hover:shadow-sky-500/10"
       >
         <div className="h-1.5" style={{ backgroundColor: board.color }} />
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          title="Перетащите, чтобы изменить порядок"
-          aria-label="Переместить доску"
-          className="absolute left-1.5 top-3 z-10 cursor-grab touch-none rounded-lg p-1 text-neutral-500 opacity-60 transition hover:bg-white/10 hover:text-neutral-300 focus:opacity-100 active:cursor-grabbing sm:opacity-0 sm:group-hover:opacity-100"
+        <span
+          className="absolute left-1.5 top-2.5 z-10 text-neutral-600"
+          title="Перетащите карточку"
         >
-          <GripVertical className="h-4 w-4" />
-        </button>
+          <Move className="h-3.5 w-3.5" />
+        </span>
         {board.canArchive && (
           <button
             onClick={onArchive}
+            onPointerDown={(e) => e.stopPropagation()}
             disabled={pending}
             title="Архивировать доску"
             aria-label="Архивировать доску"
-            className="absolute right-2 top-3.5 z-10 rounded-lg p-1.5 text-neutral-500 opacity-60 transition hover:bg-white/10 hover:text-neutral-200 focus:opacity-100 disabled:opacity-40 sm:opacity-0 sm:group-hover:opacity-100"
+            className="absolute right-2 top-3 z-10 rounded-lg p-1.5 text-neutral-500 opacity-60 transition hover:bg-white/10 hover:text-neutral-200 focus:opacity-100 disabled:opacity-40 sm:opacity-0 sm:group-hover:opacity-100"
           >
             <Archive className="h-4 w-4" />
           </button>
@@ -360,30 +387,71 @@ export function BoardsClient({
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
-  const [items, setItems] = useState(boards);
 
-  // Keep the local (drag) order in sync when the server sends a new list.
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  const [pos, setPos] = useState<Record<string, { x: number; y: number }>>({});
+  const suppressClick = useRef(false);
+
+  // Measure the canvas width (drives the default layout + horizontal clamping).
   useEffect(() => {
-    setItems(boards);
-  }, [boards]);
+    const measure = () => setWidth(canvasRef.current?.clientWidth ?? 0);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  // Seed positions: saved x/y from the server, a grid default for the rest.
+  useEffect(() => {
+    if (!width) return;
+    const perRow = Math.max(1, Math.floor((width + GAP) / (CARD_W + GAP)));
+    setPos((prev) => {
+      const next = { ...prev };
+      boards.forEach((b, i) => {
+        if (next[b.id]) return;
+        if (b.x != null && b.y != null) {
+          next[b.id] = { x: b.x, y: b.y };
+        } else {
+          const col = i % perRow;
+          const row = Math.floor(i / perRow);
+          next[b.id] = {
+            x: col * (CARD_W + GAP),
+            y: row * (DEFAULT_ROW_H + GAP),
+          };
+        }
+      });
+      for (const id of Object.keys(next)) {
+        if (!boards.some((b) => b.id === id)) delete next[id];
+      }
+      return next;
+    });
+  }, [width, boards]);
 
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
   );
 
   function onDragEnd(e: DragEndEvent) {
-    const { active, over } = e;
-    if (!over || active.id === over.id) return;
-    setItems((cur) => {
-      const oldIndex = cur.findIndex((b) => b.id === active.id);
-      const newIndex = cur.findIndex((b) => b.id === over.id);
-      if (oldIndex < 0 || newIndex < 0) return cur;
-      const next = arrayMove(cur, oldIndex, newIndex);
-      reorderBoards(next.map((b) => b.id));
-      return next;
+    const id = String(e.active.id);
+    const maxX = Math.max(0, width - CARD_W);
+    setPos((prev) => {
+      const cur = prev[id] ?? { x: 0, y: 0 };
+      const nx = Math.min(Math.max(0, cur.x + e.delta.x), maxX);
+      const ny = Math.max(0, cur.y + e.delta.y);
+      moveBoard(id, nx, ny);
+      return { ...prev, [id]: { x: nx, y: ny } };
     });
+    // A real drag just happened — swallow the click that follows so the board
+    // doesn't open.
+    suppressClick.current = true;
+    window.setTimeout(() => {
+      suppressClick.current = false;
+    }, 50);
   }
+
+  const canvasHeight =
+    Math.max(0, ...boards.map((b) => pos[b.id]?.y ?? 0)) + DEFAULT_ROW_H + 40;
 
   return (
     <div>
@@ -394,7 +462,7 @@ export function BoardsClient({
             {boards.length === 0
               ? "Пока нет досок"
               : boards.length > 1
-                ? `Всего: ${boards.length} · перетащите карточки, чтобы упорядочить`
+                ? `Всего: ${boards.length} · перетащите карточки, чтобы расставить как удобно`
                 : `Всего: ${boards.length}`}
           </p>
         </div>
@@ -421,21 +489,25 @@ export function BoardsClient({
           </div>
         )
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={onDragEnd}
-        >
-          <SortableContext
-            items={items.map((b) => b.id)}
-            strategy={rectSortingStrategy}
+        <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+          <div
+            ref={canvasRef}
+            className="relative w-full"
+            style={{ height: canvasHeight, minHeight: 320 }}
           >
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {items.map((b) => (
-                <BoardTile key={b.id} board={b} />
-              ))}
-            </div>
-          </SortableContext>
+            {boards.map((b) => {
+              const p = pos[b.id];
+              if (!p) return null;
+              return (
+                <BoardTile
+                  key={b.id}
+                  board={b}
+                  pos={p}
+                  suppressClick={suppressClick}
+                />
+              );
+            })}
+          </div>
         </DndContext>
       )}
 

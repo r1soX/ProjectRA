@@ -279,19 +279,16 @@ export async function deleteBoard(boardId: string) {
   redirect("/boards");
 }
 
-/** Persist the current user's personal drag-arranged order of boards. */
-export async function reorderBoards(orderedIds: string[]) {
+/** Persist the current user's free-canvas position for a single board. */
+export async function moveBoard(boardId: string, x: number, y: number) {
   const user = await requireUser();
-  await prisma.$transaction(
-    orderedIds.map((id, i) =>
-      prisma.boardOrder.upsert({
-        where: { userId_boardId: { userId: user.id, boardId: id } },
-        create: { userId: user.id, boardId: id, position: i },
-        update: { position: i },
-      }),
-    ),
-  );
-  revalidatePath("/boards");
+  const px = Math.max(0, Math.round(x));
+  const py = Math.max(0, Math.round(y));
+  await prisma.boardOrder.upsert({
+    where: { userId_boardId: { userId: user.id, boardId } },
+    create: { userId: user.id, boardId, x: px, y: py },
+    update: { x: px, y: py },
+  });
 }
 
 /** Archive a board — hides it from lists/sidebar without deleting anything. */
