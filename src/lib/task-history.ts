@@ -28,7 +28,8 @@ export type HistoryAction =
   | "time_delete"
   | "attachment_add"
   | "attachment_remove"
-  | "color";
+  | "color"
+  | "status";
 
 interface HistoryMeta {
   before?: string | null;

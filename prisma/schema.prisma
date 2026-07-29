@@ -107,6 +107,7 @@ model Task {
   color       String?
   priority    String    @default("MEDIUM") // LOW | MEDIUM | URGENT
   status      String    @default("todo") // backlog | todo | in_progress | done | canceled
+  statusLocked Boolean  @default(false) // true = статус задан вручную, перенос его не меняет
   canvasX     Float?
   canvasY     Float?
   isPersonal  Boolean   @default(false)

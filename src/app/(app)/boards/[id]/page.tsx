@@ -181,6 +181,7 @@ export default async function BoardPage({
       color: t.color,
       priority: t.priority,
       status: t.status,
+      statusLocked: t.statusLocked,
       isPersonal: t.isPersonal,
       recurFreq: t.recurFreq,
       recurInterval: t.recurInterval,

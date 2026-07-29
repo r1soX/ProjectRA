@@ -38,7 +38,7 @@ import { cn } from "@/lib/cn";
 import { PRIORITIES, PRIORITY_META, normalizePriority } from "@/lib/priority";
 import { FEATURES } from "@/lib/features";
 import { DescriptionEditor } from "./description-editor";
-import { STATUS_META, normalizeStatus } from "@/lib/status";
+import { STATUS_META, STATUSES, normalizeStatus } from "@/lib/status";
 import {
   WEEKDAY_LABELS,
   parseRecurDays,
@@ -48,6 +48,7 @@ import {
 } from "@/lib/recurrence";
 import {
   updateTask,
+  setTaskStatus,
   toggleAssignee,
   toggleAssigneeConfirm,
   completeRecurring,
@@ -392,23 +393,13 @@ export function TaskModal({
                   <aside className="space-y-5 lg:rounded-xl lg:border lg:border-neutral-800 lg:bg-neutral-950/30 lg:p-4">
                     <div>
                       <SectionTitle icon={Activity}>Статус</SectionTitle>
-                      {(() => {
-                        const m = STATUS_META[normalizeStatus(task.status)];
-                        return (
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium",
-                              m.badge,
-                            )}
-                          >
-                            <span className={cn("h-2 w-2 rounded-full", m.dot)} />
-                            {m.label}
-                          </span>
-                        );
-                      })()}
-                      <p className="mt-1 text-[11px] text-neutral-600">
-                        Определяется колонкой задачи
-                      </p>
+                      <StatusPicker
+                        key={task.id}
+                        taskId={task.id}
+                        initial={task.status}
+                        locked={task.statusLocked}
+                        canEdit={canEdit}
+                      />
                     </div>
 
                     <div>
@@ -1569,6 +1560,7 @@ const ACTION_LABELS: Record<string, string> = {
   description: "изменил описание",
   column: "перенёс задачу",
   priority: "изменил приоритет на",
+  status: "изменил статус на",
   personal: "сделал задачу",
   assignee_add: "добавил исполнителя",
   assignee_remove: "снял исполнителя",
@@ -1796,6 +1788,114 @@ function RecurrenceEditor({
           />
         </label>
       )}
+    </div>
+  );
+}
+
+function StatusPicker({
+  taskId,
+  initial,
+  locked,
+  canEdit,
+}: {
+  taskId: string;
+  initial: string;
+  locked: boolean;
+  canEdit: boolean;
+}) {
+  const [value, setValue] = useState(normalizeStatus(initial));
+  const [isLocked, setIsLocked] = useState(locked);
+  const [open, setOpen] = useState(false);
+  const [, start] = useTransition();
+  const cur = STATUS_META[value];
+
+  // Re-sync when the board refreshes (e.g. after "auto" adopts the column's
+  // status server-side, or a drag on the board changed it).
+  useEffect(() => {
+    setValue(normalizeStatus(initial));
+    setIsLocked(locked);
+  }, [initial, locked]);
+
+  function choose(s: string) {
+    setOpen(false);
+    if (s === "auto") {
+      setIsLocked(false);
+    } else {
+      setValue(normalizeStatus(s));
+      setIsLocked(true);
+    }
+    start(() => setTaskStatus(taskId, s));
+  }
+
+  const badge = (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium",
+        cur.badge,
+      )}
+    >
+      <span className={cn("h-2 w-2 rounded-full", cur.dot)} />
+      {cur.label}
+      {isLocked && <Lock className="h-3 w-3 opacity-60" />}
+    </span>
+  );
+
+  if (!canEdit) {
+    return (
+      <>
+        {badge}
+        <p className="mt-1 text-[11px] text-neutral-600">
+          {isLocked ? "Задан вручную" : "По колонке задачи"}
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-neutral-800 bg-neutral-950/40 px-2 py-1.5 transition hover:border-neutral-700"
+      >
+        {badge}
+        <ChevronDown className="h-4 w-4 shrink-0 text-neutral-500" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="glass-strong absolute left-0 top-full z-20 mt-1 w-full min-w-44 rounded-xl p-1 shadow-2xl">
+            {STATUSES.map((s) => {
+              const m = STATUS_META[s];
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => choose(s)}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-200 transition hover:bg-white/5"
+                >
+                  <span className={cn("h-2 w-2 rounded-full", m.dot)} />
+                  <span className="flex-1">{m.label}</span>
+                  {isLocked && value === s && <Check className="h-3.5 w-3.5 text-sky-400" />}
+                </button>
+              );
+            })}
+            <div className="my-1 border-t border-white/10" />
+            <button
+              type="button"
+              onClick={() => choose("auto")}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-300 transition hover:bg-white/5"
+            >
+              <Activity className="h-3.5 w-3.5 text-neutral-500" />
+              <span className="flex-1">Авто (по колонке)</span>
+              {!isLocked && <Check className="h-3.5 w-3.5 text-sky-400" />}
+            </button>
+          </div>
+        </>
+      )}
+      <p className="mt-1 text-[11px] text-neutral-600">
+        {isLocked ? "Задан вручную — перенос не меняет" : "По колонке задачи"}
+      </p>
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { getBoardRole, canEdit, canComment } from "@/lib/boards";
 import { normalizePriority, PRIORITY_META } from "@/lib/priority";
-import { normalizeStatus, STATUSES } from "@/lib/status";
+import { normalizeStatus, STATUSES, STATUS_META } from "@/lib/status";
 import { ruleFromTask, nextOccurrence } from "@/lib/recurrence";
 import { publishBoard } from "@/lib/realtime";
 import { notifyMentions, notifyAssigned } from "@/lib/notify";
@@ -459,6 +459,10 @@ export async function createTask(columnId: string, title: string) {
   if (!boardId) return;
   const user = await requireBoardEditor(boardId);
   await requirePerm(user, PERMS.TASK_CREATE);
+  const col = await prisma.column.findUnique({
+    where: { id: columnId },
+    select: { statusKey: true, systemKey: true },
+  });
   const count = await prisma.task.count({ where: { columnId } });
   const task = await prisma.task.create({
     data: {
@@ -467,6 +471,11 @@ export async function createTask(columnId: string, title: string) {
       title: title.trim() || "Новая задача",
       order: count,
       createdById: user.id,
+      // Hybrid model: a new card adopts its column's status (not locked).
+      status:
+        col?.systemKey === "COMPLETED"
+          ? "done"
+          : normalizeStatus(col?.statusKey),
     },
   });
   await logHistory(task.id, user.id, "created", { after: task.title });
@@ -744,10 +753,15 @@ export async function moveTask(
   });
   if (!col || col.boardId !== boardId) return;
 
-  // Remember the source column so we can log the move (from → to).
+  // Remember the source column so we can log the move (from → to), plus whether
+  // the task's status was set manually (locked → a move must not change it).
   const fromCol = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { columnId: true, column: { select: { title: true } } },
+    select: {
+      columnId: true,
+      statusLocked: true,
+      column: { select: { title: true } },
+    },
   });
 
   // Moving into "Завершённые задачи": only the creator/admin, and only after
@@ -820,13 +834,22 @@ export async function moveTask(
     }
   }
 
+  // Hybrid status model: a move adopts the destination column's status only
+  // when the task has no manual status override. Moving into the system
+  // "Завершённые" column is authoritative (completion) — it always sets "done".
+  const statusOnMove =
+    col.systemKey === "COMPLETED"
+      ? { status: "done" }
+      : !fromCol?.statusLocked && col.statusKey
+        ? { status: col.statusKey }
+        : {};
+
   await prisma.$transaction([
     prisma.task.update({
       where: { id: taskId },
-      // Moving a card adopts the destination column's status (status ↔ columns).
       data: {
         columnId: toColumnId,
-        ...(col.statusKey ? { status: col.statusKey } : {}),
+        ...statusOnMove,
       },
     }),
     ...orderedIds.map((id, i) =>
@@ -840,6 +863,49 @@ export async function moveTask(
       after: col.title,
     });
   }
+  bump(boardId);
+}
+
+/**
+ * Set a task's status manually. This "locks" the status: later column moves no
+ * longer change it (hybrid model). Passing "auto" clears the override, so the
+ * task re-adopts its current column's status.
+ */
+export async function setTaskStatus(taskId: string, status: string) {
+  const boardId = await boardIdOfTask(taskId);
+  if (!boardId) return;
+  const user = await requireBoardEditor(boardId);
+  await requirePerm(user, PERMS.TASK_MOVE);
+
+  if (status === "auto") {
+    // Drop the manual override and adopt the current column's status.
+    const t = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { column: { select: { statusKey: true, systemKey: true } } },
+    });
+    const adopted =
+      t?.column.systemKey === "COMPLETED"
+        ? "done"
+        : normalizeStatus(t?.column.statusKey);
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { status: adopted, statusLocked: false },
+    });
+    await logHistory(taskId, user.id, "status", {
+      after: STATUS_META[adopted].label,
+    });
+    bump(boardId);
+    return;
+  }
+
+  if (!STATUSES.includes(status as never)) return;
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status, statusLocked: true },
+  });
+  await logHistory(taskId, user.id, "status", {
+    after: STATUS_META[normalizeStatus(status)].label,
+  });
   bump(boardId);
 }
 

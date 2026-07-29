@@ -111,6 +111,7 @@ export type BoardTask = {
   color: string | null;
   priority: string;
   status: string;
+  statusLocked: boolean;
   isPersonal: boolean;
   recurFreq: string | null;
   recurInterval: number;
