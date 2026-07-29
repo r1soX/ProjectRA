@@ -32,11 +32,62 @@ npm run dev
 `DATABASE_URL` в `.env` указывает на `localhost:5432`. Внутри compose-сети
 приложение использует хост `db` (см. `docker-compose.yml`).
 
-## Перенос существующих данных из SQLite (опционально)
+## Перенос существующих данных из SQLite
 
-Схема применяется в пустую БД. Если нужно перенести данные из старого
-`prisma/dev.db` — это отдельный шаг (экспорт/импорт по таблицам в порядке
-зависимостей). По умолчанию рекомендуется чистый старт + `npm run db:seed`.
+Скрипт `scripts/migrate-sqlite-to-postgres.ts` копирует все данные из
+`prisma/dev.db` в текущую БД (Postgres), сохраняя id и связи. Идемпотентный
+(`skipDuplicates`), безопасно перезапускать. Есть `DRY_RUN=1` (только чтение).
+
+## Продакшн (Ubuntu): переезд на Postgres+Docker БЕЗ потери данных
+
+Предполагается, что сейчас прод крутится на SQLite (pm2 + `prisma/dev.db`).
+
+```bash
+# 0) Поставить Docker Engine + плагин compose (если ещё нет)
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER && newgrp docker   # чтобы без sudo
+
+# 1) БЭКАП старой базы (обязательно!)
+cp prisma/dev.db ~/projectra-dev.db.$(date +%F).bak
+
+# 2) Остановить старое приложение, чтобы в SQLite не было записи во время переноса
+pm2 stop all        # или ваш способ запуска
+
+# 3) Забрать новый код и проверить .env
+git pull
+#   В .env оставьте ваш прежний AUTH_SECRET.
+#   Задайте надёжный POSTGRES_PASSWORD. DATABASE_URL уже указывает на localhost:5432.
+
+# 4) Собрать образ и поднять только Postgres
+docker compose build
+docker compose up -d db
+docker compose ps          # дождаться, пока db => healthy
+
+# 5) Применить схему к Postgres и перенести данные — одной командой в контейнере.
+#    Точка входа сама сделает `prisma db push`, затем запустит миграцию.
+docker compose run --rm \
+  -v "$PWD/prisma/dev.db:/app/prisma/dev.db:ro" \
+  app node --experimental-sqlite --import tsx \
+  scripts/migrate-sqlite-to-postgres.ts
+#    (сверьте счётчики строк в выводе)
+
+# 6) Запустить приложение
+docker compose up -d app     # или `docker compose up -d` (db+app)
+docker compose logs -f app   # проверить, что стартовало
+
+# 7) Проверить на домене/IP:3000 — войти прежними логинами, убедиться что данные на месте.
+
+# 8) Только когда всё ок — убрать старый процесс, чтобы не занимал порт 3000
+pm2 delete all && pm2 save
+```
+
+Nginx (если используется) должен по-прежнему проксировать на `127.0.0.1:3000` —
+менять не нужно. Бэкап `dev.db` держите, пока не убедитесь в переносе.
+
+> Node на хосте не требуется — миграция и `db push` выполняются внутри контейнера
+> (`node:22-alpine` содержит `node:sqlite`). Если предпочитаете запуск с хоста —
+> нужен Node ≥ 22.5, `npm ci`, `npx prisma db push`, затем
+> `node --experimental-sqlite --import tsx scripts/migrate-sqlite-to-postgres.ts`.
 
 ## Переменные окружения
 
