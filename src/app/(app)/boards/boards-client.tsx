@@ -33,6 +33,8 @@ export type BoardCard = {
   isPersonal: boolean;
   ownerName: string;
   taskCount: number;
+  doneCount: number;
+  inProgressCount: number;
   canArchive: boolean;
 };
 
@@ -215,13 +217,27 @@ function BoardTile({ board, index }: { board: BoardCard; index: number }) {
               )}
             </span>
           </div>
-          <div className="mt-4 flex items-center gap-3 text-xs text-neutral-500">
-            <span className="flex items-center gap-1">
-              <ListChecks className="h-3.5 w-3.5" />
-              {board.taskCount} задач
-            </span>
-            <span>·</span>
-            <span>{board.ownerName}</span>
+          <div className="mt-4 space-y-2 text-xs text-neutral-500">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1">
+                <ListChecks className="h-3.5 w-3.5" />
+                {board.taskCount} задач
+              </span>
+              <span>·</span>
+              <span className="truncate">{board.ownerName}</span>
+            </div>
+            {board.taskCount > 0 && (
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5" title="Выполнено">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  {board.doneCount} готово
+                </span>
+                <span className="flex items-center gap-1.5" title="В работе">
+                  <span className="h-2 w-2 rounded-full bg-amber-400" />
+                  {board.inProgressCount} в работе
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </Link>

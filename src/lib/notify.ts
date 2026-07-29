@@ -193,7 +193,7 @@ export async function checkDeadlines() {
       ],
     },
     include: {
-      assignees: { select: { userId: true } },
+      assignees: { select: { userId: true, confirmed: true } },
       createdBy: { select: { id: true } },
       board: { select: { id: true, title: true } },
     },
@@ -217,8 +217,11 @@ export async function checkDeadlines() {
       ? `${String(due.getUTCHours()).padStart(2, "0")}:${String(due.getUTCMinutes()).padStart(2, "0")}`
       : undefined;
 
+    // Someone who already confirmed their part is done shouldn't be nagged
+    // about the deadline (upcoming or overdue) — only the creator and the
+    // assignees who haven't confirmed yet.
     const recipients = [
-      ...task.assignees.map((a) => a.userId),
+      ...task.assignees.filter((a) => !a.confirmed).map((a) => a.userId),
       task.createdBy.id,
     ];
     const uniqueRecipients = [...new Set(recipients)];

@@ -26,19 +26,24 @@ export function InboxClient({ initial }: { initial: InboxNotif[] }) {
   const shown = tab === "unread" ? notifs.filter((n) => !n.isRead) : notifs;
 
   async function markRead(id?: string) {
+    // Optimistic: update the list immediately, then persist + revalidate the
+    // server-rendered bits (the sidebar "Входящие" badge) so nothing lingers
+    // until a manual refresh.
+    setNotifs((ns) =>
+      ns.map((n) => (id ? (n.id === id ? { ...n, isRead: true } : n) : { ...n, isRead: true })),
+    );
     await fetch("/api/notifications/read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(id ? { id } : {}),
     });
-    setNotifs((ns) =>
-      ns.map((n) => (id ? (n.id === id ? { ...n, isRead: true } : n) : { ...n, isRead: true })),
-    );
+    router.refresh();
   }
 
   async function clearAll() {
     setNotifs([]);
     await fetch("/api/notifications/clear", { method: "POST" });
+    router.refresh();
   }
 
   return (
