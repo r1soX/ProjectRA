@@ -68,10 +68,11 @@ const baseNav: NavItem[] = [
   { href: "/calendar", label: "Календарь", icon: CalendarDays, cap: "tasks" },
   { href: "/workload", label: "Нагрузка", icon: BarChart2, cap: "tasks" },
   // Коммуникации
-  { href: "/inbox", label: "Входящие", icon: Inbox },
   { href: "/messages", label: "Сообщения", icon: MessageCircle, cap: "messages" },
-  // Утилиты / справка / аккаунт
+  // Утилиты / справка / аккаунт (уведомления — редко открывают полностью,
+  // основной сценарий через колокольчик)
   { href: "/search", label: "Поиск", icon: Search, cap: "boards" },
+  { href: "/inbox", label: "Уведомления", icon: Inbox },
   { href: "/docs", label: "Справка", icon: BookOpen },
   { href: "/profile", label: "Профиль", icon: UserIcon },
 ];
@@ -88,7 +89,7 @@ const adminNav: NavItem[] = [
 ];
 
 // Primary destinations surfaced in the mobile bottom bar (in priority order).
-const MOBILE_PRIMARY = ["/dashboard", "/boards", "/inbox", "/messages"];
+const MOBILE_PRIMARY = ["/dashboard", "/boards", "/calendar", "/messages"];
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");

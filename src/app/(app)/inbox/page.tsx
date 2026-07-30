@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { PageContainer } from "@/components/ui/page-container";
 import { InboxClient, type InboxNotif } from "./inbox-client";
 
-export const metadata = { title: "Входящие · Projectra" };
+export const metadata = { title: "Уведомления · Projectra" };
 
 export default async function InboxPage() {
   const user = await requireUser();

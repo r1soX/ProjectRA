@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -77,6 +77,9 @@ export function ProfileForms({
     changePassword,
     {},
   );
+  // Controlled so the choice survives the action's re-render (an uncontrolled
+  // <select> would snap back to the stale prop until a full page refresh).
+  const [tz, setTz] = useState(timezone);
 
   return (
     <div className="space-y-6">
@@ -116,7 +119,8 @@ export function ProfileForms({
             <select
               id="timezone"
               name="timezone"
-              defaultValue={timezone}
+              value={tz}
+              onChange={(e) => setTz(e.target.value)}
               className="w-full rounded-xl border border-neutral-700 bg-neutral-900/60 px-3 py-2.5 text-base sm:text-sm text-neutral-100 outline-none focus:border-sky-500"
             >
               {TIMEZONES.map((tz) => (

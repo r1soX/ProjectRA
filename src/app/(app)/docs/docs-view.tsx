@@ -68,7 +68,7 @@ const SECTIONS: { group: string; items: Sec[] }[] = [
       { id: "dashboard", label: "Дашборд", icon: LayoutDashboard },
       { id: "calendar", label: "Календарь", icon: CalendarDays },
       { id: "workload", label: "Нагрузка", icon: BarChart2 },
-      { id: "inbox", label: "Входящие", icon: Bell },
+      { id: "inbox", label: "Уведомления", icon: Bell },
       { id: "messages", label: "Сообщения", icon: MessageCircle },
       { id: "search", label: "Поиск и ⌘K", icon: Command },
     ],
@@ -511,7 +511,7 @@ function Content() {
         </p>
       </Section>
 
-      <Section id="inbox" icon={Bell} title="Входящие">
+      <Section id="inbox" icon={Bell} title="Уведомления">
         <p>
           Центр уведомлений: упоминания, назначения, дедлайны, завершения.
           Фильтр <B>«Непрочитанные»</B>, кнопки <B>«Прочитать всё»</B> и{" "}
@@ -561,7 +561,7 @@ function Content() {
       <Section id="mobile" icon={Smartphone} title="Мобильное и PWA" color="text-emerald-400">
         <p>
           Интерфейс адаптирован под телефон: внизу — <B>нижняя навигация</B>{" "}
-          (Дашборд, Доски, Сообщения, Входящие, Ещё), колонки доски листаются{" "}
+          (Дашборд, Доски, Календарь, Сообщения, Ещё), колонки доски листаются{" "}
           <B>свайпом</B>, окно задачи открывается как <B>шторка снизу</B>.
         </p>
         <p>

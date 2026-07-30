@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { Inbox, Check, Trash2 } from "lucide-react";
@@ -25,10 +25,18 @@ export function InboxClient({ initial }: { initial: InboxNotif[] }) {
   const unread = notifs.filter((n) => !n.isRead).length;
   const shown = tab === "unread" ? notifs.filter((n) => !n.isRead) : notifs;
 
+  // Stay in sync with the bell (new items, reads/clears made there).
+  useEffect(() => {
+    async function reload() {
+      const res = await fetch("/api/notifications/list");
+      if (res.ok) setNotifs(await res.json());
+    }
+    window.addEventListener("notifs:changed", reload);
+    return () => window.removeEventListener("notifs:changed", reload);
+  }, []);
+
   async function markRead(id?: string) {
-    // Optimistic: update the list immediately, then persist + revalidate the
-    // server-rendered bits (the sidebar "Входящие" badge) so nothing lingers
-    // until a manual refresh.
+    // Optimistic, then persist, refresh the sidebar badge, and tell the bell.
     setNotifs((ns) =>
       ns.map((n) => (id ? (n.id === id ? { ...n, isRead: true } : n) : { ...n, isRead: true })),
     );
@@ -38,19 +46,21 @@ export function InboxClient({ initial }: { initial: InboxNotif[] }) {
       body: JSON.stringify(id ? { id } : {}),
     });
     router.refresh();
+    window.dispatchEvent(new Event("notifs:changed"));
   }
 
   async function clearAll() {
     setNotifs([]);
     await fetch("/api/notifications/clear", { method: "POST" });
     router.refresh();
+    window.dispatchEvent(new Event("notifs:changed"));
   }
 
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-100">Входящие</h1>
+          <h1 className="text-2xl font-bold text-neutral-100">Уведомления</h1>
           <p className="mt-1 text-sm text-neutral-500">
             {unread > 0 ? `${unread} непрочитанных` : "Всё прочитано"}
           </p>
@@ -95,7 +105,7 @@ export function InboxClient({ initial }: { initial: InboxNotif[] }) {
       {shown.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          title={tab === "unread" ? "Нет непрочитанных" : "Входящие пусты"}
+          title={tab === "unread" ? "Нет непрочитанных" : "Уведомлений нет"}
           description="Здесь появятся упоминания, назначения и дедлайны."
         />
       ) : (

@@ -106,33 +106,39 @@ export function NotificationCenter({
 
   const unread = notifs.filter((n) => !n.isRead).length;
 
-  // Load notifications list
-  async function loadNotifs() {
-    setLoading(true);
+  // Load notifications list. `silent` skips the loading skeleton (used when
+  // reloading in response to a cross-surface change).
+  async function loadNotifs(silent = false) {
+    if (!silent) setLoading(true);
     try {
       const res = await fetch("/api/notifications/list");
       if (res.ok) setNotifs(await res.json());
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
-  // Mark notification(s) read
+  // Mark notification(s) read — optimistic, then persist and keep every other
+  // surface (the "Уведомления" page + its sidebar badge) in sync.
   async function markRead(id?: string) {
+    setNotifs((ns) =>
+      ns.map((n) => (id ? (n.id === id ? { ...n, isRead: true } : n) : { ...n, isRead: true })),
+    );
     await fetch("/api/notifications/read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(id ? { id } : {}),
     });
-    setNotifs((ns) =>
-      ns.map((n) => (id ? (n.id === id ? { ...n, isRead: true } : n) : { ...n, isRead: true })),
-    );
+    router.refresh();
+    window.dispatchEvent(new Event("notifs:changed"));
   }
 
   // Delete all notifications for the current user.
   async function clearAll() {
     setNotifs([]);
     await fetch("/api/notifications/clear", { method: "POST" });
+    router.refresh();
+    window.dispatchEvent(new Event("notifs:changed"));
   }
 
   // SSE — real-time events (only the active-breakpoint instance subscribes)
@@ -192,6 +198,8 @@ export function NotificationCenter({
           },
           ...ns,
         ]);
+        // Let the "Уведомления" page (if open) pick up the new item too.
+        window.dispatchEvent(new Event("notifs:changed"));
       }
     });
 
@@ -201,6 +209,15 @@ export function NotificationCenter({
   // Load on mount (to populate badge count) and whenever panel opens
   useEffect(() => {
     if (active) loadNotifs();
+  }, [active]);
+
+  // Stay in sync with the full-page "Уведомления" (reads/clears there).
+  useEffect(() => {
+    if (!active) return;
+    const onChanged = () => loadNotifs(true);
+    window.addEventListener("notifs:changed", onChanged);
+    return () => window.removeEventListener("notifs:changed", onChanged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
   useEffect(() => {
