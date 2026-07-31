@@ -47,6 +47,8 @@ export default async function NotesPage({
     body: n.body,
     color: n.color,
     pinned: n.pinned,
+    x: n.x,
+    y: n.y,
     updatedAt: n.updatedAt.toISOString(),
   }));
 

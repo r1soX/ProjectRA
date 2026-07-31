@@ -82,6 +82,8 @@ model Note {
   body      String   @default("")
   color     String? // optional accent colour (hex)
   pinned    Boolean  @default(false)
+  x         Float?   // free-canvas placement (null = not yet positioned)
+  y         Float?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

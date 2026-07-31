@@ -60,3 +60,23 @@ export async function toggleNotePin(id: string): Promise<void> {
   await prisma.note.update({ where: { id }, data: { pinned: !note.pinned } });
   revalidatePath("/notes");
 }
+
+/** Persist a note's free-canvas position (owner only). No revalidate — the
+ *  client already holds the new coords, a refresh would just cause a jump. */
+export async function moveNote(id: string, x: number, y: number): Promise<void> {
+  const me = await requireUser();
+  await prisma.note.updateMany({
+    where: { id, userId: me.id },
+    data: { x, y },
+  });
+}
+
+/** Clear saved positions so notes fall back to the default grid layout. */
+export async function resetNoteLayout(): Promise<void> {
+  const me = await requireUser();
+  await prisma.note.updateMany({
+    where: { userId: me.id },
+    data: { x: null, y: null },
+  });
+  revalidatePath("/notes");
+}
