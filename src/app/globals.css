@@ -174,3 +174,87 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Markdown body (task descriptions, comments, messages) ───────────────── */
+.prose-md {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: inherit; /* adapt to the container (message bubble / card / comment) */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.prose-md > :first-child { margin-top: 0; }
+.prose-md > :last-child { margin-bottom: 0; }
+.prose-md p { margin: 0 0 0.6em; }
+.prose-md h1, .prose-md h2, .prose-md h3,
+.prose-md h4, .prose-md h5, .prose-md h6 {
+  margin: 1em 0 0.4em;
+  font-weight: 700;
+  line-height: 1.25;
+  color: rgb(245 245 245);
+}
+.prose-md h1 { font-size: 1.4em; }
+.prose-md h2 { font-size: 1.25em; }
+.prose-md h3 { font-size: 1.1em; }
+.prose-md h4, .prose-md h5, .prose-md h6 { font-size: 1em; }
+.prose-md ul, .prose-md ol { margin: 0 0 0.6em; padding-left: 1.4em; }
+.prose-md ul { list-style: disc; }
+.prose-md ol { list-style: decimal; }
+.prose-md li { margin: 0.15em 0; }
+.prose-md li > ul, .prose-md li > ol { margin: 0.15em 0; }
+.prose-md li.task-list-item { list-style: none; margin-left: -1.2em; }
+.prose-md li.task-list-item input { margin-right: 0.45em; accent-color: rgb(14 165 233); }
+.prose-md a { color: rgb(56 189 248); text-decoration: underline; text-underline-offset: 2px; }
+.prose-md a:hover { color: rgb(125 211 252); }
+.prose-md strong { font-weight: 700; color: rgb(245 245 245); }
+.prose-md em { font-style: italic; }
+.prose-md del { text-decoration: line-through; opacity: 0.7; }
+.prose-md blockquote {
+  margin: 0 0 0.6em;
+  border-left: 3px solid rgba(255 255 255 / 0.18);
+  padding-left: 0.8em;
+  color: rgb(163 163 163);
+}
+.prose-md code {
+  background: rgba(255 255 255 / 0.1);
+  padding: 0.1em 0.35em;
+  border-radius: 0.35rem;
+  font-size: 0.85em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.prose-md pre {
+  margin: 0 0 0.6em;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.6rem;
+  background: rgba(0 0 0 / 0.35);
+  overflow-x: auto;
+}
+.prose-md pre code { background: transparent; padding: 0; font-size: 0.85em; }
+.prose-md hr { margin: 0.9em 0; border: 0; border-top: 1px solid rgba(255 255 255 / 0.1); }
+.prose-md table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 0 0 0.6em;
+  font-size: 0.85em;
+}
+.prose-md th, .prose-md td {
+  border: 1px solid rgba(255 255 255 / 0.12);
+  padding: 0.35em 0.6em;
+  text-align: left;
+}
+.prose-md th { background: rgba(255 255 255 / 0.05); font-weight: 600; }
+.prose-md img { max-width: 100%; border-radius: 0.5rem; }
+.prose-md .md-mention {
+  border-radius: 0.35rem;
+  background: rgba(14 165 233 / 0.2);
+  padding: 0 0.15em;
+  font-weight: 500;
+  color: rgb(125 211 252);
+}
+/* compact variant for chat/comments — tighter vertical rhythm */
+.prose-md.compact p, .prose-md.compact ul, .prose-md.compact ol,
+.prose-md.compact pre, .prose-md.compact blockquote { margin-bottom: 0.35em; }
+.prose-md.compact h1, .prose-md.compact h2, .prose-md.compact h3 { margin: 0.5em 0 0.25em; font-size: 1.1em; }

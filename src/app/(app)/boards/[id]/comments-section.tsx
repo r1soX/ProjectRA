@@ -13,7 +13,7 @@ import {
   toggleCommentReaction,
   type ActionState,
 } from "../actions";
-import { renderWithMentions } from "@/lib/render-mentions";
+import { Markdown } from "@/components/ui/markdown";
 import { cn } from "@/lib/cn";
 import type { BoardTask, DirectoryUser } from "./board-view";
 
@@ -252,9 +252,9 @@ export function CommentsSection({
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-neutral-200">
-                    {renderWithMentions(c.body)}
-                  </p>
+                  <Markdown compact className="mt-0.5 text-neutral-200">
+                    {c.body}
+                  </Markdown>
                 )}
                 {editingId !== c.id && <CommentReactions comment={c} />}
               </div>
