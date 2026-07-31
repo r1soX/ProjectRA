@@ -22,6 +22,7 @@ import {
   BarChart3,
   ScrollText,
   Tags,
+  StickyNote,
   Star,
   PanelLeftClose,
   PanelLeftOpen,
@@ -72,6 +73,7 @@ const baseNav: NavItem[] = [
   // Утилиты / справка / аккаунт (уведомления — редко открывают полностью,
   // основной сценарий через колокольчик)
   { href: "/search", label: "Поиск", icon: Search, cap: "boards" },
+  { href: "/notes", label: "Заметки", icon: StickyNote },
   { href: "/inbox", label: "Уведомления", icon: Inbox },
   { href: "/docs", label: "Справка", icon: BookOpen },
   { href: "/profile", label: "Профиль", icon: UserIcon },

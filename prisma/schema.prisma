@@ -48,6 +48,7 @@ model User {
   commentReactions   CommentReaction[]
   auditLogs          AuditLog[]
   boardOrders        BoardOrder[]
+  notes              Note[]
 }
 
 // ── Boards ────────────────────────────────────────────────────────
@@ -70,6 +71,23 @@ model Board {
   links    TaskLink[]
   channels Channel[]
   orders   BoardOrder[]
+}
+
+// Personal notes (Markdown). Private to the owner; admins with note.view.all
+// can read others'.
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String?
+  body      String   @default("")
+  color     String? // optional accent colour (hex)
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // Admin-managed task statuses (label + colour). Seeded with a default set.

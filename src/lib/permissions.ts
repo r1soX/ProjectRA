@@ -70,6 +70,7 @@ export const PERMS = {
   BOARD_MANAGE_ALL: "board.manage.all",  // act as owner on any board
   TASK_VIEW_ALL:    "task.view.all",     // see other users' personal tasks
   MESSAGE_VIEW_ANY: "message.view.any",  // read any conversation incl. others' DMs
+  NOTE_VIEW_ALL:    "note.view.all",     // read other users' personal notes
 
   // Admin
   ADMIN_USERS_VIEW:        "admin.users.view",
@@ -111,7 +112,7 @@ const ADMIN_EXTRAS: PermKey[] = [
   PERMS.MESSAGE_DELETE_ANY,
   PERMS.TIME_VIEW_ALL,
   PERMS.BOARD_VIEW_ALL, PERMS.BOARD_MANAGE_ALL,
-  PERMS.TASK_VIEW_ALL, PERMS.MESSAGE_VIEW_ANY,
+  PERMS.TASK_VIEW_ALL, PERMS.MESSAGE_VIEW_ANY, PERMS.NOTE_VIEW_ALL,
   PERMS.ADMIN_USERS_VIEW, PERMS.ADMIN_USERS_CREATE, PERMS.ADMIN_USERS_EDIT,
   PERMS.ADMIN_USERS_DELETE, PERMS.ADMIN_USERS_ACTIVATE, PERMS.ADMIN_USERS_AVATAR,
   PERMS.ADMIN_PERMISSIONS_MANAGE, PERMS.ADMIN_TEMPLATES_MANAGE,
@@ -338,6 +339,7 @@ export const PERM_GROUPS: {
       { perm: PERMS.BOARD_MANAGE_ALL, label: "Управлять любой доской (как владелец)" },
       { perm: PERMS.TASK_VIEW_ALL,    label: "Видеть чужие личные задачи" },
       { perm: PERMS.MESSAGE_VIEW_ANY, label: "Читать любые переписки (чужие ЛС)" },
+      { perm: PERMS.NOTE_VIEW_ALL,    label: "Видеть чужие заметки" },
     ],
   },
   {
