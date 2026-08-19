@@ -1,7 +1,7 @@
 import "server-only";
 
 import Groq from "groq-sdk";
-import { ProxyAgent } from "undici";
+import { fetch as undiciFetch, ProxyAgent } from "undici";
 
 const DEFAULT_BASE_URL = "https://api.groq.com/openai/v1";
 const DEFAULT_MODEL = "openai/gpt-oss-120b";
@@ -47,10 +47,20 @@ export function getGroqAssistant(): CachedClient {
   const dispatcher = proxyUrl
     ? new ProxyAgent(validatedUrl(proxyUrl, "GROQ_PROXY_URL"))
     : undefined;
-  // Groq documents Undici's dispatcher as a Node-specific fetch option. The
-  // standard RequestInit type does not expose that runtime extension.
-  const fetchOptions = dispatcher
-    ? ({ dispatcher } as unknown as NonNullable<GroqClientOptions["fetchOptions"]>)
+  // Node 22's built-in fetch can bundle a different Undici protocol version.
+  // Keep fetch and ProxyAgent from the same package to avoid dispatcher ABI
+  // errors such as "invalid onRequestStart method".
+  const proxyFetch: GroqClientOptions["fetch"] = dispatcher
+    ? async (input, init) => {
+        const response = await undiciFetch(
+          input as unknown as Parameters<typeof undiciFetch>[0],
+          {
+            ...(init ?? {}),
+            dispatcher,
+          } as unknown as NonNullable<Parameters<typeof undiciFetch>[1]>,
+        );
+        return response as unknown as globalThis.Response;
+      }
     : undefined;
 
   const config: GroqAssistantConfig = {
@@ -66,7 +76,7 @@ export function getGroqAssistant(): CachedClient {
       timeout: integerEnv("GROQ_TIMEOUT_MS", 60_000, 5_000, 180_000),
       maxRetries: 2,
       logLevel: "warn",
-      ...(fetchOptions ? { fetchOptions } : {}),
+      ...(proxyFetch ? { fetch: proxyFetch } : {}),
     }),
     config,
   };

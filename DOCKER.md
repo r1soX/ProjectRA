@@ -159,3 +159,24 @@ docker compose exec app sh -lc 'test -n "$GROQ_PROXY_URL" && echo "Groq proxy: S
 этого проверьте действие записи, например создание тестовой задачи. Nginx для
 этого чата дополнительно настраивать не нужно: браузер обращается к ProjectRA,
 а к Groq подключается серверный контейнер.
+
+### Ошибка `invalid onRequestStart method`
+
+Она возникает на Node.js 22, если `ProxyAgent` из npm-пакета `undici`
+передать встроенному в Node `fetch` другой версии. В актуальном коде ProjectRA
+при включённом прокси и запрос, и диспетчер создаются одной версией `undici`.
+Если ошибка появилась после обновления, убедитесь, что контейнер действительно
+пересобран:
+
+```bash
+cd /opt/ProjectRA
+docker compose up -d --build app
+docker compose logs --tail=100 app
+```
+
+Если Compose по-прежнему запускает старый образ:
+
+```bash
+docker compose build --no-cache app
+docker compose up -d app
+```
