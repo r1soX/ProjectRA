@@ -14,6 +14,7 @@ import {
   PROJECTRA_AI_TOOLS,
   type AiVisibleAction,
 } from "./tools";
+import { claimsCompletedMutation, hasExplicitWriteIntent } from "./intent";
 
 export type StoredAiMessage = {
   role: "USER" | "ASSISTANT";
@@ -53,6 +54,10 @@ export async function runProjectraAssistant(
   const actions: AiVisibleAction[] = [];
   const executedWrites = new Set<string>();
   const openRouterSessionId = `projectra-${crypto.randomUUID()}`;
+  const requiresWrite = hasExplicitWriteIntent(
+    history.findLast((message) => message.role === "USER")?.body ?? "",
+  );
+  let forceToolNext = requiresWrite;
   let toolCallsCount = 0;
   let usedProviderModel = "ИИ";
 
@@ -67,7 +72,7 @@ export async function runProjectraAssistant(
         {
           messages,
           tools: PROJECTRA_AI_TOOLS,
-          tool_choice: "auto",
+          tool_choice: forceToolNext ? "required" : "auto",
           parallel_tool_calls: false,
           temperature: 0.2,
           max_completion_tokens: config.maxCompletionTokens,
@@ -89,6 +94,7 @@ export async function runProjectraAssistant(
     }
     const answer = completion.message;
     usedProviderModel = `openrouter/${completion.model}`;
+    forceToolNext = false;
 
     messages.push({
       role: "assistant",
@@ -101,6 +107,36 @@ export async function runProjectraAssistant(
     });
 
     if (!answer.tool_calls?.length) {
+      const successfulWrite = actions.some((action) => action.success);
+      if (
+        requiresWrite
+        && !successfulWrite
+        && claimsCompletedMutation(answer.content)
+      ) {
+        debugLog(config.debug, {
+          event: "rejected_false_write_claim",
+          userId: session.user.id,
+          model: completion.model,
+          round: round + 1,
+        });
+        if (round + 1 < config.maxToolRounds) {
+          messages.push({
+            role: "system",
+            content: "Ты заявил, что изменение выполнено, но ProjectRA не получила ни одного успешного write-вызова. Не сообщай об успехе. Вызови необходимые инструменты чтения и записи; если данных недостаточно, задай конкретный уточняющий вопрос.",
+          });
+          forceToolNext = true;
+          reportProgress?.("Проверяю, что изменение действительно выполнено", {
+            phase: "thinking",
+            round: round + 2,
+          });
+          continue;
+        }
+        return {
+          content: writeNotCompletedFallback(actions),
+          actions,
+          model: usedProviderModel,
+        };
+      }
       debugLog(config.debug, {
         event: "completed",
         userId: session.user.id,
@@ -200,6 +236,13 @@ export async function runProjectraAssistant(
     );
     usedProviderModel = `openrouter/${completion.model}`;
     const content = completion.message.content?.trim();
+    if (requiresWrite && !actions.some((action) => action.success)) {
+      return {
+        content: writeNotCompletedFallback(actions),
+        actions,
+        model: usedProviderModel,
+      };
+    }
     return {
       content: content || actionFallback(actions),
       actions,
@@ -224,6 +267,11 @@ function actionFallback(actions: AiVisibleAction[]) {
     `${action.success ? "✓" : "⚠"} ${action.label}`,
   );
   return `Обработка завершена. Результаты:\n${lines.join("\n")}`;
+}
+
+function writeNotCompletedFallback(actions: AiVisibleAction[]) {
+  if (actions.length > 0) return actionFallback(actions);
+  return "Изменение не выполнено: модель не вызвала инструмент записи ProjectRA. Уточните доску или задачу и повторите запрос.";
 }
 
 function debugLog(enabled: boolean, payload: Record<string, unknown>) {

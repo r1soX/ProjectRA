@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeCompletionMessage } from "../src/lib/ai/protocol";
+import {
+  claimsCompletedMutation,
+  hasExplicitWriteIntent,
+} from "../src/lib/ai/intent";
 
 test("OpenRouter tool metadata is preserved for the next round", () => {
   const payload = {
@@ -67,4 +71,19 @@ test("invalid tool calls are discarded without losing text", () => {
 
   assert.equal(message?.content, "Готово");
   assert.equal(message?.tool_calls, undefined);
+});
+
+test("explicit task mutations require a real write tool", () => {
+  assert.equal(hasExplicitWriteIntent("Создай задачу Подготовить отчёт"), true);
+  assert.equal(hasExplicitWriteIntent("Назначь Ивана исполнителем"), true);
+  assert.equal(hasExplicitWriteIntent("Покажи актуальные задачи"), false);
+  assert.equal(hasExplicitWriteIntent("Предложи задачу, но не создавай её"), false);
+  assert.equal(hasExplicitWriteIntent("Как создать задачу?"), false);
+});
+
+test("unsupported success claims are recognized", () => {
+  assert.equal(claimsCompletedMutation("Готово."), true);
+  assert.equal(claimsCompletedMutation("Задача успешно создана"), true);
+  assert.equal(claimsCompletedMutation("Не удалось создать задачу"), false);
+  assert.equal(claimsCompletedMutation("Уточните, на какой доске создать задачу"), false);
 });

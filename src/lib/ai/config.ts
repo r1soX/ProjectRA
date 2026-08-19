@@ -32,7 +32,7 @@ export type AiChatMessage =
 export type AiCompletionRequest = {
   messages: AiChatMessage[];
   tools?: AiChatTool[];
-  tool_choice?: "auto" | "none";
+  tool_choice?: "auto" | "none" | "required";
   parallel_tool_calls?: boolean;
   temperature?: number;
   max_completion_tokens?: number;
