@@ -13,6 +13,28 @@ import {
 import { messageContent } from "../src/lib/ai/message-context";
 import { detectAiReferenceTrigger } from "../src/lib/ai/reference-input";
 import { containsTechnicalId } from "../src/lib/ai/content-policy";
+import { aiComposerHeight } from "../src/lib/ai/composer-size";
+import { aiReferenceHref } from "../src/lib/ai/reference-links";
+
+test("board and task references link to their ProjectRA pages", () => {
+  assert.equal(
+    aiReferenceHref({ type: "project", id: "board-1" }),
+    "/boards/board-1",
+  );
+  assert.equal(
+    aiReferenceHref({ type: "task", id: "task-1", boardId: "board-1" }),
+    "/boards/board-1?task=task-1",
+  );
+  assert.equal(aiReferenceHref({ type: "user", id: "user-1" }), null);
+});
+
+test("AI composer grows with content and supports expanded mode", () => {
+  assert.equal(aiComposerHeight(28, 900, false), 32);
+  assert.equal(aiComposerHeight(180, 900, false), 180);
+  assert.equal(aiComposerHeight(500, 900, false), 224);
+  assert.equal(aiComposerHeight(100, 900, true), 176);
+  assert.equal(aiComposerHeight(500, 900, true), 405);
+});
 
 test("a selected reference ends after its trailing space", () => {
   assert.deepEqual(

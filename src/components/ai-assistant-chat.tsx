@@ -20,6 +20,8 @@ import {
   LayoutGrid,
   ListTodo,
   Loader2,
+  Maximize2,
+  Minimize2,
   Send,
   Sparkles,
   UserRound,
@@ -30,6 +32,8 @@ import { Markdown } from "@/components/ui/markdown";
 import { useConfirm } from "@/components/ui/dialog-provider";
 import { cn } from "@/lib/cn";
 import { detectAiReferenceTrigger } from "@/lib/ai/reference-input";
+import { aiComposerHeight } from "@/lib/ai/composer-size";
+import { aiReferenceHref } from "@/lib/ai/reference-links";
 
 type AiAction = {
   tool: string;
@@ -112,12 +116,32 @@ export function AiAssistantChat({
   const [referenceItems, setReferenceItems] = useState<AiReference[]>([]);
   const [activeReference, setActiveReference] = useState(0);
   const [referencesLoading, setReferencesLoading] = useState(false);
+  const [composerExpanded, setComposerExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<AiProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const historyRequest = useRef(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const resizeComposer = () => {
+      textarea.style.height = "0px";
+      const height = aiComposerHeight(
+        textarea.scrollHeight,
+        window.innerHeight,
+        composerExpanded,
+      );
+      textarea.style.height = `${height}px`;
+      textarea.style.overflowY = textarea.scrollHeight > height ? "auto" : "hidden";
+    };
+    resizeComposer();
+    window.addEventListener("resize", resizeComposer);
+    return () => window.removeEventListener("resize", resizeComposer);
+  }, [composerExpanded, input, open]);
 
   useEffect(() => {
     if (!referencePicker || (referencePicker.type === "task" && referencePicker.query.length < 2)) {
@@ -240,6 +264,7 @@ export function AiAssistantChat({
       pending: true,
     };
     setInput("");
+    setComposerExpanded(false);
     setReferences([]);
     setReferencePicker(null);
     setError(null);
@@ -497,7 +522,11 @@ export function AiAssistantChat({
                       {message.role === "assistant" ? (
                         <Markdown compact>{message.content}</Markdown>
                       ) : (
-                        <ReferencedText content={message.content} references={message.references} />
+                        <ReferencedText
+                          content={message.content}
+                          references={message.references}
+                          onNavigate={onClose}
+                        />
                       )}
                     </div>
                     {message.actions.length > 0 && (
@@ -629,8 +658,23 @@ export function AiAssistantChat({
                     rows={1}
                     maxLength={8_000}
                     disabled={!configured || loading}
-                    className="max-h-32 min-h-8 flex-1 resize-none bg-transparent px-1 py-1.5 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 disabled:cursor-not-allowed"
+                    className="min-h-8 flex-1 resize-none bg-transparent px-1 py-1.5 text-sm leading-5 text-neutral-100 outline-none placeholder:text-neutral-600 disabled:cursor-not-allowed"
                   />
+                  <button
+                    type="button"
+                    title={composerExpanded ? "Свернуть поле ввода" : "Развернуть поле ввода"}
+                    aria-label={composerExpanded ? "Свернуть поле ввода" : "Развернуть поле ввода"}
+                    onClick={() => {
+                      setComposerExpanded((current) => !current);
+                      textareaRef.current?.focus();
+                    }}
+                    disabled={!configured || loading}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-white/5 hover:text-neutral-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {composerExpanded
+                      ? <Minimize2 className="h-4 w-4" />
+                      : <Maximize2 className="h-4 w-4" />}
+                  </button>
                   <button
                     type="button"
                     aria-label="Отправить"
@@ -769,9 +813,11 @@ function ReferenceTypeIcon({
 function ReferencedText({
   content,
   references,
+  onNavigate,
 }: {
   content: string;
   references: AiReference[];
+  onNavigate: () => void;
 }) {
   if (!references.length) return <span className="whitespace-pre-wrap">{content}</span>;
   const parts: ReactNode[] = [];
@@ -790,16 +836,36 @@ function ReferencedText({
     if (next.index > cursor) {
       parts.push(<span key={key++}>{content.slice(cursor, next.index)}</span>);
     }
-    parts.push(
+    const tokenClassName = cn(
+      "mx-0.5 inline-flex max-w-full items-center gap-1 rounded-md border border-white/20 bg-white/15 px-1.5 py-0.5 align-baseline text-[0.82rem] font-medium text-white",
+      next.reference.type !== "user" && "cursor-pointer transition hover:border-white/40 hover:bg-white/25",
+    );
+    const tokenContent = (
+      <>
+        <ReferenceTypeIcon type={next.reference.type} className="h-3 w-3 shrink-0" />
+        <span className="truncate">{next.reference.marker}</span>
+      </>
+    );
+    const href = aiReferenceHref(next.reference);
+    parts.push(href ? (
+      <Link
+        key={key++}
+        href={href}
+        title={next.reference.detail}
+        onClick={onNavigate}
+        className={tokenClassName}
+      >
+        {tokenContent}
+      </Link>
+    ) : (
       <span
         key={key++}
         title={next.reference.detail}
-        className="mx-0.5 inline-flex max-w-full items-center gap-1 rounded-md border border-white/20 bg-white/15 px-1.5 py-0.5 align-baseline text-[0.82rem] font-medium text-white"
+        className={tokenClassName}
       >
-        <ReferenceTypeIcon type={next.reference.type} className="h-3 w-3 shrink-0" />
-        <span className="truncate">{next.reference.marker}</span>
-      </span>,
-    );
+        {tokenContent}
+      </span>
+    ));
     cursor = next.index + next.reference.marker.length;
   }
   return <span className="whitespace-pre-wrap">{parts}</span>;
