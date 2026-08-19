@@ -7,6 +7,7 @@ import {
   useSyncExternalStore,
   type CSSProperties,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
@@ -16,11 +17,15 @@ import {
   Bot,
   CheckCircle2,
   Eraser,
+  LayoutGrid,
+  ListTodo,
   Loader2,
   Send,
   Sparkles,
+  UserRound,
   X,
 } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
 import { Markdown } from "@/components/ui/markdown";
 import { useConfirm } from "@/components/ui/dialog-provider";
 import { cn } from "@/lib/cn";
@@ -37,9 +42,31 @@ type AiMessage = {
   role: "user" | "assistant";
   content: string;
   actions: AiAction[];
+  references: AiReference[];
   createdAt: string;
   pending?: boolean;
   failed?: boolean;
+};
+
+type AiReferenceType = "user" | "project" | "task";
+
+type AiReference = {
+  type: AiReferenceType;
+  id: string;
+  label: string;
+  marker: string;
+  detail?: string;
+  boardId?: string;
+  color?: string;
+  initials?: string;
+  avatar?: string | null;
+  emoji?: string | null;
+};
+
+type ReferencePicker = {
+  type: AiReferenceType;
+  start: number;
+  query: string;
 };
 
 type AiProgressEvent = {
@@ -79,12 +106,50 @@ export function AiAssistantChat({
   const [loaded, setLoaded] = useState(false);
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [input, setInput] = useState("");
+  const [references, setReferences] = useState<AiReference[]>([]);
+  const [referencePicker, setReferencePicker] = useState<ReferencePicker | null>(null);
+  const [referenceItems, setReferenceItems] = useState<AiReference[]>([]);
+  const [activeReference, setActiveReference] = useState(0);
+  const [referencesLoading, setReferencesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<AiProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const historyRequest = useRef(false);
+
+  useEffect(() => {
+    if (!referencePicker || (referencePicker.type === "task" && referencePicker.query.length < 2)) {
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setReferencesLoading(true);
+      try {
+        const params = new URLSearchParams({
+          type: referencePicker.type,
+          q: referencePicker.query,
+        });
+        const response = await fetch(`/api/ai/references?${params}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const data = await response.json() as { ok?: boolean; items?: AiReference[] };
+        if (response.ok && data.ok) {
+          setReferenceItems(data.items ?? []);
+          setActiveReference(0);
+        }
+      } catch {
+        if (!controller.signal.aborted) setReferenceItems([]);
+      } finally {
+        if (!controller.signal.aborted) setReferencesLoading(false);
+      }
+    }, 140);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [referencePicker]);
 
   useEffect(() => {
     if (!open) return;
@@ -169,10 +234,13 @@ export function AiAssistantChat({
       role: "user",
       content: message,
       actions: [],
+      references,
       createdAt: new Date().toISOString(),
       pending: true,
     };
     setInput("");
+    setReferences([]);
+    setReferencePicker(null);
     setError(null);
     setProgress({
       active: true,
@@ -189,7 +257,13 @@ export function AiAssistantChat({
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({
+          message,
+          references: references.map((reference) => ({
+            type: reference.type,
+            id: reference.id,
+          })),
+        }),
       });
       const data = await response.json() as {
         ok?: boolean;
@@ -235,10 +309,79 @@ export function AiAssistantChat({
   }
 
   function onTextareaKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (referencePicker) {
+      if (event.key === "ArrowDown" && referenceItems.length) {
+        event.preventDefault();
+        setActiveReference((current) => (current + 1) % referenceItems.length);
+        return;
+      }
+      if (event.key === "ArrowUp" && referenceItems.length) {
+        event.preventDefault();
+        setActiveReference((current) => (current - 1 + referenceItems.length) % referenceItems.length);
+        return;
+      }
+      if ((event.key === "Enter" || event.key === "Tab") && referenceItems[activeReference]) {
+        event.preventDefault();
+        insertReference(referenceItems[activeReference]);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setReferencePicker(null);
+        return;
+      }
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void sendMessage();
     }
+  }
+
+  function updateInput(value: string, cursor: number) {
+    setInput(value);
+    const beforeCursor = value.slice(0, cursor);
+    const match = beforeCursor.match(/(^|[\s(])([@#$])([^@#$\n]*)$/);
+    if (!match || match[3].length > 120) {
+      setReferencePicker(null);
+      setReferenceItems([]);
+      setReferencesLoading(false);
+      return;
+    }
+    const type = match[2] === "@" ? "user" : match[2] === "#" ? "project" : "task";
+    setReferencePicker({
+      type,
+      start: beforeCursor.lastIndexOf(match[2]),
+      query: match[3].trim(),
+    });
+    setReferenceItems([]);
+    setReferencesLoading(false);
+  }
+
+  function insertReference(reference: AiReference) {
+    if (!referencePicker) return;
+    const cursor = textareaRef.current?.selectionStart ?? input.length;
+    const before = input.slice(0, referencePicker.start);
+    const after = input.slice(cursor);
+    const nextValue = `${before}${reference.marker} ${after}`;
+    const nextCursor = before.length + reference.marker.length + 1;
+    setInput(nextValue);
+    setReferences((current) => current.some((item) => (
+      item.type === reference.type && item.id === reference.id
+    )) ? current : [...current, reference]);
+    setReferencePicker(null);
+    setReferenceItems([]);
+    window.setTimeout(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
+    }, 0);
+  }
+
+  function removeReference(reference: AiReference) {
+    setReferences((current) => current.filter((item) => !(
+      item.type === reference.type && item.id === reference.id
+    )));
+    setInput((current) => current.replace(reference.marker, "").replace(/ {2,}/g, " "));
+    textareaRef.current?.focus();
   }
 
   if (!mounted) return null;
@@ -355,7 +498,7 @@ export function AiAssistantChat({
                       {message.role === "assistant" ? (
                         <Markdown compact>{message.content}</Markdown>
                       ) : (
-                        <span className="whitespace-pre-wrap">{message.content}</span>
+                        <ReferencedText content={message.content} references={message.references} />
                       )}
                     </div>
                     {message.actions.length > 0 && (
@@ -450,30 +593,58 @@ export function AiAssistantChat({
                   Администратору нужно задать `OPENROUTER_API_KEY` и перезапустить ProjectRA.
                 </div>
               )}
-              <div className="flex items-end gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-2 focus-within:border-sky-400/35 focus-within:ring-1 focus-within:ring-sky-400/20">
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={onTextareaKeyDown}
-                  placeholder="Напишите, что нужно сделать…"
-                  rows={1}
-                  maxLength={8_000}
-                  disabled={!configured || loading}
-                  className="max-h-32 min-h-8 flex-1 resize-none bg-transparent px-1 py-1.5 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 disabled:cursor-not-allowed"
-                />
-                <button
-                  type="button"
-                  aria-label="Отправить"
-                  onClick={() => void sendMessage()}
-                  disabled={!configured || loading || !input.trim()}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 to-indigo-500 text-white shadow-lg shadow-sky-500/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                </button>
+              <div className="relative rounded-xl border border-white/10 bg-white/[0.04] p-2 focus-within:border-sky-400/35 focus-within:ring-1 focus-within:ring-sky-400/20">
+                {referencePicker && (
+                  <ReferenceSuggestions
+                    type={referencePicker.type}
+                    query={referencePicker.query}
+                    items={referenceItems}
+                    active={activeReference}
+                    loading={referencesLoading}
+                    onSelect={insertReference}
+                    onHover={setActiveReference}
+                  />
+                )}
+                {references.length > 0 && (
+                  <div className="mb-1.5 flex flex-wrap gap-1.5 border-b border-white/[0.06] pb-2">
+                    {references.map((reference) => (
+                      <ReferenceChip
+                        key={`${reference.type}:${reference.id}`}
+                        reference={reference}
+                        onRemove={() => removeReference(reference)}
+                      />
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-end gap-2">
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(event) => updateInput(
+                      event.target.value,
+                      event.target.selectionStart ?? event.target.value.length,
+                    )}
+                    onKeyDown={onTextareaKeyDown}
+                    onBlur={() => setReferencePicker(null)}
+                    placeholder="Напишите, что нужно сделать…"
+                    rows={1}
+                    maxLength={8_000}
+                    disabled={!configured || loading}
+                    className="max-h-32 min-h-8 flex-1 resize-none bg-transparent px-1 py-1.5 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 disabled:cursor-not-allowed"
+                  />
+                  <button
+                    type="button"
+                    aria-label="Отправить"
+                    onClick={() => void sendMessage()}
+                    disabled={!configured || loading || !input.trim()}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 to-indigo-500 text-white shadow-lg shadow-sky-500/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <p className="mt-1.5 text-center text-[10px] text-neutral-600">
-                Enter — отправить · Shift+Enter — новая строка
+                @ сотрудник · # доска · $ задача · Enter — отправить
               </p>
             </footer>
           </motion.section>
@@ -482,4 +653,155 @@ export function AiAssistantChat({
     </AnimatePresence>,
     document.body,
   );
+}
+
+function ReferenceSuggestions({
+  type,
+  query,
+  items,
+  active,
+  loading,
+  onSelect,
+  onHover,
+}: {
+  type: AiReferenceType;
+  query: string;
+  items: AiReference[];
+  active: number;
+  loading: boolean;
+  onSelect: (reference: AiReference) => void;
+  onHover: (index: number) => void;
+}) {
+  const emptyLabel = type === "task" && query.length < 2
+    ? "Введите минимум 2 символа для поиска задачи"
+    : "Ничего не найдено";
+  return (
+    <div className="glass-strong absolute bottom-full left-0 right-0 z-30 mb-2 max-h-72 overflow-y-auto rounded-xl border border-white/10 p-1.5 shadow-2xl shadow-black/50">
+      <div className="flex items-center gap-2 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
+        <ReferenceTypeIcon type={type} className="h-3.5 w-3.5" />
+        {type === "user" ? "Сотрудники" : type === "project" ? "Доски" : "Задачи"}
+      </div>
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 px-3 py-5 text-xs text-neutral-500">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Ищу…
+        </div>
+      ) : items.length === 0 ? (
+        <p className="px-3 py-5 text-center text-xs text-neutral-500">{emptyLabel}</p>
+      ) : items.map((reference, index) => (
+        <button
+          key={`${reference.type}:${reference.id}`}
+          type="button"
+          onMouseEnter={() => onHover(index)}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            onSelect(reference);
+          }}
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition",
+            index === active ? "bg-sky-500/15" : "hover:bg-white/5",
+          )}
+        >
+          {reference.type === "user" ? (
+            <Avatar
+              image={reference.avatar ?? null}
+              emoji={reference.emoji ?? null}
+              initials={reference.initials ?? "?"}
+              size={30}
+            />
+          ) : (
+            <span
+              className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg bg-white/[0.06]"
+              style={{ color: reference.color ?? "#38bdf8" }}
+            >
+              <ReferenceTypeIcon type={reference.type} className="h-4 w-4" />
+            </span>
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm text-neutral-100">{reference.label}</span>
+            {reference.detail && (
+              <span className="block truncate text-xs text-neutral-500">{reference.detail}</span>
+            )}
+          </span>
+          <kbd className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] text-neutral-600">
+            {reference.type === "user" ? "@" : reference.type === "project" ? "#" : "$"}
+          </kbd>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ReferenceChip({
+  reference,
+  onRemove,
+}: {
+  reference: AiReference;
+  onRemove: () => void;
+}) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-md border border-sky-400/20 bg-sky-500/10 py-1 pl-1.5 pr-1 text-xs text-sky-200">
+      <ReferenceTypeIcon type={reference.type} className="h-3 w-3 shrink-0" />
+      <span className="max-w-48 truncate">{reference.marker}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Убрать ссылку ${reference.label}`}
+        className="rounded p-0.5 text-sky-300/60 transition hover:bg-white/10 hover:text-sky-100"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
+function ReferenceTypeIcon({
+  type,
+  className,
+}: {
+  type: AiReferenceType;
+  className?: string;
+}) {
+  if (type === "user") return <UserRound className={className} />;
+  if (type === "project") return <LayoutGrid className={className} />;
+  return <ListTodo className={className} />;
+}
+
+function ReferencedText({
+  content,
+  references,
+}: {
+  content: string;
+  references: AiReference[];
+}) {
+  if (!references.length) return <span className="whitespace-pre-wrap">{content}</span>;
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  let key = 0;
+  while (cursor < content.length) {
+    const matches = references
+      .map((reference) => ({ reference, index: content.indexOf(reference.marker, cursor) }))
+      .filter((match) => match.index >= 0)
+      .sort((left, right) => left.index - right.index || right.reference.marker.length - left.reference.marker.length);
+    const next = matches[0];
+    if (!next) {
+      parts.push(<span key={key++}>{content.slice(cursor)}</span>);
+      break;
+    }
+    if (next.index > cursor) {
+      parts.push(<span key={key++}>{content.slice(cursor, next.index)}</span>);
+    }
+    parts.push(
+      <span
+        key={key++}
+        title={next.reference.detail}
+        className="mx-0.5 inline-flex max-w-full items-center gap-1 rounded-md border border-white/20 bg-white/15 px-1.5 py-0.5 align-baseline text-[0.82rem] font-medium text-white"
+      >
+        <ReferenceTypeIcon type={next.reference.type} className="h-3 w-3 shrink-0" />
+        <span className="truncate">{next.reference.marker}</span>
+      </span>,
+    );
+    cursor = next.index + next.reference.marker.length;
+  }
+  return <span className="whitespace-pre-wrap">{parts}</span>;
 }

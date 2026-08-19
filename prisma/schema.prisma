@@ -351,6 +351,7 @@ model AiMessage {
   role           String // USER | ASSISTANT
   body           String
   actions        String? // JSON with compact visible tool execution results
+  references     String? // JSON with validated user/project/task references selected in the AI composer
   createdAt      DateTime @default(now())
 
   conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

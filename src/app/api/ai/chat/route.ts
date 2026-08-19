@@ -1,8 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { getTokenSession } from "@/lib/auth";
+import { getTokenSession, type TokenSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { runProjectraAssistant } from "@/lib/ai/assistant";
+import type { StoredAiReference } from "@/lib/ai/message-context";
+import { ProjectraAgentService } from "@/lib/agent/service";
+import { fullName, initials } from "@/lib/names";
 import {
   AiConfigurationError,
   AiOpenRouterError,
@@ -19,9 +22,28 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const selectedReferenceSchema = z.object({
+  type: z.enum(["user", "project", "task"]),
+  id: z.string().trim().min(1).max(128),
+}).strict();
+
+const storedReferenceSchema = selectedReferenceSchema.extend({
+  label: z.string().min(1).max(300),
+  marker: z.string().min(1).max(320),
+  detail: z.string().max(300).optional(),
+  boardId: z.string().max(128).optional(),
+  color: z.string().max(32).optional(),
+  initials: z.string().max(12).optional(),
+  avatar: z.string().nullable().optional(),
+  emoji: z.string().nullable().optional(),
+}).strict();
+
 const requestSchema = z.object({
   message: z.string().trim().min(1).max(8_000),
+  references: z.array(selectedReferenceSchema).max(12).default([]),
 }).strict();
+
+class AiReferenceError extends Error {}
 
 const activeUsers = new Set<string>();
 
@@ -43,7 +65,7 @@ export async function GET() {
       messages: {
         orderBy: { createdAt: "desc" },
         take: 100,
-        select: { id: true, role: true, body: true, actions: true, createdAt: true },
+        select: { id: true, role: true, body: true, actions: true, references: true, createdAt: true },
       },
     },
   });
@@ -76,6 +98,7 @@ export async function POST(request: NextRequest) {
   activeUsers.add(session.user.id);
   beginAiProgress(session.user.id, "Сохраняю запрос и загружаю контекст");
   try {
+    const selectedReferences = await resolveReferences(session, parsed.data.references);
     const conversation = await prisma.aiConversation.upsert({
       where: { userId: session.user.id },
       create: { userId: session.user.id },
@@ -87,14 +110,15 @@ export async function POST(request: NextRequest) {
         conversationId: conversation.id,
         role: "USER",
         body: parsed.data.message,
+        references: selectedReferences.length ? JSON.stringify(selectedReferences) : null,
       },
-      select: { id: true, role: true, body: true, actions: true, createdAt: true },
+      select: { id: true, role: true, body: true, actions: true, references: true, createdAt: true },
     });
     const history = await prisma.aiMessage.findMany({
       where: { conversationId: conversation.id },
       orderBy: { createdAt: "desc" },
       take: getAiHistoryMessageLimit(),
-      select: { role: true, body: true },
+      select: { role: true, body: true, references: true },
     });
 
     advanceAiProgress(session.user.id, "Передаю запрос в OpenRouter", {
@@ -107,6 +131,7 @@ export async function POST(request: NextRequest) {
       trimLeadingAssistant(history.reverse()).map((message) => ({
         role: message.role === "USER" ? "USER" : "ASSISTANT",
         body: message.body,
+        references: parseReferences(message.references),
       })),
       request.signal,
       (label, meta) => advanceAiProgress(session.user.id, label, meta),
@@ -121,7 +146,7 @@ export async function POST(request: NextRequest) {
         body: result.content,
         actions: result.actions.length ? JSON.stringify(result.actions) : null,
       },
-      select: { id: true, role: true, body: true, actions: true, createdAt: true },
+      select: { id: true, role: true, body: true, actions: true, references: true, createdAt: true },
     });
     await prisma.aiConversation.update({
       where: { id: conversation.id },
@@ -167,6 +192,7 @@ function messageView(message: {
   role: string;
   body: string;
   actions: string | null;
+  references: string | null;
   createdAt: Date;
 }) {
   return {
@@ -174,8 +200,77 @@ function messageView(message: {
     role: message.role === "USER" ? "user" : "assistant",
     content: message.body,
     actions: parseActions(message.actions),
+    references: parseReferences(message.references),
     createdAt: message.createdAt.toISOString(),
   };
+}
+
+function parseReferences(raw: string | null): StoredAiReference[] {
+  if (!raw) return [];
+  try {
+    const parsed = z.array(storedReferenceSchema).safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : [];
+  } catch {
+    return [];
+  }
+}
+
+async function resolveReferences(
+  session: TokenSession,
+  references: z.infer<typeof selectedReferenceSchema>[],
+): Promise<StoredAiReference[]> {
+  if (!references.length) return [];
+  const service = new ProjectraAgentService(session.user, session.expiresAt);
+  const unique = references.filter((reference, index, all) => (
+    all.findIndex((item) => item.type === reference.type && item.id === reference.id) === index
+  ));
+
+  return Promise.all(unique.map(async (reference) => {
+    if (reference.type === "user") {
+      const user = await prisma.user.findFirst({
+        where: { id: reference.id, isActive: true },
+        select: {
+          id: true, username: true, firstName: true, lastName: true, middleName: true,
+          avatar: true, avatarEmoji: true,
+        },
+      });
+      if (!user) throw new AiReferenceError("Выбранный сотрудник больше недоступен.");
+      return {
+        type: "user",
+        id: user.id,
+        label: fullName(user),
+        marker: `@${user.username}`,
+        detail: `@${user.username}`,
+        initials: initials(user),
+        avatar: user.avatar,
+        emoji: user.avatarEmoji,
+      } satisfies StoredAiReference;
+    }
+
+    if (reference.type === "project") {
+      const project = await service.getProject(reference.id).catch(() => null);
+      if (!project) throw new AiReferenceError("Выбранная доска больше недоступна.");
+      return {
+        type: "project",
+        id: project.id,
+        label: project.title,
+        marker: `#${project.title}`,
+        detail: "Доска",
+        color: project.color ?? "#0ea5e9",
+      } satisfies StoredAiReference;
+    }
+
+    const task = await service.getTask(reference.id, 0).catch(() => null);
+    if (!task) throw new AiReferenceError("Выбранная задача больше недоступна.");
+    return {
+      type: "task",
+      id: task.id,
+      label: task.title,
+      marker: `$${task.title}`,
+      detail: task.project.title,
+      boardId: task.project.id,
+    } satisfies StoredAiReference;
+  }));
 }
 
 function parseActions(raw: string | null) {
@@ -189,6 +284,7 @@ function parseActions(raw: string | null) {
 }
 
 function publicAiError(error: unknown) {
+  if (error instanceof AiReferenceError) return { status: 400, message: error.message };
   if (error instanceof AiConfigurationError) return { status: 503, message: error.message };
   if (error instanceof AiOpenRouterError) {
     if (error.kind === "authentication") {

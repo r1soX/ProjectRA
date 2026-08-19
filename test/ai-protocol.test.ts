@@ -10,6 +10,24 @@ import {
   agentTextIncludes,
   normalizeAgentSearchText,
 } from "../src/lib/agent/search-text";
+import { messageContent } from "../src/lib/ai/message-context";
+
+test("selected references add trusted exact IDs to the model context", () => {
+  const content = messageContent({
+    role: "USER",
+    body: "Создай задачу на этой доске",
+    references: [{
+      type: "project",
+      id: "project-42",
+      label: "Задачи (Смолин В.С.)",
+      marker: "#Задачи (Смолин В.С.)",
+    }],
+  });
+
+  assert.match(content, /<projectra_references>/);
+  assert.match(content, /"id":"project-42"/);
+  assert.doesNotMatch(messageContent({ role: "ASSISTANT", body: "Готово", references: [] }), /projectra_references/);
+});
 
 test("agent search ignores punctuation and Russian spelling variants", () => {
   assert.equal(
