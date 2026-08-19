@@ -3,7 +3,7 @@ import "server-only";
 import Groq from "groq-sdk";
 import { fetch as undiciFetch, ProxyAgent } from "undici";
 
-const DEFAULT_BASE_URL = "https://api.groq.com/openai/v1";
+const DEFAULT_BASE_URL = "https://api.groq.com";
 const DEFAULT_MODEL = "openai/gpt-oss-120b";
 type GroqClientOptions = NonNullable<ConstructorParameters<typeof Groq>[0]>;
 
@@ -34,9 +34,8 @@ export function getGroqAssistant(): CachedClient {
     throw new AiConfigurationError("ИИ-помощник не настроен: отсутствует GROQ_API_KEY.");
   }
 
-  const baseURL = validatedUrl(
+  const baseURL = normalizedGroqBaseUrl(
     process.env.GROQ_BASE_URL?.trim() || DEFAULT_BASE_URL,
-    "GROQ_BASE_URL",
   );
   const proxyUrl = (
     process.env.GROQ_PROXY_URL ||
@@ -103,5 +102,14 @@ function validatedUrl(raw: string, name: string) {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new AiConfigurationError(`${name} должен использовать http:// или https://.`);
   }
+  return url.toString().replace(/\/$/, "");
+}
+
+function normalizedGroqBaseUrl(raw: string) {
+  const validated = validatedUrl(raw, "GROQ_BASE_URL");
+  const url = new URL(validated);
+  // groq-sdk appends /openai/v1 itself. Accept the old documented value too,
+  // so existing deployments do not produce /openai/v1/openai/v1/...
+  url.pathname = url.pathname.replace(/\/openai\/v1\/?$/, "") || "/";
   return url.toString().replace(/\/$/, "");
 }

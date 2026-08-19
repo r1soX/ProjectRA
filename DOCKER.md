@@ -106,7 +106,7 @@ Nginx (если используется) должен по-прежнему п�
 | `GROQ_API_KEY` | серверный API-ключ встроенного ИИ-помощника |
 | `GROQ_MODEL` | модель Groq, по умолчанию `openai/gpt-oss-120b` |
 | `GROQ_PROXY_URL` | необязательный HTTP(S)-прокси только для запросов к Groq |
-| `GROQ_BASE_URL` | API endpoint, по умолчанию `https://api.groq.com/openai/v1` |
+| `GROQ_BASE_URL` | адрес API, по умолчанию `https://api.groq.com` (без `/openai/v1`) |
 | `GROQ_TIMEOUT_MS` | таймаут ответа Groq, по умолчанию 60000 мс |
 
 ## Встроенный ИИ-помощник Groq на Ubuntu
@@ -128,6 +128,7 @@ nano .env
 ```dotenv
 GROQ_API_KEY=gsk_ваш_ключ
 GROQ_MODEL=openai/gpt-oss-120b
+GROQ_BASE_URL=https://api.groq.com
 GROQ_PROXY_URL=http://login:password@proxy-host:proxy-port
 ```
 

@@ -4,6 +4,7 @@ import {
   APIConnectionTimeoutError,
   AuthenticationError,
   BadRequestError,
+  NotFoundError,
   PermissionDeniedError,
   RateLimitError,
 } from "groq-sdk";
@@ -189,6 +190,12 @@ function publicAiError(error: unknown) {
   }
   if (error instanceof BadRequestError) {
     return { status: 502, message: "Groq не смог обработать запрос к модели. Проверьте GROQ_MODEL." };
+  }
+  if (error instanceof NotFoundError) {
+    return {
+      status: 502,
+      message: "Groq не нашёл API endpoint. Для стандартного Groq задайте GROQ_BASE_URL=https://api.groq.com.",
+    };
   }
   return { status: 500, message: "ИИ-помощник временно недоступен." };
 }
