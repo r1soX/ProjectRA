@@ -1,19 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
-import {
-  APIConnectionError,
-  APIConnectionTimeoutError,
-  AuthenticationError,
-  BadRequestError,
-  NotFoundError,
-  PermissionDeniedError,
-  RateLimitError,
-} from "groq-sdk";
 import { z } from "zod";
 import { getTokenSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { runProjectraAssistant } from "@/lib/ai/assistant";
 import {
   AiConfigurationError,
+  AiProvidersExhaustedError,
+  getAiHistoryMessageLimit,
   isAiConfigured,
 } from "@/lib/ai/config";
 import {
@@ -67,7 +60,10 @@ export async function POST(request: NextRequest) {
   const session = await getTokenSession();
   if (!session) return response({ ok: false, error: "Требуется авторизация." }, 401);
   if (!isAiConfigured()) {
-    return response({ ok: false, error: "ИИ-помощник не настроен: отсутствует GROQ_API_KEY." }, 503);
+    return response({
+      ok: false,
+      error: "ИИ-помощник не настроен: добавьте CEREBRAS_API_KEY или GEMINI_API_KEY.",
+    }, 503);
   }
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -97,18 +93,18 @@ export async function POST(request: NextRequest) {
     const history = await prisma.aiMessage.findMany({
       where: { conversationId: conversation.id },
       orderBy: { createdAt: "desc" },
-      take: 30,
+      take: getAiHistoryMessageLimit(),
       select: { role: true, body: true },
     });
 
-    advanceAiProgress(session.user.id, "Передаю запрос модели Groq", {
+    advanceAiProgress(session.user.id, "Передаю запрос основному ИИ-провайдеру", {
       phase: "thinking",
       round: 1,
     });
 
     const result = await runProjectraAssistant(
       session,
-      history.reverse().map((message) => ({
+      trimLeadingAssistant(history.reverse()).map((message) => ({
         role: message.role === "USER" ? "USER" : "ASSISTANT",
         body: message.body,
       })),
@@ -194,26 +190,51 @@ function parseActions(raw: string | null) {
 
 function publicAiError(error: unknown) {
   if (error instanceof AiConfigurationError) return { status: 503, message: error.message };
-  if (error instanceof AuthenticationError || error instanceof PermissionDeniedError) {
-    return { status: 502, message: "Groq отклонил ключ. Проверьте GROQ_API_KEY." };
-  }
-  if (error instanceof RateLimitError) {
-    return { status: 429, message: "Достигнут лимит Groq. Повторите запрос немного позже." };
-  }
-  if (error instanceof APIConnectionTimeoutError) {
-    return { status: 504, message: "Groq не ответил вовремя. Проверьте HTTP-прокси и повторите запрос." };
-  }
-  if (error instanceof APIConnectionError) {
-    return { status: 502, message: "Не удалось подключиться к Groq. Проверьте GROQ_PROXY_URL и доступ к сети." };
-  }
-  if (error instanceof BadRequestError) {
-    return { status: 502, message: "Groq не смог обработать запрос к модели. Проверьте GROQ_MODEL." };
-  }
-  if (error instanceof NotFoundError) {
+  if (error instanceof AiProvidersExhaustedError) {
+    const attempts = error.attempts;
+    if (attempts.length > 0 && attempts.every((attempt) => attempt.kind === "rate_limit")) {
+      return {
+        status: 429,
+        message: "Лимиты всех настроенных ИИ-провайдеров исчерпаны. Повторите запрос позже.",
+      };
+    }
+    if (attempts.length > 0 && attempts.every((attempt) => attempt.kind === "timeout")) {
+      return {
+        status: 504,
+        message: "Все настроенные ИИ-провайдеры превысили время ожидания. Проверьте прокси.",
+      };
+    }
     return {
       status: 502,
-      message: "Groq не нашёл API endpoint. Для стандартного Groq задайте GROQ_BASE_URL=https://api.groq.com.",
+      message: `ИИ-провайдеры недоступны: ${attempts.map(providerAttemptLabel).join("; ")}.`,
     };
   }
   return { status: 500, message: "ИИ-помощник временно недоступен." };
+}
+
+function trimLeadingAssistant<T extends { role: string }>(history: T[]) {
+  const firstUser = history.findIndex((message) => message.role === "USER");
+  return firstUser > 0 ? history.slice(firstUser) : history;
+}
+
+function providerAttemptLabel(attempt: AiProvidersExhaustedError["attempts"][number]) {
+  const provider = attempt.provider === "cerebras"
+    ? "Cerebras"
+    : attempt.provider === "gemini"
+      ? "Gemini"
+      : "Groq";
+  const reason = attempt.kind === "authentication"
+    ? "ключ отклонён"
+    : attempt.kind === "rate_limit"
+      ? "лимит исчерпан"
+      : attempt.kind === "timeout"
+        ? "таймаут"
+        : attempt.kind === "connection"
+          ? "нет соединения"
+          : attempt.kind === "not_found"
+            ? "неверный endpoint или модель"
+            : attempt.kind === "bad_request"
+              ? "запрос или модель не поддерживаются"
+              : "ошибка сервиса";
+  return `${provider}: ${reason}`;
 }

@@ -1,12 +1,12 @@
 import "server-only";
 
-import type Groq from "groq-sdk";
 import { ZodError } from "zod";
 import { agentRequestSchema } from "@/lib/agent/contracts";
 import {
   AgentServiceError,
   ProjectraAgentService,
 } from "@/lib/agent/service";
+import type { AiChatTool } from "./config";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -25,7 +25,7 @@ function functionTool(
   description: string,
   properties: Record<string, JsonSchema>,
   required: string[] = [],
-): Groq.Chat.ChatCompletionTool {
+): AiChatTool {
   return {
     type: "function",
     function: {
@@ -41,7 +41,7 @@ function functionTool(
   };
 }
 
-export const PROJECTRA_AI_TOOLS: Groq.Chat.ChatCompletionTool[] = [
+export const PROJECTRA_AI_TOOLS: AiChatTool[] = [
   functionTool("list_projects", "Показать доступные текущему пользователю доски ProjectRA.", {
     query: { type: "string", maxLength: 120 },
     limit: { type: "integer", minimum: 1, maximum: 100 },

@@ -22,7 +22,6 @@
     "@xyflow/react": "^12.11.1",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
-    "groq-sdk": "^1.5.0",
     "jose": "^6.2.3",
     "lucide-react": "^1.21.0",
     "motion": "^12.42.0",

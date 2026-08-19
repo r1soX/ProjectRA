@@ -59,6 +59,25 @@ export function advanceAiProgress(
     events: [],
     updatedAt: Date.now(),
   };
+  if (meta.tool && meta.status && meta.status !== "active") {
+    const matchingIndex = current.events.findLastIndex(
+      (event) => event.tool === meta.tool && event.status === "active",
+    );
+    if (matchingIndex >= 0) {
+      const events = [...current.events];
+      events[matchingIndex] = {
+        ...events[matchingIndex],
+        label,
+        status: meta.status,
+      };
+      progressStore.set(userId, {
+        active: true,
+        events: events.slice(-MAX_EVENTS),
+        updatedAt: Date.now(),
+      });
+      return;
+    }
+  }
   const events = current.events.map((event) =>
     event.status === "active" ? { ...event, status: "done" as const } : event,
   );

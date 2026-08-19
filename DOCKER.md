@@ -103,14 +103,18 @@ Nginx (если используется) должен по-прежнему п�
 | `POSTGRES_USER/PASSWORD/DB` | параметры контейнера Postgres |
 | `RUN_SEED=1` | если задан у сервиса `app` — сидить при старте |
 | `DISABLE_DEADLINE_SCHEDULER=1` | отключить встроенный планировщик напоминаний |
-| `GROQ_API_KEY` | серверный API-ключ встроенного ИИ-помощника |
-| `GROQ_MODEL` | модель Groq, по умолчанию `openai/gpt-oss-120b` |
-| `GROQ_PROXY_URL` | необязательный HTTP(S)-прокси только для запросов к Groq |
-| `GROQ_BASE_URL` | адрес API, по умолчанию `https://api.groq.com` (без `/openai/v1`) |
-| `GROQ_TIMEOUT_MS` | таймаут ответа Groq, по умолчанию 60000 мс |
+| `PROJECTRA_AI_PROVIDER` | основной провайдер: `cerebras`, `gemini` или `groq` |
+| `PROJECTRA_AI_PROXY_URL` | общий HTTP(S)-прокси для всех ИИ-провайдеров |
+| `PROJECTRA_AI_HISTORY_MESSAGES` | число последних сообщений в контексте модели, по умолчанию 12 |
+| `CEREBRAS_API_KEY` | серверный ключ Cerebras; первый провайдер по умолчанию |
+| `GEMINI_API_KEY` | серверный ключ Gemini; автоматический fallback после Cerebras |
+| `GROQ_API_KEY` | необязательный третий fallback-провайдер |
+| `CEREBRAS_MODEL` | модель Cerebras, по умолчанию `gpt-oss-120b` |
+| `GEMINI_MODEL` | модель Gemini, по умолчанию `gemini-3.7-flash` |
+| `*_PROXY_URL`, `*_BASE_URL`, `*_TIMEOUT_MS` | индивидуальные настройки каждого провайдера |
 | `PROJECTRA_AI_DEBUG=1` | писать в логи номера раундов и названия вызванных инструментов |
 
-## Встроенный ИИ-помощник Groq на Ubuntu
+## Встроенный ИИ-помощник Cerebras + Gemini на Ubuntu
 
 Помощник находится в левом меню ProjectRA и открывается поверх текущей
 страницы. Он работает от имени вошедшего пользователя и использует те же
@@ -124,16 +128,36 @@ cd /opt/ProjectRA
 nano .env
 ```
 
-Добавьте в `.env` (без пробелов вокруг `=`):
+Добавьте в `.env` (без пробелов вокруг `=`). Ключ Gemini называется именно
+`GEMINI_API_KEY`:
 
 ```dotenv
-GROQ_API_KEY=gsk_ваш_ключ
+PROJECTRA_AI_PROVIDER=cerebras
+PROJECTRA_AI_HISTORY_MESSAGES=12
+PROJECTRA_AI_MAX_COMPLETION_TOKENS=2048
+PROJECTRA_AI_MAX_TOOL_ROUNDS=6
+
+CEREBRAS_API_KEY=csk_ваш_ключ
+CEREBRAS_MODEL=gpt-oss-120b
+CEREBRAS_BASE_URL=https://api.cerebras.ai/v1
+
+GEMINI_API_KEY=ваш_ключ_Gemini
+GEMINI_MODEL=gemini-3.7-flash
+GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+
+# Если исходящие запросы должны идти через один прокси:
+PROJECTRA_AI_PROXY_URL=http://login:password@proxy-host:proxy-port
+
+# Необязательно: существующий ключ Groq будет третьим fallback.
+GROQ_API_KEY=
 GROQ_MODEL=openai/gpt-oss-120b
-GROQ_BASE_URL=https://api.groq.com
-GROQ_PROXY_URL=http://login:password@proxy-host:proxy-port
 ```
 
-Если прокси не нужен, оставьте `GROQ_PROXY_URL=` пустым. Если логин или пароль
+Порядок по умолчанию: **Cerebras → Gemini → Groq**. Провайдер без ключа
+пропускается. Если прокси не нужен, оставьте `PROJECTRA_AI_PROXY_URL=` пустым.
+Если конкретному провайдеру нужен отдельный прокси, задайте
+`CEREBRAS_PROXY_URL`, `GEMINI_PROXY_URL` или `GROQ_PROXY_URL`: индивидуальная
+настройка имеет приоритет над общей. Если логин или пароль
 содержит `@`, `:`, `/`, `#` или другие специальные символы URL, закодируйте их
 percent-encoding. Ключ и адрес прокси не добавляйте в Git и не размещайте в
 клиентском JavaScript.
@@ -152,15 +176,16 @@ docker compose logs --tail=100 app
 пользователи не удаляются. Проверить наличие переменных без вывода секретов:
 
 ```bash
-docker compose exec app sh -lc 'test -n "$GROQ_API_KEY" && echo "Groq key: OK" || echo "Groq key: MISSING"'
-docker compose exec app sh -lc 'test -n "$GROQ_PROXY_URL" && echo "Groq proxy: SET" || echo "Groq proxy: OFF"'
+docker compose exec app sh -lc 'test -n "$CEREBRAS_API_KEY" && echo "Cerebras key: OK" || echo "Cerebras key: MISSING"'
+docker compose exec app sh -lc 'test -n "$GEMINI_API_KEY" && echo "Gemini key: OK" || echo "Gemini key: MISSING"'
+docker compose exec app sh -lc 'test -n "$PROJECTRA_AI_PROXY_URL" && echo "AI proxy: SET" || echo "AI proxy: OFF"'
 ```
 
 Затем войдите на `https://projectra.ru`, нажмите **ИИ-помощник** слева и
 отправьте сначала безопасный запрос: «Покажи мои актуальные задачи». После
 этого проверьте действие записи, например создание тестовой задачи. Nginx для
 этого чата дополнительно настраивать не нужно: браузер обращается к ProjectRA,
-а к Groq подключается серверный контейнер.
+а к ИИ-провайдерам подключается серверный контейнер.
 
 ### Ошибка `invalid onRequestStart method`
 
@@ -185,7 +210,7 @@ docker compose up -d app
 
 ### Логи работы ИИ-помощника
 
-Внутренние рассуждения модели Groq не выводятся, но ProjectRA умеет безопасно
+Внутренние рассуждения моделей не выводятся, но ProjectRA умеет безопасно
 логировать ход агентской цепочки: номер раунда, названия инструментов и момент
 формирования итогового ответа. Тексты сообщений, аргументы инструментов, ключ и
 данные прокси в этот лог не записываются.

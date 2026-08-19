@@ -447,7 +447,7 @@ export function AiAssistantChat({
               )}
               {!configured && (
                 <div className="mb-2 rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                  Администратору нужно задать `GROQ_API_KEY` и перезапустить ProjectRA.
+                  Администратору нужно задать `CEREBRAS_API_KEY` или `GEMINI_API_KEY` и перезапустить ProjectRA.
                 </div>
               )}
               <div className="flex items-end gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-2 focus-within:border-sky-400/35 focus-within:ring-1 focus-within:ring-sky-400/20">

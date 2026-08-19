@@ -1,9 +1,8 @@
 import "server-only";
 
-import type Groq from "groq-sdk";
 import type { TokenSession } from "@/lib/auth";
 import { ProjectraAgentService } from "@/lib/agent/service";
-import { getGroqAssistant } from "./config";
+import { getAiAssistant, type AiChatMessage } from "./config";
 import {
   executeProjectraAiTool,
   aiToolProgressLabel,
@@ -38,9 +37,9 @@ export async function runProjectraAssistant(
   signal?: AbortSignal,
   reportProgress?: AiProgressReporter,
 ): Promise<AiAssistantResult> {
-  const { client, config } = getGroqAssistant();
+  const { client, config } = getAiAssistant();
   const service = new ProjectraAgentService(session.user, session.expiresAt);
-  const messages: Groq.Chat.ChatCompletionMessageParam[] = [
+  const messages: AiChatMessage[] = [
     { role: "system", content: systemPrompt(session) },
     ...history.map((message) => ({
       role: message.role === "USER" ? "user" as const : "assistant" as const,
@@ -50,15 +49,15 @@ export async function runProjectraAssistant(
   const actions: AiVisibleAction[] = [];
   const executedWrites = new Set<string>();
   let toolCallsCount = 0;
+  let usedProviderModel = "ИИ";
 
   for (let round = 0; round < config.maxToolRounds; round += 1) {
     reportProgress?.(
       round === 0 ? "Понимаю запрос и выбираю действия" : "Проверяю результаты предыдущего шага",
       { phase: "thinking", round: round + 1 },
     );
-    const completion = await client.chat.completions.create(
+    const completion = await client.create(
       {
-        model: config.model,
         messages,
         tools: PROJECTRA_AI_TOOLS,
         tool_choice: "auto",
@@ -66,10 +65,10 @@ export async function runProjectraAssistant(
         temperature: 0.2,
         max_completion_tokens: config.maxCompletionTokens,
       },
-      { signal },
+      signal,
     );
-    const answer = completion.choices[0]?.message;
-    if (!answer) throw new Error("Groq вернул пустой ответ.");
+    const answer = completion.message;
+    usedProviderModel = `${completion.provider}/${completion.model}`;
 
     messages.push({
       role: "assistant",
@@ -81,13 +80,15 @@ export async function runProjectraAssistant(
       debugLog(config.debug, {
         event: "completed",
         userId: session.user.id,
+        provider: completion.provider,
+        model: completion.model,
         round: round + 1,
         actions: actions.length,
       });
       return {
         content: answer.content?.trim() || "Готово.",
         actions,
-        model: config.model,
+        model: usedProviderModel,
       };
     }
 
@@ -129,8 +130,7 @@ export async function runProjectraAssistant(
       const succeeded = execution.action?.success
         ?? execution.content.startsWith('{"ok":true');
       reportProgress?.(
-        execution.action?.label
-          ?? `${aiToolProgressLabel(call.function.name)}: ${succeeded ? "готово" : "ошибка"}`,
+        `${aiToolProgressLabel(call.function.name)}: ${succeeded ? "готово" : "ошибка"}`,
         {
           phase: "tool",
           round: round + 1,
@@ -165,20 +165,20 @@ export async function runProjectraAssistant(
   });
 
   try {
-    const completion = await client.chat.completions.create(
+    const completion = await client.create(
       {
-        model: config.model,
         messages,
         temperature: 0.2,
         max_completion_tokens: config.maxCompletionTokens,
       },
-      { signal },
+      signal,
     );
-    const content = completion.choices[0]?.message.content?.trim();
+    usedProviderModel = `${completion.provider}/${completion.model}`;
+    const content = completion.message.content?.trim();
     return {
       content: content || actionFallback(actions),
       actions,
-      model: config.model,
+      model: usedProviderModel,
     };
   } catch (error) {
     if (actions.length === 0) throw error;
@@ -186,7 +186,7 @@ export async function runProjectraAssistant(
     return {
       content: actionFallback(actions),
       actions,
-      model: config.model,
+      model: usedProviderModel,
     };
   }
 }
