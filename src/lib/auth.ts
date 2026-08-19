@@ -89,11 +89,15 @@ export async function getUserFromSessionToken(
 
 /** Returns the current user (validated against DB), or null. */
 export async function getSession(): Promise<SessionUser | null> {
+  return (await getTokenSession())?.user ?? null;
+}
+
+/** Returns the current validated user together with the session expiry. */
+export async function getTokenSession(): Promise<TokenSession | null> {
   const store = await cookies();
-  const session = await getUserFromSessionToken(
+  return getUserFromSessionToken(
     store.get(SESSION_COOKIE)?.value,
   );
-  return session?.user ?? null;
 }
 
 /** Redirects to /login when not authenticated. */

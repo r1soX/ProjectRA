@@ -9,6 +9,7 @@ import { DialogProvider } from "@/components/ui/dialog-provider";
 import { ToastProvider } from "@/components/ui/toast-provider";
 import { PresenceProvider } from "@/components/presence-provider";
 import { StatusProvider } from "@/components/status-provider";
+import { isAiConfigured } from "@/lib/ai/config";
 
 export default async function AppLayout({
   children,
@@ -76,6 +77,7 @@ export default async function AppLayout({
               notifUnread={notifUnread}
               caps={caps}
               boards={sidebarBoards}
+              aiConfigured={isAiConfigured()}
             >
               {children}
             </AppShell>

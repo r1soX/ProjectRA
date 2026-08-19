@@ -28,6 +28,7 @@ import {
   PanelLeftOpen,
   MoreHorizontal,
   BookOpen,
+  Bot,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { logout } from "@/app/actions/session";
@@ -36,6 +37,7 @@ import { shortName, initials } from "@/lib/names";
 import { Avatar } from "@/components/ui/avatar";
 import { NotificationCenter } from "@/components/notification-center";
 import { CommandPalette } from "@/components/command-palette";
+import { AiAssistantChat } from "@/components/ai-assistant-chat";
 
 function openCommand() {
   window.dispatchEvent(new Event("projectra:command"));
@@ -396,6 +398,7 @@ export function AppShell({
   notifUnread,
   caps,
   boards,
+  aiConfigured,
   children,
 }: {
   user: SessionUser;
@@ -403,11 +406,13 @@ export function AppShell({
   notifUnread: number;
   caps: NavCaps;
   boards: SidebarBoard[];
+  aiConfigured: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -482,7 +487,7 @@ export function AppShell({
             </button>
           </div>
         ) : (
-          <div className="px-3 pt-1">
+          <div className="space-y-2 px-3 pt-1">
             <button
               onClick={openCommand}
               className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-500 transition hover:bg-white/5 hover:text-neutral-300"
@@ -492,6 +497,27 @@ export function AppShell({
               <kbd className="ml-auto rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px]">
                 ⌘K
               </kbd>
+            </button>
+            <button
+              onClick={() => setAssistantOpen(true)}
+              className="flex w-full items-center gap-2 rounded-xl border border-sky-400/15 bg-gradient-to-r from-sky-500/10 to-indigo-500/10 px-3 py-2 text-sm text-sky-200 transition hover:border-sky-400/30 hover:from-sky-500/15 hover:to-indigo-500/15"
+            >
+              <Bot className="h-4 w-4" />
+              <span>ИИ-помощник</span>
+              {!aiConfigured && <span className="ml-auto h-2 w-2 rounded-full bg-amber-400" title="Требуется настройка" />}
+            </button>
+          </div>
+        )}
+        {collapsed && (
+          <div className="flex justify-center px-2 pt-2">
+            <button
+              onClick={() => setAssistantOpen(true)}
+              title="ИИ-помощник"
+              aria-label="ИИ-помощник"
+              className="relative rounded-lg p-2 text-sky-300 transition hover:bg-sky-500/10"
+            >
+              <Bot className="h-4 w-4" />
+              {!aiConfigured && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-amber-400" />}
             </button>
           </div>
         )}
@@ -548,6 +574,16 @@ export function AppShell({
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto px-3 py-2">
+                <button
+                  onClick={() => {
+                    setMobileOpen(false);
+                    setAssistantOpen(true);
+                  }}
+                  className="mb-2 flex w-full items-center gap-3 rounded-xl border border-sky-400/15 bg-gradient-to-r from-sky-500/10 to-indigo-500/10 px-3 py-2 text-sm font-medium text-sky-200"
+                >
+                  <Bot className="h-4 w-4" />
+                  ИИ-помощник
+                </button>
                 <NavLinks
                   items={items}
                   pathname={pathname}
@@ -580,6 +616,14 @@ export function AppShell({
           </span>
           <div className="ml-auto flex items-center gap-1">
             <button
+              onClick={() => setAssistantOpen(true)}
+              aria-label="ИИ-помощник"
+              className="relative rounded-lg p-2 text-sky-300 transition hover:bg-sky-500/10"
+            >
+              <Bot className="h-5 w-5" />
+              {!aiConfigured && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-amber-400" />}
+            </button>
+            <button
               onClick={openCommand}
               aria-label="Поиск"
               className="rounded-lg p-2 text-neutral-300 transition hover:bg-white/5"
@@ -600,6 +644,12 @@ export function AppShell({
       </div>
 
       <CommandPalette caps={caps} />
+      <AiAssistantChat
+        open={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+        configured={aiConfigured}
+        desktopLeft={collapsed ? 80 : 256}
+      />
     </div>
     </MotionConfig>
   );

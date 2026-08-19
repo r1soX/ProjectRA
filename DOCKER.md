@@ -103,3 +103,59 @@ Nginx (если используется) должен по-прежнему п�
 | `POSTGRES_USER/PASSWORD/DB` | параметры контейнера Postgres |
 | `RUN_SEED=1` | если задан у сервиса `app` — сидить при старте |
 | `DISABLE_DEADLINE_SCHEDULER=1` | отключить встроенный планировщик напоминаний |
+| `GROQ_API_KEY` | серверный API-ключ встроенного ИИ-помощника |
+| `GROQ_MODEL` | модель Groq, по умолчанию `openai/gpt-oss-120b` |
+| `GROQ_PROXY_URL` | необязательный HTTP(S)-прокси только для запросов к Groq |
+| `GROQ_BASE_URL` | API endpoint, по умолчанию `https://api.groq.com/openai/v1` |
+| `GROQ_TIMEOUT_MS` | таймаут ответа Groq, по умолчанию 60000 мс |
+
+## Встроенный ИИ-помощник Groq на Ubuntu
+
+Помощник находится в левом меню ProjectRA и открывается поверх текущей
+страницы. Он работает от имени вошедшего пользователя и использует те же
+проверки прав, что и агентский API. История сообщений хранится в PostgreSQL,
+поэтому не пропадает после закрытия браузера или перезапуска контейнера.
+
+На сервере, где проект расположен в `/opt/ProjectRA`, выполните:
+
+```bash
+cd /opt/ProjectRA
+nano .env
+```
+
+Добавьте в `.env` (без пробелов вокруг `=`):
+
+```dotenv
+GROQ_API_KEY=gsk_ваш_ключ
+GROQ_MODEL=openai/gpt-oss-120b
+GROQ_PROXY_URL=http://login:password@proxy-host:proxy-port
+```
+
+Если прокси не нужен, оставьте `GROQ_PROXY_URL=` пустым. Если логин или пароль
+содержит `@`, `:`, `/`, `#` или другие специальные символы URL, закодируйте их
+percent-encoding. Ключ и адрес прокси не добавляйте в Git и не размещайте в
+клиентском JavaScript.
+
+После загрузки обновлённых файлов пересоберите только приложение:
+
+```bash
+cd /opt/ProjectRA
+docker compose up -d --build app
+docker compose ps
+docker compose logs --tail=100 app
+```
+
+При старте `docker-entrypoint.sh` автоматически выполнит `prisma db push` и
+создаст таблицы `AiConversation` и `AiMessage`. Существующие доски, задачи и
+пользователи не удаляются. Проверить наличие переменных без вывода секретов:
+
+```bash
+docker compose exec app sh -lc 'test -n "$GROQ_API_KEY" && echo "Groq key: OK" || echo "Groq key: MISSING"'
+docker compose exec app sh -lc 'test -n "$GROQ_PROXY_URL" && echo "Groq proxy: SET" || echo "Groq proxy: OFF"'
+```
+
+Затем войдите на `https://projectra.ru`, нажмите **ИИ-помощник** слева и
+отправьте сначала безопасный запрос: «Покажи мои актуальные задачи». После
+этого проверьте действие записи, например создание тестовой задачи. Nginx для
+этого чата дополнительно настраивать не нужно: браузер обращается к ProjectRA,
+а к Groq подключается серверный контейнер.
