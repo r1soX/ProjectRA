@@ -16,6 +16,12 @@ import {
   AiConfigurationError,
   isAiConfigured,
 } from "@/lib/ai/config";
+import {
+  advanceAiProgress,
+  beginAiProgress,
+  completeAiProgress,
+  failAiProgress,
+} from "@/lib/ai/progress";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,6 +78,7 @@ export async function POST(request: NextRequest) {
   }
 
   activeUsers.add(session.user.id);
+  beginAiProgress(session.user.id, "Сохраняю запрос и загружаю контекст");
   try {
     const conversation = await prisma.aiConversation.upsert({
       where: { userId: session.user.id },
@@ -94,6 +101,11 @@ export async function POST(request: NextRequest) {
       select: { role: true, body: true },
     });
 
+    advanceAiProgress(session.user.id, "Передаю запрос модели Groq", {
+      phase: "thinking",
+      round: 1,
+    });
+
     const result = await runProjectraAssistant(
       session,
       history.reverse().map((message) => ({
@@ -101,7 +113,11 @@ export async function POST(request: NextRequest) {
         body: message.body,
       })),
       request.signal,
+      (label, meta) => advanceAiProgress(session.user.id, label, meta),
     );
+    advanceAiProgress(session.user.id, "Сохраняю ответ в истории чата", {
+      phase: "finalizing",
+    });
     const assistantMessage = await prisma.aiMessage.create({
       data: {
         conversationId: conversation.id,
@@ -115,6 +131,7 @@ export async function POST(request: NextRequest) {
       where: { id: conversation.id },
       data: { updatedAt: new Date() },
     });
+    completeAiProgress(session.user.id);
 
     return response({
       ok: true,
@@ -124,6 +141,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const mapped = publicAiError(error);
+    failAiProgress(session.user.id, mapped.message);
     if (mapped.status >= 500) console.error("ProjectRA AI chat failed", error);
     return response({ ok: false, error: mapped.message }, mapped.status);
   } finally {

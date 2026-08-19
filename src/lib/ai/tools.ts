@@ -72,21 +72,29 @@ export const PROJECTRA_AI_TOOLS: Groq.Chat.ChatCompletionTool[] = [
   functionTool("get_project_summary", "Получить сводку доски по срокам, статусам и приоритетам.", {
     projectId: id,
   }, ["projectId"]),
-  functionTool("create_task", "Создать одну задачу. Перед вызовом нужно определить точные ID доски, колонки и исполнителей.", {
+  functionTool("create_task", "Создать одну задачу. Перед вызовом нужно определить точные ID доски, колонки и исполнителей. Поле description поддерживает Markdown.", {
     projectId: id,
     columnId: id,
     title: { type: "string", minLength: 1, maxLength: 240 },
-    description: { type: "string", maxLength: 20_000 },
+    description: {
+      type: "string",
+      maxLength: 20_000,
+      description: "Описание задачи в Markdown: заголовки, списки, чек-листы, выделение, ссылки и блоки кода.",
+    },
     priority,
     startDate: { type: "string", description: "Дата YYYY-MM-DD или UTC timestamp ISO-8601." },
     dueDate: { type: "string", description: "Дата YYYY-MM-DD или UTC timestamp ISO-8601." },
     assigneeIds: { type: "array", items: id, maxItems: 20 },
     isPersonal: { type: "boolean" },
   }, ["projectId", "title"]),
-  functionTool("update_task", "Изменить только явно указанные поля одной задачи.", {
+  functionTool("update_task", "Изменить только явно указанные поля одной задачи. При изменении description используй Markdown и сохраняй полезное существующее форматирование.", {
     taskId: id,
     title: { type: "string", minLength: 1, maxLength: 240 },
-    description: { type: ["string", "null"], maxLength: 20_000 },
+    description: {
+      type: ["string", "null"],
+      maxLength: 20_000,
+      description: "Новое описание в Markdown или null для очистки.",
+    },
     priority,
     startDate: date,
     dueDate: date,
@@ -100,9 +108,14 @@ export const PROJECTRA_AI_TOOLS: Groq.Chat.ChatCompletionTool[] = [
     taskId: id,
     userId: id,
   }, ["taskId", "userId"]),
-  functionTool("add_task_comment", "Добавить к задаче Markdown-комментарий от текущего пользователя.", {
+  functionTool("add_task_comment", "Добавить к задаче комментарий от текущего пользователя. Комментарий поддерживает Markdown.", {
     taskId: id,
-    body: { type: "string", minLength: 1, maxLength: 10_000 },
+    body: {
+      type: "string",
+      minLength: 1,
+      maxLength: 10_000,
+      description: "Текст комментария в Markdown: списки, выделение, ссылки, цитаты и блоки кода.",
+    },
   }, ["taskId", "body"]),
   functionTool("move_task", "Переместить задачу в точную колонку той же доски.", {
     taskId: id,
@@ -143,6 +156,25 @@ const ACTION_LABELS: Record<string, string> = {
   set_task_status: "Статус изменён",
   set_my_task_completion: "Моя отметка выполнения изменена",
   complete_task: "Задача завершена",
+};
+
+const PROGRESS_LABELS: Record<string, string> = {
+  list_projects: "Получаю список доступных досок",
+  get_project: "Читаю колонки и настройки доски",
+  list_project_members: "Ищу сотрудников доски",
+  search_tasks: "Ищу подходящие задачи",
+  get_task: "Читаю задачу, описание и комментарии",
+  list_my_tasks: "Получаю ваши актуальные задачи",
+  get_project_summary: "Собираю сводку по доске",
+  create_task: "Создаю задачу",
+  update_task: "Обновляю задачу",
+  assign_task: "Назначаю исполнителя",
+  unassign_task: "Снимаю исполнителя",
+  add_task_comment: "Добавляю Markdown-комментарий",
+  move_task: "Перемещаю задачу",
+  set_task_status: "Изменяю статус задачи",
+  set_my_task_completion: "Ставлю вашу отметку выполнения",
+  complete_task: "Завершаю задачу",
 };
 
 export type AiVisibleAction = {
@@ -199,6 +231,10 @@ export async function executeProjectraAiTool(
 
 export function isWriteAiTool(name: string) {
   return WRITE_TOOLS.has(name);
+}
+
+export function aiToolProgressLabel(name: string) {
+  return PROGRESS_LABELS[name] ?? `Выполняю действие: ${name}`;
 }
 
 function safeToolError(error: unknown) {

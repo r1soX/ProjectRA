@@ -11,6 +11,7 @@ export type GroqAssistantConfig = {
   model: string;
   maxCompletionTokens: number;
   maxToolRounds: number;
+  debug: boolean;
 };
 
 type CachedClient = {
@@ -66,6 +67,7 @@ export function getGroqAssistant(): CachedClient {
     model: process.env.GROQ_MODEL?.trim() || DEFAULT_MODEL,
     maxCompletionTokens: integerEnv("GROQ_MAX_COMPLETION_TOKENS", 2_048, 256, 16_384),
     maxToolRounds: integerEnv("GROQ_MAX_TOOL_ROUNDS", 6, 1, 10),
+    debug: process.env.PROJECTRA_AI_DEBUG?.trim() === "1",
   };
 
   cached = {

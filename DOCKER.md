@@ -108,6 +108,7 @@ Nginx (если используется) должен по-прежнему п�
 | `GROQ_PROXY_URL` | необязательный HTTP(S)-прокси только для запросов к Groq |
 | `GROQ_BASE_URL` | адрес API, по умолчанию `https://api.groq.com` (без `/openai/v1`) |
 | `GROQ_TIMEOUT_MS` | таймаут ответа Groq, по умолчанию 60000 мс |
+| `PROJECTRA_AI_DEBUG=1` | писать в логи номера раундов и названия вызванных инструментов |
 
 ## Встроенный ИИ-помощник Groq на Ubuntu
 
@@ -180,4 +181,31 @@ docker compose logs --tail=100 app
 ```bash
 docker compose build --no-cache app
 docker compose up -d app
+```
+
+### Логи работы ИИ-помощника
+
+Внутренние рассуждения модели Groq не выводятся, но ProjectRA умеет безопасно
+логировать ход агентской цепочки: номер раунда, названия инструментов и момент
+формирования итогового ответа. Тексты сообщений, аргументы инструментов, ключ и
+данные прокси в этот лог не записываются.
+
+Включите в `/opt/ProjectRA/.env`:
+
+```dotenv
+PROJECTRA_AI_DEBUG=1
+```
+
+Пересоздайте приложение и следите за логом:
+
+```bash
+cd /opt/ProjectRA
+docker compose up -d --force-recreate app
+docker compose logs -f app
+```
+
+Только строки помощника:
+
+```bash
+docker compose logs -f app | grep --line-buffered 'ProjectRA AI'
 ```

@@ -42,6 +42,19 @@ type AiMessage = {
   failed?: boolean;
 };
 
+type AiProgressEvent = {
+  id: string;
+  label: string;
+  status: "active" | "done" | "error";
+  round?: number;
+  tool?: string;
+};
+
+type AiProgress = {
+  active: boolean;
+  events: AiProgressEvent[];
+};
+
 const SUGGESTIONS = [
   "Покажи мои актуальные задачи",
   "Найди просроченные задачи и кратко объясни риски",
@@ -67,6 +80,7 @@ export function AiAssistantChat({
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<AiProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -113,11 +127,38 @@ export function AiAssistantChat({
       });
     });
     return () => cancelAnimationFrame(frame);
-  }, [messages, loaded, open]);
+  }, [messages, progress, loaded, open]);
 
   useEffect(() => {
     if (open && loaded) textareaRef.current?.focus();
   }, [loaded, open]);
+
+  useEffect(() => {
+    if (!loading) return;
+    let cancelled = false;
+
+    async function loadProgress() {
+      try {
+        const response = await fetch("/api/ai/status", { cache: "no-store" });
+        const data = await response.json() as {
+          ok?: boolean;
+          progress?: AiProgress;
+        };
+        if (!cancelled && response.ok && data.ok && data.progress) {
+          setProgress(data.progress);
+        }
+      } catch {
+        // The main chat request remains authoritative if progress polling fails.
+      }
+    }
+
+    void loadProgress();
+    const timer = window.setInterval(() => void loadProgress(), 700);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [loading]);
 
   async function sendMessage(text = input) {
     const message = text.trim();
@@ -133,6 +174,14 @@ export function AiAssistantChat({
     };
     setInput("");
     setError(null);
+    setProgress({
+      active: true,
+      events: [{
+        id: optimisticId,
+        label: "Отправляю запрос помощнику",
+        status: "active",
+      }],
+    });
     setLoading(true);
     setMessages((current) => [...current, optimistic]);
 
@@ -163,6 +212,7 @@ export function AiAssistantChat({
       )));
     } finally {
       setLoading(false);
+      setProgress(null);
     }
   }
 
@@ -339,9 +389,50 @@ export function AiAssistantChat({
 
               {loading && (
                 <div className="flex justify-start">
-                  <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-neutral-400">
-                    <Loader2 className="h-4 w-4 animate-spin text-sky-300" />
-                    Анализирую ProjectRA…
+                  <div
+                    aria-live="polite"
+                    className="w-[88%] rounded-2xl rounded-bl-md border border-sky-400/15 bg-gradient-to-br from-sky-500/[0.08] to-indigo-500/[0.04] px-3.5 py-3 text-sm"
+                  >
+                    <div className={cn(
+                      "flex items-center gap-2",
+                      progress?.events.at(-1)?.status === "error" ? "text-red-300" : "text-sky-200",
+                    )}>
+                      {progress?.events.at(-1)?.status === "done" ? (
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
+                      ) : progress?.events.at(-1)?.status === "error" ? (
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                      ) : (
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                      )}
+                      <span className="font-medium">
+                        {progress?.events.at(-1)?.label ?? "Запускаю помощника"}
+                      </span>
+                      {progress?.events.at(-1)?.round && (
+                        <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wide text-neutral-600">
+                          раунд {progress.events.at(-1)?.round}
+                        </span>
+                      )}
+                    </div>
+                    {progress && progress.events.length > 1 && (
+                      <div className="mt-2 space-y-1 border-t border-white/[0.06] pt-2">
+                        {progress.events.slice(-5, -1).map((event) => (
+                          <div
+                            key={event.id}
+                            className={cn(
+                              "flex items-center gap-2 text-xs",
+                              event.status === "error" ? "text-red-300" : "text-neutral-500",
+                            )}
+                          >
+                            {event.status === "error" ? (
+                              <AlertCircle className="h-3 w-3 shrink-0" />
+                            ) : (
+                              <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400/70" />
+                            )}
+                            <span>{event.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
