@@ -14,7 +14,11 @@ import {
   PROJECTRA_AI_TOOLS,
   type AiVisibleAction,
 } from "./tools";
-import { claimsCompletedMutation, hasExplicitWriteIntent } from "./intent";
+import {
+  claimsCompletedMutation,
+  hasExplicitWriteIntent,
+  isRetryRequest,
+} from "./intent";
 
 export type StoredAiMessage = {
   role: "USER" | "ASSISTANT";
@@ -54,9 +58,16 @@ export async function runProjectraAssistant(
   const actions: AiVisibleAction[] = [];
   const executedWrites = new Set<string>();
   const openRouterSessionId = `projectra-${crypto.randomUUID()}`;
-  const requiresWrite = hasExplicitWriteIntent(
-    history.findLast((message) => message.role === "USER")?.body ?? "",
-  );
+  const userRequests = history
+    .filter((message) => message.role === "USER")
+    .map((message) => message.body);
+  const latestRequest = userRequests.at(-1) ?? "";
+  const previousRequest = userRequests.at(-2) ?? "";
+  const requiresWrite = hasExplicitWriteIntent(latestRequest)
+    || (
+      isRetryRequest(latestRequest)
+      && hasExplicitWriteIntent(previousRequest)
+    );
   let forceToolNext = requiresWrite;
   let toolCallsCount = 0;
   let usedProviderModel = "ИИ";

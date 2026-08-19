@@ -34,6 +34,11 @@ export function hasExplicitWriteIntent(text: string) {
   return WRITE_INTENT.test(normalized);
 }
 
+export function isRetryRequest(text: string) {
+  return /(?:попробуй(?:те)?|повтори(?:те)?|ещ[её]\s+раз|заново|вс[её]-таки|продолжай(?:те)?)/iu
+    .test(text.trim());
+}
+
 export function claimsCompletedMutation(text: string | null | undefined) {
   const normalized = text?.trim().toLowerCase() ?? "";
   if (!normalized) return false;

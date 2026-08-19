@@ -4,6 +4,7 @@ import { normalizeCompletionMessage } from "../src/lib/ai/protocol";
 import {
   claimsCompletedMutation,
   hasExplicitWriteIntent,
+  isRetryRequest,
 } from "../src/lib/ai/intent";
 
 test("OpenRouter tool metadata is preserved for the next round", () => {
@@ -79,6 +80,8 @@ test("explicit task mutations require a real write tool", () => {
   assert.equal(hasExplicitWriteIntent("Покажи актуальные задачи"), false);
   assert.equal(hasExplicitWriteIntent("Предложи задачу, но не создавай её"), false);
   assert.equal(hasExplicitWriteIntent("Как создать задачу?"), false);
+  assert.equal(isRetryRequest("Попробуй ещё раз"), true);
+  assert.equal(isRetryRequest("Покажи задачи"), false);
 });
 
 test("unsupported success claims are recognized", () => {
