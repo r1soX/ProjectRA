@@ -57,8 +57,10 @@ export const updateTaskSchema = z
     isPersonal: z.boolean().optional(),
   })
   .refine(
-    ({ taskId: _taskId, ...changes }) =>
-      Object.values(changes).some((value) => value !== undefined),
+    (value) =>
+      Object.entries(value).some(
+        ([key, field]) => key !== "taskId" && field !== undefined,
+      ),
     { message: "Provide at least one field to update." },
   );
 
@@ -77,6 +79,11 @@ export const moveTaskSchema = z.object({
 export const setTaskStatusSchema = z.object({
   taskId: id,
   status: z.string().trim().min(1).max(80),
+});
+
+export const setMyTaskCompletionSchema = z.object({
+  taskId: id,
+  completed: z.boolean(),
 });
 
 export const taskIdSchema = z.object({ taskId: id });

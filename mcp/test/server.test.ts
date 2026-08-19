@@ -31,7 +31,8 @@ describe("ProjectRA MCP server", () => {
     const names = (await client.listTools()).tools.map((tool) => tool.name);
     expect(names).toEqual(expect.arrayContaining([
       "list_projects", "get_task", "create_task", "update_task",
-      "assign_task", "add_task_comment", "move_task", "complete_task",
+      "assign_task", "add_task_comment", "move_task",
+      "set_my_task_completion", "complete_task",
     ]));
     expect(names.some((name) => /delete|admin|permission|bulk/.test(name))).toBe(false);
   });
@@ -62,5 +63,19 @@ describe("ProjectRA MCP server", () => {
     });
     expect(result.isError).not.toBe(true);
     expect(call).toHaveBeenCalledWith("assign_task", { taskId: "task-1", userId: "user-2" }, expect.any(AbortSignal));
+  });
+
+  it("forwards only the authenticated assignee's explicit completion state", async () => {
+    const call = vi.fn(async () => ({ taskId: "task-1", completed: true } as JsonValue));
+    const client = await connectedClient(mockGateway(call));
+    const result = await client.callTool({
+      name: "set_my_task_completion", arguments: { taskId: "task-1", completed: true },
+    });
+    expect(result.isError).not.toBe(true);
+    expect(call).toHaveBeenCalledWith(
+      "set_my_task_completion",
+      { taskId: "task-1", completed: true },
+      expect.any(AbortSignal),
+    );
   });
 });

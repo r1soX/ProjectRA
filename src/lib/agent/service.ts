@@ -355,6 +355,7 @@ export class ProjectraAgentService {
         edit: editable,
         move: agentRoleCanEdit(context.board.role) && canMove,
         assign: editable && canAssign,
+        confirmCompletion: task.assignees.some((row) => row.user.id === this.actor.id),
         complete: agentRoleCanEdit(context.board.role) && canComplete && (this.actor.role === "ADMIN" || task.createdById === this.actor.id),
         comment: agentRoleCanComment(context.board.role) && canCreateComment,
       },
@@ -520,6 +521,26 @@ export class ProjectraAgentService {
     return { taskId, status: nextStatus, statusLocked: locked };
   }
 
+  async setMyTaskCompletion(taskId: string, completed: boolean) {
+    const task = await this.taskContext(taskId);
+    const assignee = await prisma.taskAssignee.findUnique({
+      where: { taskId_userId: { taskId, userId: this.actor.id } },
+      select: { confirmed: true },
+    });
+    if (!assignee) {
+      throw denied("Отметить выполнение может только назначенный исполнитель.");
+    }
+    if (assignee.confirmed === completed) {
+      return { taskId, userId: this.actor.id, completed, unchanged: true };
+    }
+    await prisma.taskAssignee.update({
+      where: { taskId_userId: { taskId, userId: this.actor.id } },
+      data: { confirmed: completed },
+    });
+    publishBoard(task.boardId);
+    return { taskId, userId: this.actor.id, completed, unchanged: false };
+  }
+
   async completeTask(taskId: string) {
     const task = await this.taskContext(taskId);
     const completed = await prisma.column.findFirst({ where: { boardId: task.boardId, systemKey: "COMPLETED" }, select: { id: true } });
@@ -562,6 +583,7 @@ export class ProjectraAgentService {
       case "add_task_comment": return this.addComment(request.input.taskId, request.input.body);
       case "move_task": return this.move(request.input.taskId, request.input.targetColumnId);
       case "set_task_status": return this.setStatus(request.input.taskId, request.input.status);
+      case "set_my_task_completion": return this.setMyTaskCompletion(request.input.taskId, request.input.completed);
       case "complete_task": return this.completeTask(request.input.taskId);
       case "get_project_summary": return this.projectSummary(request.input.projectId);
     }

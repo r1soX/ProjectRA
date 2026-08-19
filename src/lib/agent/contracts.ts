@@ -67,6 +67,7 @@ export const agentRequestSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("add_task_comment"), input: z.object({ taskId: id, body: z.string().trim().min(1).max(10_000) }).strict() }),
   z.object({ operation: z.literal("move_task"), input: z.object({ taskId: id, targetColumnId: id }).strict() }),
   z.object({ operation: z.literal("set_task_status"), input: z.object({ taskId: id, status: z.string().trim().min(1).max(80) }).strict() }),
+  z.object({ operation: z.literal("set_my_task_completion"), input: z.object({ taskId: id, completed: z.boolean() }).strict() }),
   z.object({ operation: z.literal("complete_task"), input: z.object({ taskId: id }).strict() }),
   z.object({ operation: z.literal("get_project_summary"), input: z.object({ projectId: id }).strict() }),
 ]);

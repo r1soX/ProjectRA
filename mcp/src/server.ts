@@ -14,6 +14,7 @@ import {
   moveTaskSchema,
   projectIdSchema,
   searchTasksSchema,
+  setMyTaskCompletionSchema,
   setTaskStatusSchema,
   taskAssigneeSchema,
   taskIdSchema,
@@ -219,6 +220,17 @@ function registerWriteTools(server: McpServer, gateway: ProjectraGateway): void 
       annotations: WORKFLOW_WRITE,
     },
     async (input, ctx) => callGateway(gateway, "set_task_status", input, ctx),
+  );
+
+  server.registerTool(
+    "set_my_task_completion",
+    {
+      title: "Mark my task work complete",
+      description: "Set or clear the authenticated assignee's own completion confirmation. Cannot change another employee's confirmation.",
+      inputSchema: setMyTaskCompletionSchema,
+      annotations: SAFE_WRITE,
+    },
+    async (input, ctx) => callGateway(gateway, "set_my_task_completion", input, ctx),
   );
 
   server.registerTool(

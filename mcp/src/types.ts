@@ -19,6 +19,7 @@ export type AgentOperation =
   | "add_task_comment"
   | "move_task"
   | "set_task_status"
+  | "set_my_task_completion"
   | "complete_task"
   | "get_project_summary";
 
