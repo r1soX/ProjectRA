@@ -14,6 +14,7 @@ import { normalizeStatus } from "@/lib/status";
 import { getStatuses, statusKeySet, statusLabel } from "@/lib/statuses";
 import { logHistory } from "@/lib/task-history";
 import type { AgentRequest } from "./contracts";
+import { agentTextIncludes } from "./search-text";
 import {
   agentRoleCanComment,
   agentRoleCanEdit,
@@ -244,8 +245,9 @@ export class ProjectraAgentService {
     await this.requirePerm(PERMS.BOARD_VIEW);
     const [canViewAll, canManageAll] = await Promise.all([this.perm(PERMS.BOARD_VIEW_ALL), this.perm(PERMS.BOARD_MANAGE_ALL)]);
     const boards = await getUserBoards(this.actor.id, canViewAll || canManageAll);
-    const query = input.query?.toLocaleLowerCase("ru") ?? "";
-    const filtered = boards.filter((board) => !query || board.title.toLocaleLowerCase("ru").includes(query)).slice(0, input.limit);
+    const filtered = boards
+      .filter((board) => agentTextIncludes(board.title, input.query))
+      .slice(0, input.limit);
     const memberships = await prisma.boardMember.findMany({
       where: { userId: this.actor.id, boardId: { in: filtered.map((board) => board.id) } },
       select: { boardId: true, role: true },
@@ -365,7 +367,10 @@ export class ProjectraAgentService {
   async createTask(input: Extract<AgentRequest, { operation: "create_task" }>['input']) {
     const board = await this.writableBoard(input.projectId);
     await this.requirePerm(PERMS.TASK_CREATE);
-    if (input.isPersonal && input.assigneeIds.some((id) => id !== this.actor.id)) {
+    const assigneeIds = [
+      ...new Set(input.assigneeIds.map((id) => id === "me" ? this.actor.id : id)),
+    ];
+    if (input.isPersonal && assigneeIds.some((id) => id !== this.actor.id)) {
       throw conflict("Личную задачу можно назначить только её создателю.");
     }
     const column = input.columnId
@@ -374,7 +379,6 @@ export class ProjectraAgentService {
     if (!column || column.boardId !== input.projectId || column.systemKey === "COMPLETED") {
       throw conflict("Для создания нужна рабочая колонка этого проекта.");
     }
-    const assigneeIds = [...new Set(input.assigneeIds)];
     if (assigneeIds.length) {
       await this.requirePerm(PERMS.TASK_ASSIGN);
       const allowed = new Set((await this.listProjectMembers(input.projectId)).map((member) => member.id));

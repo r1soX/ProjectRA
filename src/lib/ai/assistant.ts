@@ -215,6 +215,12 @@ export async function runProjectraAssistant(
         content: execution.content,
       });
     }
+
+    // A mutation request must not turn into a text-only answer after a few
+    // discovery calls. Keep requiring a tool until a write really succeeds;
+    // after that, allow the model to summarize the confirmed result.
+    forceToolNext = requiresWrite
+      && !actions.some((action) => action.success);
   }
 
   // The requested mutation may already have succeeded even if the model keeps
@@ -300,7 +306,7 @@ function systemPrompt(session: TokenSession) {
 
 Правила:
 1. Для чтения актуальных досок и задач используй инструменты. Не выдумывай данные и ID.
-2. Перед записью получи точные ID доски, колонки, задачи и сотрудника. Если имя неоднозначно — задай вопрос.
+2. Перед записью получи точные ID только для тех сущностей, которые требует write-инструмент. Для create_task достаточно projectId: columnId можно опустить, а текущего пользователя можно указать как \"me\". Если имя другого сотрудника неоднозначно — задай вопрос. Не делай лишние read-вызовы, если данных уже достаточно для записи.
 3. Выполняй write-инструменты только когда пользователь явно попросил создать, изменить, назначить, прокомментировать, переместить, отметить или завершить задачу. Просьба «покажи», «проанализируй», «предложи» не разрешает запись.
 4. Не утверждай, что изменение выполнено, пока инструмент не вернул ok=true. Понятно объясняй отказ ProjectRA.
 5. set_my_task_completion меняет только отметку текущего исполнителя. complete_task — отдельное действие постановщика/администратора после подтверждения всех исполнителей.

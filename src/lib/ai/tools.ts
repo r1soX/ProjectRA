@@ -52,7 +52,7 @@ export const PROJECTRA_AI_TOOLS: AiChatTool[] = [
   functionTool("list_project_members", "Получить сотрудников доски и их точные ID перед назначением.", {
     projectId: id,
   }, ["projectId"]),
-  functionTool("search_tasks", "Найти доступные задачи по заголовку или описанию.", {
+  functionTool("search_tasks", "Найти доступные задачи по заголовку или описанию. Результат уже содержит описание, доску, колонку и исполнителей; не вызывай get_task повторно, если этих данных достаточно.", {
     query: { type: "string", minLength: 2, maxLength: 300 },
     projectId: id,
     assigneeId: id,
@@ -72,9 +72,9 @@ export const PROJECTRA_AI_TOOLS: AiChatTool[] = [
   functionTool("get_project_summary", "Получить сводку доски по срокам, статусам и приоритетам.", {
     projectId: id,
   }, ["projectId"]),
-  functionTool("create_task", "Создать одну задачу. Перед вызовом нужно определить точные ID доски, колонки и исполнителей. Поле description поддерживает Markdown.", {
+  functionTool("create_task", "Создать одну задачу. Нужен точный ID доски. columnId можно не передавать: ProjectRA выберет первую рабочую колонку. Для назначения текущего пользователя используй assigneeIds=[\"me\"] без поиска ID. Поле description поддерживает Markdown. Когда данных достаточно, сразу вызывай этот write-инструмент.", {
     projectId: id,
-    columnId: id,
+    columnId: { ...id, description: "Необязательно. Если не указано, ProjectRA выберет первую рабочую колонку." },
     title: { type: "string", minLength: 1, maxLength: 240 },
     description: {
       type: "string",
@@ -84,7 +84,7 @@ export const PROJECTRA_AI_TOOLS: AiChatTool[] = [
     priority,
     startDate: { type: "string", description: "Дата YYYY-MM-DD или UTC timestamp ISO-8601." },
     dueDate: { type: "string", description: "Дата YYYY-MM-DD или UTC timestamp ISO-8601." },
-    assigneeIds: { type: "array", items: id, maxItems: 20 },
+    assigneeIds: { type: "array", items: id, maxItems: 20, description: "ID исполнителей. Значение \"me\" означает текущего пользователя." },
     isPersonal: { type: "boolean" },
   }, ["projectId", "title"]),
   functionTool("update_task", "Изменить только явно указанные поля одной задачи. При изменении description используй Markdown и сохраняй полезное существующее форматирование.", {

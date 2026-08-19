@@ -138,7 +138,7 @@ export function getAiAssistant(): CachedAssistant {
       256,
       16_384,
     ),
-    maxToolRounds: integerEnv("PROJECTRA_AI_MAX_TOOL_ROUNDS", 6, 1, 10),
+    maxToolRounds: integerEnv("PROJECTRA_AI_MAX_TOOL_ROUNDS", 8, 1, 10),
     historyMessages: getAiHistoryMessageLimit(),
     debug: process.env.PROJECTRA_AI_DEBUG?.trim() === "1",
   };

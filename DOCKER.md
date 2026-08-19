@@ -138,7 +138,7 @@ OPENROUTER_APP_NAME=ProjectRA
 
 PROJECTRA_AI_HISTORY_MESSAGES=12
 PROJECTRA_AI_MAX_COMPLETION_TOKENS=2048
-PROJECTRA_AI_MAX_TOOL_ROUNDS=6
+PROJECTRA_AI_MAX_TOOL_ROUNDS=8
 
 # Если исходящие запросы должны идти через один прокси:
 OPENROUTER_PROXY_URL=http://login:password@proxy-host:proxy-port

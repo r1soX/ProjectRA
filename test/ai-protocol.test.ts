@@ -6,6 +6,25 @@ import {
   hasExplicitWriteIntent,
   isRetryRequest,
 } from "../src/lib/ai/intent";
+import {
+  agentTextIncludes,
+  normalizeAgentSearchText,
+} from "../src/lib/agent/search-text";
+
+test("agent search ignores punctuation and Russian spelling variants", () => {
+  assert.equal(
+    agentTextIncludes("Задачи (Смолин В.С.)", "Задачи Смолин В.С."),
+    true,
+  );
+  assert.equal(
+    agentTextIncludes("Идеи к реализации автоматизации", "Идеи для реализации"),
+    true,
+  );
+  assert.equal(
+    normalizeAgentSearchText("Завершённые-задачи"),
+    "завершенные задачи",
+  );
+});
 
 test("OpenRouter tool metadata is preserved for the next round", () => {
   const payload = {
