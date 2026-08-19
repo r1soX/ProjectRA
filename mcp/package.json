@@ -1,0 +1,29 @@
+{
+  "name": "@projectra/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/http.ts",
+    "start": "node dist/http.js",
+    "stdio": "tsx src/stdio.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/express": "2.0.0",
+    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "express": "^5.1.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.0",
+    "vitest": "^3.2.4"
+  }
+}

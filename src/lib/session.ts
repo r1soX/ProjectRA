@@ -12,7 +12,7 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
-export type SessionPayload = { uid: string };
+export type SessionPayload = { uid: string; expiresAt: number };
 
 export async function signSession(uid: string): Promise<string> {
   return new SignJWT({ uid })
@@ -28,7 +28,9 @@ export async function verifySession(
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, getSecret());
-    if (typeof payload.uid === "string") return { uid: payload.uid };
+    if (typeof payload.uid === "string" && typeof payload.exp === "number") {
+      return { uid: payload.uid, expiresAt: payload.exp };
+    }
     return null;
   } catch {
     return null;

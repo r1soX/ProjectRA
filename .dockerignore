@@ -12,3 +12,4 @@ prisma/dev.db-wal
 uploads
 .env
 *.md
+mcp/CODEX.md

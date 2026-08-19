@@ -21,6 +21,11 @@ export type SessionUser = {
   avatarEmoji: string | null;
 };
 
+export type TokenSession = {
+  user: SessionUser;
+  expiresAt: number;
+};
+
 export async function setSessionCookie(userId: string) {
   const token = await signSession(userId);
   // Only mark the cookie Secure when actually served over HTTPS — otherwise a
@@ -43,9 +48,10 @@ export async function clearSessionCookie() {
 }
 
 /** Returns the current user (validated against DB), or null. */
-export async function getSession(): Promise<SessionUser | null> {
-  const store = await cookies();
-  const payload = await verifySession(store.get(SESSION_COOKIE)?.value);
+export async function getUserFromSessionToken(
+  token: string | undefined,
+): Promise<TokenSession | null> {
+  const payload = await verifySession(token);
   if (!payload) return null;
 
   const user = await prisma.user.findUnique({
@@ -66,16 +72,28 @@ export async function getSession(): Promise<SessionUser | null> {
   if (!user || !user.isActive) return null;
 
   return {
-    id: user.id,
-    username: user.username,
-    lastName: user.lastName,
-    firstName: user.firstName,
-    middleName: user.middleName,
-    role: user.role,
-    timezone: user.timezone,
-    avatar: user.avatar,
-    avatarEmoji: user.avatarEmoji,
+    user: {
+      id: user.id,
+      username: user.username,
+      lastName: user.lastName,
+      firstName: user.firstName,
+      middleName: user.middleName,
+      role: user.role,
+      timezone: user.timezone,
+      avatar: user.avatar,
+      avatarEmoji: user.avatarEmoji,
+    },
+    expiresAt: payload.expiresAt,
   };
+}
+
+/** Returns the current user (validated against DB), or null. */
+export async function getSession(): Promise<SessionUser | null> {
+  const store = await cookies();
+  const session = await getUserFromSessionToken(
+    store.get(SESSION_COOKIE)?.value,
+  );
+  return session?.user ?? null;
 }
 
 /** Redirects to /login when not authenticated. */
