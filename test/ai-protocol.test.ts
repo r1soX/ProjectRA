@@ -11,6 +11,28 @@ import {
   normalizeAgentSearchText,
 } from "../src/lib/agent/search-text";
 import { messageContent } from "../src/lib/ai/message-context";
+import { detectAiReferenceTrigger } from "../src/lib/ai/reference-input";
+import { containsTechnicalId } from "../src/lib/ai/content-policy";
+
+test("a selected reference ends after its trailing space", () => {
+  assert.deepEqual(
+    detectAiReferenceTrigger("Создай задачу в #", 17, []),
+    { type: "project", start: 16, query: "" },
+  );
+  assert.equal(
+    detectAiReferenceTrigger(
+      "Создай задачу в #Задачи (Смолин В.С.) продолжение",
+      51,
+      ["#Задачи (Смолин В.С.)"],
+    ),
+    null,
+  );
+});
+
+test("technical IDs are detected in task descriptions and comments", () => {
+  assert.equal(containsTechnicalId("Задача cmqx6z5lb00031kk77mpe0x2h"), true);
+  assert.equal(containsTechnicalId("Проверить ATOLAuto в реальных условиях"), false);
+});
 
 test("selected references add trusted exact IDs to the model context", () => {
   const content = messageContent({

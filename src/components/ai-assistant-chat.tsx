@@ -29,6 +29,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Markdown } from "@/components/ui/markdown";
 import { useConfirm } from "@/components/ui/dialog-provider";
 import { cn } from "@/lib/cn";
+import { detectAiReferenceTrigger } from "@/lib/ai/reference-input";
 
 type AiAction = {
   tool: string;
@@ -339,20 +340,18 @@ export function AiAssistantChat({
 
   function updateInput(value: string, cursor: number) {
     setInput(value);
-    const beforeCursor = value.slice(0, cursor);
-    const match = beforeCursor.match(/(^|[\s(])([@#$])([^@#$\n]*)$/);
-    if (!match || match[3].length > 120) {
+    const trigger = detectAiReferenceTrigger(
+      value,
+      cursor,
+      references.map((reference) => reference.marker),
+    );
+    if (!trigger) {
       setReferencePicker(null);
       setReferenceItems([]);
       setReferencesLoading(false);
       return;
     }
-    const type = match[2] === "@" ? "user" : match[2] === "#" ? "project" : "task";
-    setReferencePicker({
-      type,
-      start: beforeCursor.lastIndexOf(match[2]),
-      query: match[3].trim(),
-    });
+    setReferencePicker(trigger);
     setReferenceItems([]);
     setReferencesLoading(false);
   }

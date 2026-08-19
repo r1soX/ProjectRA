@@ -6,6 +6,7 @@ import {
   AgentServiceError,
   ProjectraAgentService,
 } from "@/lib/agent/service";
+import { containsTechnicalId } from "./content-policy";
 import type { AiChatTool } from "./config";
 
 type JsonSchema = Record<string, unknown>;
@@ -79,7 +80,7 @@ export const PROJECTRA_AI_TOOLS: AiChatTool[] = [
     description: {
       type: "string",
       maxLength: 20_000,
-      description: "Описание задачи в Markdown: заголовки, списки, чек-листы, выделение, ссылки и блоки кода.",
+      description: "Описание задачи в Markdown: заголовки, списки, чек-листы, выделение, ссылки и блоки кода. Не включай технические ID задач, досок, колонок и пользователей.",
     },
     priority,
     startDate: { type: "string", description: "Дата YYYY-MM-DD или UTC timestamp ISO-8601." },
@@ -93,7 +94,7 @@ export const PROJECTRA_AI_TOOLS: AiChatTool[] = [
     description: {
       type: ["string", "null"],
       maxLength: 20_000,
-      description: "Новое описание в Markdown или null для очистки.",
+      description: "Новое описание в Markdown или null для очистки. Не включай технические ID задач, досок, колонок и пользователей.",
     },
     priority,
     startDate: date,
@@ -114,7 +115,7 @@ export const PROJECTRA_AI_TOOLS: AiChatTool[] = [
       type: "string",
       minLength: 1,
       maxLength: 10_000,
-      description: "Текст комментария в Markdown: списки, выделение, ссылки, цитаты и блоки кода.",
+      description: "Текст комментария в Markdown: списки, выделение, ссылки, цитаты и блоки кода. Не включай технические ID задач, досок, колонок и пользователей.",
     },
   }, ["taskId", "body"]),
   functionTool("move_task", "Переместить задачу в точную колонку той же доски.", {
@@ -198,6 +199,18 @@ export async function executeProjectraAiTool(
   try {
     const input = JSON.parse(rawArguments) as unknown;
     const request = agentRequestSchema.parse({ operation: name, input });
+    if (
+      (request.operation === "create_task" || request.operation === "update_task")
+      && containsTechnicalId(request.input.description)
+    ) {
+      throw new AiToolContentError("Описание задачи не должно содержать технические ID. Повтори вызов без ID.");
+    }
+    if (
+      request.operation === "add_task_comment"
+      && containsTechnicalId(request.input.body)
+    ) {
+      throw new AiToolContentError("Комментарий не должен содержать технические ID. Повтори вызов без ID.");
+    }
     const result = await service.execute(request);
     return {
       content: compactJson({ ok: true, data: result }),
@@ -238,6 +251,7 @@ export function aiToolProgressLabel(name: string) {
 }
 
 function safeToolError(error: unknown) {
+  if (error instanceof AiToolContentError) return error.message;
   if (error instanceof AgentServiceError) return error.message;
   if (error instanceof ZodError) {
     return error.issues[0]?.message ?? "Некорректные параметры инструмента.";
@@ -246,6 +260,8 @@ function safeToolError(error: unknown) {
   console.error("ProjectRA AI tool failed", error);
   return "ProjectRA не смогла выполнить операцию из-за внутренней ошибки.";
 }
+
+class AiToolContentError extends Error {}
 
 function compactJson(value: unknown) {
   const serialized = JSON.stringify(value);
