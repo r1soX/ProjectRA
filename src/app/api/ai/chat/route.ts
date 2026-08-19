@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { runProjectraAssistant } from "@/lib/ai/assistant";
 import {
   AiConfigurationError,
-  AiProvidersExhaustedError,
+  AiOpenRouterError,
   getAiHistoryMessageLimit,
   isAiConfigured,
 } from "@/lib/ai/config";
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
   if (!isAiConfigured()) {
     return response({
       ok: false,
-      error: "ИИ-помощник не настроен: добавьте CEREBRAS_API_KEY или GEMINI_API_KEY.",
+      error: "ИИ-помощник не настроен: добавьте OPENROUTER_API_KEY.",
     }, 503);
   }
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       select: { role: true, body: true },
     });
 
-    advanceAiProgress(session.user.id, "Передаю запрос основному ИИ-провайдеру", {
+    advanceAiProgress(session.user.id, "Передаю запрос в OpenRouter", {
       phase: "thinking",
       round: 1,
     });
@@ -190,24 +190,32 @@ function parseActions(raw: string | null) {
 
 function publicAiError(error: unknown) {
   if (error instanceof AiConfigurationError) return { status: 503, message: error.message };
-  if (error instanceof AiProvidersExhaustedError) {
-    const attempts = error.attempts;
-    if (attempts.length > 0 && attempts.every((attempt) => attempt.kind === "rate_limit")) {
-      return {
-        status: 429,
-        message: "Лимиты всех настроенных ИИ-провайдеров исчерпаны. Повторите запрос позже.",
-      };
+  if (error instanceof AiOpenRouterError) {
+    if (error.kind === "authentication") {
+      return { status: 502, message: "OpenRouter отклонил API-ключ. Проверьте OPENROUTER_API_KEY." };
     }
-    if (attempts.length > 0 && attempts.every((attempt) => attempt.kind === "timeout")) {
-      return {
-        status: 504,
-        message: "Все настроенные ИИ-провайдеры превысили время ожидания. Проверьте прокси.",
-      };
+    if (error.kind === "credits") {
+      return { status: 402, message: "На балансе OpenRouter недостаточно средств." };
     }
-    return {
-      status: 502,
-      message: `ИИ-провайдеры недоступны: ${attempts.map(providerAttemptLabel).join("; ")}.`,
-    };
+    if (error.kind === "forbidden") {
+      return { status: 502, message: "OpenRouter запретил запрос для выбранной модели или ключа." };
+    }
+    if (error.kind === "rate_limit") {
+      return { status: 429, message: "OpenRouter ограничил частоту запросов. Повторите позже." };
+    }
+    if (error.kind === "timeout") {
+      return { status: 504, message: "OpenRouter превысил время ожидания. Проверьте сеть или прокси." };
+    }
+    if (error.kind === "not_found") {
+      return { status: 502, message: "Модель OPENROUTER_MODEL не найдена в OpenRouter." };
+    }
+    if (error.kind === "bad_request") {
+      return { status: 502, message: "OpenRouter или выбранная модель отклонили запрос." };
+    }
+    if (error.kind === "unavailable") {
+      return { status: 503, message: "OpenRouter временно не нашёл доступный сервер модели." };
+    }
+    return { status: 502, message: "OpenRouter временно недоступен." };
   }
   return { status: 500, message: "ИИ-помощник временно недоступен." };
 }
@@ -215,26 +223,4 @@ function publicAiError(error: unknown) {
 function trimLeadingAssistant<T extends { role: string }>(history: T[]) {
   const firstUser = history.findIndex((message) => message.role === "USER");
   return firstUser > 0 ? history.slice(firstUser) : history;
-}
-
-function providerAttemptLabel(attempt: AiProvidersExhaustedError["attempts"][number]) {
-  const provider = attempt.provider === "cerebras"
-    ? "Cerebras"
-    : attempt.provider === "gemini"
-      ? "Gemini"
-      : "Groq";
-  const reason = attempt.kind === "authentication"
-    ? "ключ отклонён"
-    : attempt.kind === "rate_limit"
-      ? "лимит исчерпан"
-      : attempt.kind === "timeout"
-        ? "таймаут"
-        : attempt.kind === "connection"
-          ? "нет соединения"
-          : attempt.kind === "not_found"
-            ? "неверный endpoint или модель"
-            : attempt.kind === "bad_request"
-              ? "запрос или модель не поддерживаются"
-              : "ошибка сервиса";
-  return `${provider}: ${reason}`;
 }

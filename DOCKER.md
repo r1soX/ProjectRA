@@ -103,18 +103,17 @@ Nginx (если используется) должен по-прежнему п�
 | `POSTGRES_USER/PASSWORD/DB` | параметры контейнера Postgres |
 | `RUN_SEED=1` | если задан у сервиса `app` — сидить при старте |
 | `DISABLE_DEADLINE_SCHEDULER=1` | отключить встроенный планировщик напоминаний |
-| `PROJECTRA_AI_PROVIDER` | основной провайдер: `cerebras`, `gemini` или `groq` |
-| `PROJECTRA_AI_PROXY_URL` | общий HTTP(S)-прокси для всех ИИ-провайдеров |
+| `OPENROUTER_API_KEY` | серверный ключ единого OpenRouter API |
+| `OPENROUTER_MODEL` | модель, по умолчанию `openai/gpt-oss-120b` |
+| `OPENROUTER_BASE_URL` | API URL, по умолчанию `https://openrouter.ai/api/v1` |
+| `OPENROUTER_PROXY_URL` | необязательный HTTP(S)-прокси для OpenRouter |
+| `OPENROUTER_SITE_URL` / `OPENROUTER_APP_NAME` | необязательная атрибуция приложения в OpenRouter |
+| `PROJECTRA_AI_PROXY_URL` | общий резервный HTTP(S)-прокси |
 | `PROJECTRA_AI_HISTORY_MESSAGES` | число последних сообщений в контексте модели, по умолчанию 12 |
-| `CEREBRAS_API_KEY` | серверный ключ Cerebras; первый провайдер по умолчанию |
-| `GEMINI_API_KEY` | серверный ключ Gemini; автоматический fallback после Cerebras |
-| `GROQ_API_KEY` | необязательный третий fallback-провайдер |
-| `CEREBRAS_MODEL` | модель Cerebras, по умолчанию `gpt-oss-120b` |
-| `GEMINI_MODEL` | модель Gemini, по умолчанию `gemini-3.7-flash` |
-| `*_PROXY_URL`, `*_BASE_URL`, `*_TIMEOUT_MS` | индивидуальные настройки каждого провайдера |
+| `OPENROUTER_TIMEOUT_MS` | таймаут одного запроса, по умолчанию 60000 мс |
 | `PROJECTRA_AI_DEBUG=1` | писать в логи номера раундов и названия вызванных инструментов |
 
-## Встроенный ИИ-помощник Cerebras + Gemini на Ubuntu
+## Встроенный ИИ-помощник OpenRouter на Ubuntu
 
 Помощник находится в левом меню ProjectRA и открывается поверх текущей
 страницы. Он работает от имени вошедшего пользователя и использует те же
@@ -128,36 +127,26 @@ cd /opt/ProjectRA
 nano .env
 ```
 
-Добавьте в `.env` (без пробелов вокруг `=`). Ключ Gemini называется именно
-`GEMINI_API_KEY`:
+Добавьте в `.env` (без пробелов вокруг `=`):
 
 ```dotenv
-PROJECTRA_AI_PROVIDER=cerebras
+OPENROUTER_API_KEY=sk-or-v1-ваш_ключ
+OPENROUTER_MODEL=openai/gpt-oss-120b
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_SITE_URL=https://projectra.ru
+OPENROUTER_APP_NAME=ProjectRA
+
 PROJECTRA_AI_HISTORY_MESSAGES=12
 PROJECTRA_AI_MAX_COMPLETION_TOKENS=2048
 PROJECTRA_AI_MAX_TOOL_ROUNDS=6
 
-CEREBRAS_API_KEY=csk_ваш_ключ
-CEREBRAS_MODEL=gpt-oss-120b
-CEREBRAS_BASE_URL=https://api.cerebras.ai/v1
-
-GEMINI_API_KEY=ваш_ключ_Gemini
-GEMINI_MODEL=gemini-3.7-flash
-GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
-
 # Если исходящие запросы должны идти через один прокси:
-PROJECTRA_AI_PROXY_URL=http://login:password@proxy-host:proxy-port
-
-# Необязательно: существующий ключ Groq будет третьим fallback.
-GROQ_API_KEY=
-GROQ_MODEL=openai/gpt-oss-120b
+OPENROUTER_PROXY_URL=http://login:password@proxy-host:proxy-port
 ```
 
-Порядок по умолчанию: **Cerebras → Gemini → Groq**. Провайдер без ключа
-пропускается. Если прокси не нужен, оставьте `PROJECTRA_AI_PROXY_URL=` пустым.
-Если конкретному провайдеру нужен отдельный прокси, задайте
-`CEREBRAS_PROXY_URL`, `GEMINI_PROXY_URL` или `GROQ_PROXY_URL`: индивидуальная
-настройка имеет приоритет над общей. Если логин или пароль
+ProjectRA обращается только к OpenRouter. Выбор доступного upstream-сервера и
+fallback выполняет сам OpenRouter. Если прокси не нужен, оставьте
+`OPENROUTER_PROXY_URL=` пустым. Если логин или пароль
 содержит `@`, `:`, `/`, `#` или другие специальные символы URL, закодируйте их
 percent-encoding. Ключ и адрес прокси не добавляйте в Git и не размещайте в
 клиентском JavaScript.
@@ -176,9 +165,8 @@ docker compose logs --tail=100 app
 пользователи не удаляются. Проверить наличие переменных без вывода секретов:
 
 ```bash
-docker compose exec app sh -lc 'test -n "$CEREBRAS_API_KEY" && echo "Cerebras key: OK" || echo "Cerebras key: MISSING"'
-docker compose exec app sh -lc 'test -n "$GEMINI_API_KEY" && echo "Gemini key: OK" || echo "Gemini key: MISSING"'
-docker compose exec app sh -lc 'test -n "$PROJECTRA_AI_PROXY_URL" && echo "AI proxy: SET" || echo "AI proxy: OFF"'
+docker compose exec app sh -lc 'test -n "$OPENROUTER_API_KEY" && echo "OpenRouter key: OK" || echo "OpenRouter key: MISSING"'
+docker compose exec app sh -lc 'test -n "$OPENROUTER_PROXY_URL" && echo "AI proxy: SET" || echo "AI proxy: OFF"'
 ```
 
 Затем войдите на `https://projectra.ru`, нажмите **ИИ-помощник** слева и

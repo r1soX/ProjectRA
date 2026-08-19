@@ -2,7 +2,11 @@ import "server-only";
 
 import type { TokenSession } from "@/lib/auth";
 import { ProjectraAgentService } from "@/lib/agent/service";
-import { getAiAssistant, type AiChatMessage } from "./config";
+import {
+  getAiAssistant,
+  type AiChatMessage,
+  type AiCompletionResult,
+} from "./config";
 import {
   executeProjectraAiTool,
   aiToolProgressLabel,
@@ -48,6 +52,7 @@ export async function runProjectraAssistant(
   ];
   const actions: AiVisibleAction[] = [];
   const executedWrites = new Set<string>();
+  const openRouterSessionId = `projectra-${crypto.randomUUID()}`;
   let toolCallsCount = 0;
   let usedProviderModel = "ИИ";
 
@@ -56,31 +61,50 @@ export async function runProjectraAssistant(
       round === 0 ? "Понимаю запрос и выбираю действия" : "Проверяю результаты предыдущего шага",
       { phase: "thinking", round: round + 1 },
     );
-    const completion = await client.create(
-      {
-        messages,
-        tools: PROJECTRA_AI_TOOLS,
-        tool_choice: "auto",
-        parallel_tool_calls: false,
-        temperature: 0.2,
-        max_completion_tokens: config.maxCompletionTokens,
-      },
-      signal,
-    );
+    let completion: AiCompletionResult;
+    try {
+      completion = await client.create(
+        {
+          messages,
+          tools: PROJECTRA_AI_TOOLS,
+          tool_choice: "auto",
+          parallel_tool_calls: false,
+          temperature: 0.2,
+          max_completion_tokens: config.maxCompletionTokens,
+          session_id: openRouterSessionId,
+        },
+        signal,
+      );
+    } catch (error) {
+      if (actions.length === 0) throw error;
+      console.error(
+        "ProjectRA AI continuation failed after completed actions",
+        error,
+      );
+      return {
+        content: actionFallback(actions),
+        actions,
+        model: usedProviderModel,
+      };
+    }
     const answer = completion.message;
-    usedProviderModel = `${completion.provider}/${completion.model}`;
+    usedProviderModel = `openrouter/${completion.model}`;
 
     messages.push({
       role: "assistant",
       content: answer.content,
       ...(answer.tool_calls ? { tool_calls: answer.tool_calls } : {}),
+      ...(answer.reasoning ? { reasoning: answer.reasoning } : {}),
+      ...(answer.reasoning_details
+        ? { reasoning_details: answer.reasoning_details }
+        : {}),
     });
 
     if (!answer.tool_calls?.length) {
       debugLog(config.debug, {
         event: "completed",
         userId: session.user.id,
-        provider: completion.provider,
+        provider: "openrouter",
         model: completion.model,
         round: round + 1,
         actions: actions.length,
@@ -170,10 +194,11 @@ export async function runProjectraAssistant(
         messages,
         temperature: 0.2,
         max_completion_tokens: config.maxCompletionTokens,
+        session_id: openRouterSessionId,
       },
       signal,
     );
-    usedProviderModel = `${completion.provider}/${completion.model}`;
+    usedProviderModel = `openrouter/${completion.model}`;
     const content = completion.message.content?.trim();
     return {
       content: content || actionFallback(actions),
