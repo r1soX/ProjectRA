@@ -11,12 +11,13 @@ import {
 } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useDragControls } from "motion/react";
 import {
   AlertCircle,
   Bot,
   CheckCircle2,
   Eraser,
+  GripHorizontal,
   LayoutGrid,
   ListTodo,
   Loader2,
@@ -107,6 +108,7 @@ export function AiAssistantChat({
   desktopLeft: number;
 }) {
   const confirm = useConfirm();
+  const dragControls = useDragControls();
   const mounted = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const [loaded, setLoaded] = useState(false);
   const [messages, setMessages] = useState<AiMessage[]>([]);
@@ -122,6 +124,7 @@ export function AiAssistantChat({
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const dragBoundsRef = useRef<HTMLDivElement>(null);
   const historyRequest = useRef(false);
 
   useEffect(() => {
@@ -423,6 +426,11 @@ export function AiAssistantChat({
             onClick={onClose}
             className="fixed inset-0 z-[240] bg-black/60 backdrop-blur-sm md:hidden"
           />
+          <div
+            ref={dragBoundsRef}
+            aria-hidden="true"
+            className="pointer-events-none fixed inset-2 z-[249] hidden md:block"
+          />
           <motion.section
             role="dialog"
             aria-label="ИИ-помощник ProjectRA"
@@ -430,10 +438,24 @@ export function AiAssistantChat({
             animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
             exit={{ opacity: 0, x: -16, y: 8, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 360, damping: 32 }}
+            drag
+            dragControls={dragControls}
+            dragListener={false}
+            dragMomentum={false}
+            dragElastic={0}
+            dragConstraints={dragBoundsRef}
             style={{ "--assistant-left": `${desktopLeft}px` } as CSSProperties}
-            className="glass-strong fixed inset-y-0 left-0 z-[250] flex w-full flex-col overflow-hidden border-white/10 shadow-2xl shadow-black/50 md:bottom-4 md:left-[var(--assistant-left)] md:top-auto md:h-[min(72vh,680px)] md:w-[420px] md:rounded-2xl md:border"
+            className="fixed inset-y-0 left-0 z-[250] flex w-full flex-col overflow-hidden border-white/10 bg-neutral-950 shadow-2xl shadow-black/50 md:bottom-4 md:left-[var(--assistant-left)] md:top-auto md:h-[min(72vh,680px)] md:w-[420px] md:rounded-2xl md:border"
           >
-            <header className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 bg-gradient-to-r from-sky-500/10 to-indigo-500/10 px-4">
+            <header
+              onPointerDown={(event) => {
+                if (!window.matchMedia("(min-width: 768px)").matches) return;
+                const target = event.target as HTMLElement;
+                if (target.closest("button, a, input, textarea")) return;
+                dragControls.start(event);
+              }}
+              className="flex h-16 shrink-0 select-none items-center gap-3 border-b border-white/10 bg-gradient-to-r from-sky-500/10 to-indigo-500/10 px-4 md:cursor-grab md:touch-none md:active:cursor-grabbing"
+            >
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 text-white shadow-lg shadow-sky-500/20">
                 <Bot className="h-5 w-5" />
               </span>
@@ -446,6 +468,10 @@ export function AiAssistantChat({
                   Работает с ProjectRA от вашего имени
                 </p>
               </div>
+              <GripHorizontal
+                aria-hidden="true"
+                className="hidden h-4 w-4 shrink-0 text-neutral-600 md:block"
+              />
               <button
                 type="button"
                 title="Очистить историю"
@@ -609,7 +635,7 @@ export function AiAssistantChat({
               )}
             </div>
 
-            <footer className="shrink-0 border-t border-white/10 bg-neutral-950/60 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <footer className="shrink-0 border-t border-white/10 bg-neutral-950 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               {error && (
                 <div className="mb-2 flex items-start gap-2 rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -719,7 +745,7 @@ function ReferenceSuggestions({
     ? "Введите минимум 2 символа для поиска задачи"
     : "Ничего не найдено";
   return (
-    <div className="glass-strong absolute bottom-full left-0 right-0 z-30 mb-2 max-h-72 overflow-y-auto rounded-xl border border-white/10 p-1.5 shadow-2xl shadow-black/50">
+    <div className="absolute bottom-full left-0 right-0 z-30 mb-2 max-h-72 overflow-y-auto rounded-xl border border-white/10 bg-neutral-900 p-1.5 shadow-2xl shadow-black/50">
       <div className="flex items-center gap-2 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-500">
         <ReferenceTypeIcon type={type} className="h-3.5 w-3.5" />
         {type === "user" ? "Сотрудники" : type === "project" ? "Доски" : "Задачи"}
