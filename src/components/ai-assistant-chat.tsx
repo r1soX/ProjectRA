@@ -5,13 +5,18 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion, useDragControls } from "motion/react";
+import {
+  AnimatePresence,
+  motion,
+  useDragControls,
+  useMotionValue,
+  type MotionStyle,
+} from "motion/react";
 import {
   AlertCircle,
   Bot,
@@ -95,6 +100,52 @@ const SUGGESTIONS = [
 ];
 
 const subscribeToHydration = () => () => undefined;
+const ASSISTANT_POSITION_KEY = "projectra:ai-assistant-position";
+const ASSISTANT_VIEWPORT_MARGIN = 8;
+
+type AssistantPosition = {
+  left: number;
+  top: number;
+};
+
+function readAssistantPosition() {
+  try {
+    const value = window.localStorage.getItem(ASSISTANT_POSITION_KEY);
+    if (!value) return null;
+    const position = JSON.parse(value) as Partial<AssistantPosition>;
+    if (!Number.isFinite(position.left) || !Number.isFinite(position.top)) return null;
+    return position as AssistantPosition;
+  } catch {
+    return null;
+  }
+}
+
+function saveAssistantPosition(position: AssistantPosition) {
+  try {
+    window.localStorage.setItem(ASSISTANT_POSITION_KEY, JSON.stringify(position));
+  } catch {
+    // The current session still keeps the position if browser storage is unavailable.
+  }
+}
+
+function clampAssistantPosition(
+  position: AssistantPosition,
+  width: number,
+  height: number,
+) {
+  const maxLeft = Math.max(
+    ASSISTANT_VIEWPORT_MARGIN,
+    window.innerWidth - width - ASSISTANT_VIEWPORT_MARGIN,
+  );
+  const maxTop = Math.max(
+    ASSISTANT_VIEWPORT_MARGIN,
+    window.innerHeight - height - ASSISTANT_VIEWPORT_MARGIN,
+  );
+  return {
+    left: Math.min(Math.max(position.left, ASSISTANT_VIEWPORT_MARGIN), maxLeft),
+    top: Math.min(Math.max(position.top, ASSISTANT_VIEWPORT_MARGIN), maxTop),
+  };
+}
 
 export function AiAssistantChat({
   open,
@@ -109,6 +160,8 @@ export function AiAssistantChat({
 }) {
   const confirm = useConfirm();
   const dragControls = useDragControls();
+  const dragX = useMotionValue(0);
+  const dragY = useMotionValue(0);
   const mounted = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const [loaded, setLoaded] = useState(false);
   const [messages, setMessages] = useState<AiMessage[]>([]);
@@ -125,7 +178,48 @@ export function AiAssistantChat({
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dragBoundsRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const savedPositionRef = useRef<AssistantPosition | null>(null);
+  const positionLoadedRef = useRef(false);
   const historyRequest = useRef(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (!positionLoadedRef.current) {
+      savedPositionRef.current = readAssistantPosition();
+      positionLoadedRef.current = true;
+    }
+
+    const desktopMedia = window.matchMedia("(min-width: 768px)");
+    const restorePosition = () => {
+      if (!desktopMedia.matches) {
+        dragX.set(0);
+        dragY.set(0);
+        return;
+      }
+
+      const dialog = dialogRef.current;
+      const savedPosition = savedPositionRef.current;
+      if (!dialog || !savedPosition) return;
+
+      const rect = dialog.getBoundingClientRect();
+      const baseLeft = rect.left - dragX.get();
+      const baseTop = rect.top - dragY.get();
+      const position = clampAssistantPosition(savedPosition, rect.width, rect.height);
+      dragX.set(position.left - baseLeft);
+      dragY.set(position.top - baseTop);
+    };
+
+    const frame = window.requestAnimationFrame(restorePosition);
+    window.addEventListener("resize", restorePosition);
+    desktopMedia.addEventListener("change", restorePosition);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", restorePosition);
+      desktopMedia.removeEventListener("change", restorePosition);
+    };
+  }, [desktopLeft, dragX, dragY, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -432,19 +526,36 @@ export function AiAssistantChat({
             className="pointer-events-none fixed inset-2 z-[249] hidden md:block"
           />
           <motion.section
+            ref={dialogRef}
             role="dialog"
             aria-label="ИИ-помощник ProjectRA"
-            initial={{ opacity: 0, x: -20, y: 12, scale: 0.97 }}
-            animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-            exit={{ opacity: 0, x: -16, y: 8, scale: 0.98 }}
-            transition={{ type: "spring", stiffness: 360, damping: 32 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             drag
             dragControls={dragControls}
             dragListener={false}
             dragMomentum={false}
             dragElastic={0}
             dragConstraints={dragBoundsRef}
-            style={{ "--assistant-left": `${desktopLeft}px` } as CSSProperties}
+            onDragEnd={() => {
+              if (!window.matchMedia("(min-width: 768px)").matches) return;
+              const rect = dialogRef.current?.getBoundingClientRect();
+              if (!rect) return;
+              const position = clampAssistantPosition(
+                { left: rect.left, top: rect.top },
+                rect.width,
+                rect.height,
+              );
+              savedPositionRef.current = position;
+              saveAssistantPosition(position);
+            }}
+            style={{
+              "--assistant-left": `${desktopLeft}px`,
+              x: dragX,
+              y: dragY,
+            } as MotionStyle & { "--assistant-left": string }}
             className="fixed inset-y-0 left-0 z-[250] flex w-full flex-col overflow-hidden border-white/10 bg-neutral-950 shadow-2xl shadow-black/50 md:bottom-4 md:left-[var(--assistant-left)] md:top-auto md:h-[min(72vh,680px)] md:w-[420px] md:rounded-2xl md:border"
           >
             <header
